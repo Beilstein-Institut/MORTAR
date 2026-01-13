@@ -50,7 +50,7 @@ import java.util.logging.Logger;
  * @author Jonas Schaub
  * @version 1.0.0.0
  */
-public class FragmentationTask implements Callable<Integer> {
+public class FragmentationTask implements Callable<FragmentationTaskResult> {
     //<editor-fold desc="private static final class constants" defaultstate="collapsed">
     /**
      * Lock to be used when updating the shared fragmentsHashTable. Needs to be static to be shared between all task
@@ -84,10 +84,6 @@ public class FragmentationTask implements Callable<Integer> {
      * Whether stereochemistry in the fragments should be regarded when creating their SMILES codes.
      */
     private final boolean isStereochemistryRegarded;
-    /**
-     * Integer to count possible exceptions which could occur during fragmentation.
-     */
-    private int exceptionsCounter;
     //</editor-fold>
     //
     /**
@@ -111,7 +107,6 @@ public class FragmentationTask implements Callable<Integer> {
         this.fragmentsHashTable = aHashtableOfFragments;
         this.fragmentationName = aFragmentationName;
         this.isStereochemistryRegarded = isStereo;
-        this.exceptionsCounter = 0;
     }
     //
     /**
@@ -122,7 +117,13 @@ public class FragmentationTask implements Callable<Integer> {
      * @throws Exception if unable to compute a result (copied from doc in Callable interface)
      */
     @Override
-    public Integer call() throws Exception {
+    public FragmentationTaskResult call() throws Exception {
+        int tmpExceptionsCounter = 0;
+        int tmpMoleculeProducedNoFragmentsCounter = 0;
+        int tmpMoleculeFailedGetAtomContainerCounter = 0;
+        int tmpFilteredMoleculesCounter = 0;
+        int tmpFragmentFailedSmilesGenerationCounter = 0;
+        int tmpUnexpectedExceptionsCounter = 0;
         for (MoleculeDataModel tmpMolecule : this.moleculesList) {
             try {
                 IAtomContainer tmpAtomContainer;
@@ -130,7 +131,7 @@ public class FragmentationTask implements Callable<Integer> {
                     tmpAtomContainer = tmpMolecule.getAtomContainer();
                 }
                 catch(CDKException anException) {
-                    this.exceptionsCounter++;
+                    tmpMoleculeFailedGetAtomContainerCounter++;
                     Logger.getLogger(MoleculeDataModel.class.getName()).log(
                             Level.SEVERE, String.format("%s Molecule name: %s", anException.toString(), tmpMolecule.getName()), anException);
                     continue;
@@ -139,6 +140,7 @@ public class FragmentationTask implements Callable<Integer> {
                 if (this.fragmenter.shouldBeFiltered(tmpAtomContainer)) {
                     tmpMolecule.getAllFragments().put(this.fragmentationName, new ArrayList<>(0));
                     tmpMolecule.getFragmentFrequencies().put(this.fragmentationName, new HashMap<>(0));
+                    tmpFilteredMoleculesCounter++;
                     continue;
                 }
                 if (this.fragmenter.shouldBePreprocessed(tmpAtomContainer)) {
@@ -150,9 +152,15 @@ public class FragmentationTask implements Callable<Integer> {
                 }
                 catch (NullPointerException | IllegalArgumentException | CloneNotSupportedException anException) {
                     FragmentationTask.LOGGER.log(Level.SEVERE, anException.toString(), anException);
-                    this.exceptionsCounter++;
+                    tmpExceptionsCounter++;
                     tmpMolecule.getAllFragments().put(this.fragmentationName, new ArrayList<>(0));
                     tmpMolecule.getFragmentFrequencies().put(this.fragmentationName, new HashMap<>(0));
+                    continue;
+                }
+                if (tmpFragmentsList.isEmpty()) {
+                    tmpMolecule.getAllFragments().put(this.fragmentationName, new ArrayList<>(0));
+                    tmpMolecule.getFragmentFrequencies().put(this.fragmentationName, new HashMap<>(0));
+                    tmpMoleculeProducedNoFragmentsCounter++;
                     continue;
                 }
                 // list of all fragments for this molecule
@@ -163,7 +171,7 @@ public class FragmentationTask implements Callable<Integer> {
                 for (IAtomContainer tmpFragment : tmpFragmentsList) {
                     String tmpSmiles = ChemUtil.createUniqueSmiles(tmpFragment, this.isStereochemistryRegarded);
                     if (tmpSmiles == null) {
-                        this.exceptionsCounter++;
+                        tmpFragmentFailedSmilesGenerationCounter++;
                         continue;
                     }
                     // create new FragmentDataModel
@@ -189,9 +197,8 @@ public class FragmentationTask implements Callable<Integer> {
                 }
                 tmpMolecule.getFragmentFrequencies().put(this.fragmentationName, tmpFragmentFrequenciesOfMoleculeMap);
                 tmpMolecule.getAllFragments().put(this.fragmentationName, tmpFragmentsOfMolList);
-            }
-            catch(Exception anException) {
-                this.exceptionsCounter++;
+            } catch (Exception anException) {
+                tmpUnexpectedExceptionsCounter++;
                 FragmentationTask.LOGGER.log(Level.SEVERE, String.format("Exception while fragmenting molecule with name: %s", tmpMolecule.getName()), anException);
                 if (tmpMolecule.getAllFragments() != null && !tmpMolecule.getAllFragments().containsKey(this.fragmentationName)) {
                     tmpMolecule.getAllFragments().put(this.fragmentationName, new ArrayList<>(0));
@@ -205,6 +212,13 @@ public class FragmentationTask implements Callable<Integer> {
                 return null;
             }
         }
-        return this.exceptionsCounter;
+        return new FragmentationTaskResult(
+                tmpExceptionsCounter,
+                tmpMoleculeProducedNoFragmentsCounter,
+                tmpMoleculeFailedGetAtomContainerCounter,
+                tmpFilteredMoleculesCounter,
+                tmpFragmentFailedSmilesGenerationCounter,
+                tmpUnexpectedExceptionsCounter
+        );
     }
 }
