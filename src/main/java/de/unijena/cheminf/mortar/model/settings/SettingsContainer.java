@@ -66,9 +66,15 @@ import java.util.logging.Logger;
 public class SettingsContainer {
     //<editor-fold desc="public static final constants" defaultstate="collapsed">
     /**
+     * Number of different settings wrapped by the container.
+     */
+    public static final int NUMBER_OF_SETTINGS = 8;
+
+    /**
      * Name of the settings container file that persists the global settings.
      */
     public static final String SETTINGS_CONTAINER_FILE_NAME = "MORTAR_Settings";
+
     /**
      * Maximum available threads on the given machine.
      */
@@ -147,6 +153,7 @@ public class SettingsContainer {
 
     private SimpleBooleanProperty importAromaticsAsKekuleStructuresSetting;
 
+    @Deprecated
     private SimpleBooleanProperty keepAtomContainerInDataModelSetting;
 
     private SimpleBooleanProperty alwaysMDLV3000FormatAtExportSetting;
@@ -155,6 +162,7 @@ public class SettingsContainer {
 
     private SimpleBooleanProperty regardStereochemistrySetting;
 
+    @Deprecated
     private SimpleBooleanProperty keepLastFragmentSetting;
 
     /**
@@ -608,7 +616,7 @@ public class SettingsContainer {
         String tmpPreferenceContainerFilePathName = tmpSettingsDirectoryPathName
                 + SettingsContainer.SETTINGS_CONTAINER_FILE_NAME
                 + BasicDefinitions.PREFERENCE_CONTAINER_FILE_EXTENSION;
-        List<Property<?>> tmpSettings = new ArrayList<>(6);
+        List<Property<?>> tmpSettings = new ArrayList<>(SettingsContainer.NUMBER_OF_SETTINGS);
         tmpSettings.addAll(this.settings);
         tmpSettings.add(this.recentDirectoryPathSetting);
         try {
@@ -654,7 +662,7 @@ public class SettingsContainer {
                     SettingsContainer.LOGGER.log(Level.SEVERE, String.format("Unable to reload global settings: %s", anException.toString()), anException);
                     return;
                 }
-                List<Property<?>> tmpSettings = new ArrayList<>(8);
+                List<Property<?>> tmpSettings = new ArrayList<>(SettingsContainer.NUMBER_OF_SETTINGS);
                 tmpSettings.addAll(this.settings);
                 tmpSettings.add(this.recentDirectoryPathSetting);
                 PreferenceUtil.updatePropertiesFromPreferences(tmpSettings, tmpDePersistedContainer);
@@ -836,7 +844,7 @@ public class SettingsContainer {
      * @throws UnsupportedOperationException if a setting does not fulfil the requirements
      */
     private void checkSettings() throws UnsupportedOperationException {
-        List<Property<?>> tmpSettings = new ArrayList<>(8);
+        List<Property<?>> tmpSettings = new ArrayList<>(SettingsContainer.NUMBER_OF_SETTINGS);
         tmpSettings.addAll(this.settings);
         tmpSettings.add(this.recentDirectoryPathSetting);
         PreferenceUtil.checkPropertiesForPreferenceRestrictions(tmpSettings);
