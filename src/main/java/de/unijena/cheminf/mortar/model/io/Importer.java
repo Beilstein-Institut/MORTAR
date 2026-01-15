@@ -208,8 +208,8 @@ public class Importer {
      * @param aFile File to import
      * @param isRegardStereo whether stereochemistry should be encoded in the SMILES strings
      * @param isFillOpenValencesWithImplH whether open valences in the imported molecules should be filled with implicit hydrogen atoms
-     * @param isKekulizationEnforced whether imported molecules should always be kekulized, i.e. whether aromaticity
-     *                               should be encoded in the internal SMILES strings or not
+     * @param isKekulizationEnforced whether imported molecules should always be kekulized, which means aromaticity
+     *                               will not(!) be encoded in the internal SMILES strings
      * @return List of MoleculeDataModels which contains the imported molecules or null if the file chooser was
      * closed by the user or a not importable file type was chosen
      * @throws CDKException if the given file cannot be parsed
@@ -271,8 +271,8 @@ public class Importer {
      *
      * @param anAtomContainerSet the set to parse
      * @param isRegardStereo whether stereochemistry should be encoded in the SMILES strings
-     * @param isKekulizationEnforced whether imported molecules should always be kekulized, i.e. whether aromaticity
-     *                               should be encoded in the internal SMILES strings or not
+     * @param isKekulizationEnforced whether imported molecules should always be kekulized, which means aromaticity
+     *                               will not(!) be encoded in the internal SMILES strings (if false, aromaticity will be(!) encoded)
      * @return list of MoleculeDataModel instances or empty list if the input set is empty or null
      */
     private List<MoleculeDataModel> parse(IAtomContainerSet anAtomContainerSet, boolean isRegardStereo, boolean isKekulizationEnforced) {
