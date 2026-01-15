@@ -208,13 +208,15 @@ public class Importer {
      * @param aFile File to import
      * @param isRegardStereo whether stereochemistry should be encoded in the SMILES strings
      * @param isFillOpenValencesWithImplH whether open valences in the imported molecules should be filled with implicit hydrogen atoms
+     * @param isKekulizationEnforced whether imported molecules should always be kekulized, which means aromaticity
+     *                               will not(!) be encoded in the internal SMILES strings
      * @return List of MoleculeDataModels which contains the imported molecules or null if the file chooser was
      * closed by the user or a not importable file type was chosen
      * @throws CDKException if the given file cannot be parsed
      * @throws IOException if the given file cannot be found or read
      * @throws NullPointerException if the given file is null
      */
-    public List<MoleculeDataModel> importMoleculeFile(File aFile, boolean isRegardStereo, boolean isFillOpenValencesWithImplH)
+    public List<MoleculeDataModel> importMoleculeFile(File aFile, boolean isRegardStereo, boolean isFillOpenValencesWithImplH, boolean isKekulizationEnforced)
             throws NullPointerException, IOException, CDKException {
         Objects.requireNonNull(aFile, "aFile is null");
         String tmpRecentDirFromContainer = this.settingsContainer.getRecentDirectoryPathSetting();
@@ -257,7 +259,7 @@ public class Importer {
         }
         this.preprocessMoleculeSet(tmpImportedMoleculesSet, isFillOpenValencesWithImplH);
         this.fileName = aFile.getName();
-        List<MoleculeDataModel> tmpReturnList = this.parse(tmpImportedMoleculesSet, isRegardStereo);
+        List<MoleculeDataModel> tmpReturnList = this.parse(tmpImportedMoleculesSet, isRegardStereo, isKekulizationEnforced);
         return tmpReturnList;
     }
     //
@@ -269,9 +271,11 @@ public class Importer {
      *
      * @param anAtomContainerSet the set to parse
      * @param isRegardStereo whether stereochemistry should be encoded in the SMILES strings
+     * @param isKekulizationEnforced whether imported molecules should always be kekulized, which means aromaticity
+     *                               will not(!) be encoded in the internal SMILES strings (if false, aromaticity will be(!) encoded)
      * @return list of MoleculeDataModel instances or empty list if the input set is empty or null
      */
-    private List<MoleculeDataModel> parse(IAtomContainerSet anAtomContainerSet, boolean isRegardStereo) {
+    private List<MoleculeDataModel> parse(IAtomContainerSet anAtomContainerSet, boolean isRegardStereo, boolean isKekulizationEnforced) {
         if (anAtomContainerSet == null || anAtomContainerSet.isEmpty()) {
             return new ArrayList<>(0);
         }
@@ -279,7 +283,7 @@ public class Importer {
         int tmpExceptionCount = 0;
         for (IAtomContainer tmpAtomContainer : anAtomContainerSet.atomContainers()) {
             //returns null if no SMILES code could be created
-            String tmpSmiles = ChemUtil.createUniqueSmiles(tmpAtomContainer, isRegardStereo);
+            String tmpSmiles = ChemUtil.createUniqueSmiles(tmpAtomContainer, isRegardStereo, !isKekulizationEnforced);
             if (tmpSmiles == null || tmpSmiles.isBlank()) {
                 tmpExceptionCount++;
                 continue;
@@ -609,6 +613,7 @@ public class Importer {
                         String.format("%s molecule name: %s", anException.toString(), tmpMolecule.getProperty(Importer.MOLECULE_NAME_PROPERTY_KEY)),
                         anException);
                 tmpExceptionsCounter++;
+                // note: an exception here does not lead to the causing molecule being removed from the input set!
             }
         }
         if (!isFillOpenValencesWithImplH) {
