@@ -516,10 +516,11 @@ public class MainViewController {
         this.clearGuiAndCollections();
         boolean tmpIsRegardStereo = this.settingsContainer.getRegardStereochemistrySetting();
         boolean tmpIsFillOpenValences = this.settingsContainer.getAddImplicitHydrogensAtImportSetting();
+        boolean tmpIsKekulizationEnforced = this.settingsContainer.getImportAromaticsAsKekuleStructuresSetting();
         this.importTask = new Task<>() {
             @Override
             protected List<MoleculeDataModel> call() throws Exception {
-                List<MoleculeDataModel> tmpSet = tmpImporter.importMoleculeFile(aFile, tmpIsRegardStereo, tmpIsFillOpenValences);
+                List<MoleculeDataModel> tmpSet = tmpImporter.importMoleculeFile(aFile, tmpIsRegardStereo, tmpIsFillOpenValences, tmpIsKekulizationEnforced);
                 return tmpSet;
             }
         };
