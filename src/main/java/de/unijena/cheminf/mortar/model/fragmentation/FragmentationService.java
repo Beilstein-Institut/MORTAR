@@ -1120,24 +1120,24 @@ public class FragmentationService {
         }
         if (tmpExceptionsCounter > 0) {
             FragmentationService.LOGGER.log(Level.WARNING, "{0} molecules caused exceptions in fragmentation \"{1}\" ({2}).",
-                    new Object[]{tmpExceptionsCounter,aFragmentationName, aFragmenter.getFragmentationAlgorithmDisplayName()});
+                    new Object[]{tmpExceptionsCounter, aFragmentationName, aFragmenter.getFragmentationAlgorithmDisplayName()});
         }
         if (tmpMoleculeFailedGetAtomContainerCounter > 0) {
             FragmentationService.LOGGER.log(Level.WARNING, "{0} molecules could not produce a valid atom container in fragmentation \"{1}\" ({2}).",
-                    new Object[]{tmpExceptionsCounter,aFragmentationName, aFragmenter.getFragmentationAlgorithmDisplayName()});
+                    new Object[]{tmpMoleculeFailedGetAtomContainerCounter, aFragmentationName, aFragmenter.getFragmentationAlgorithmDisplayName()});
         }
         if (tmpFragmentFailedSmilesGenerationCounter > 0) {
             FragmentationService.LOGGER.log(Level.WARNING, "{0} fragments could not be parsed to SMILES codes in fragmentation \"{1}\" ({2}).",
-                    new Object[]{tmpFragmentFailedSmilesGenerationCounter,aFragmentationName, aFragmenter.getFragmentationAlgorithmDisplayName()});
+                    new Object[]{tmpFragmentFailedSmilesGenerationCounter, aFragmentationName, aFragmenter.getFragmentationAlgorithmDisplayName()});
         }
         if (tmpUnexpectedExceptionsCounter > 0) {
             FragmentationService.LOGGER.log(Level.WARNING, "{0} molecules caused unexpected exceptions in fragmentation \"{1}\" ({2}).",
-                    new Object[]{tmpUnexpectedExceptionsCounter,aFragmentationName, aFragmenter.getFragmentationAlgorithmDisplayName()});
+                    new Object[]{tmpUnexpectedExceptionsCounter, aFragmentationName, aFragmenter.getFragmentationAlgorithmDisplayName()});
         }
         FragmentationService.LOGGER.log(Level.INFO, "{0} molecules were filtered according to the fragmentation algorithm rules in fragmentation \"{1}\" ({2}).",
-                new Object[]{tmpFilteredMoleculesCounter,aFragmentationName, aFragmenter.getFragmentationAlgorithmDisplayName()});
+                new Object[]{tmpFilteredMoleculesCounter, aFragmentationName, aFragmenter.getFragmentationAlgorithmDisplayName()});
         FragmentationService.LOGGER.log(Level.INFO, "{0} molecules produced no fragments in fragmentation \"{1}\" ({2}).",
-                new Object[]{tmpMoleculeProducedNoFragmentsCounter,aFragmentationName, aFragmenter.getFragmentationAlgorithmDisplayName()});
+                new Object[]{tmpMoleculeProducedNoFragmentsCounter, aFragmentationName, aFragmenter.getFragmentationAlgorithmDisplayName()});
         this.executorService.shutdown();
         tmpMemoryConsumption = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024*1024);
         long tmpEndTime = System.currentTimeMillis();
