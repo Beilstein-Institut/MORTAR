@@ -31,6 +31,7 @@ import de.unijena.cheminf.mortar.gui.util.GuiDefinitions;
 import de.unijena.cheminf.mortar.gui.util.GuiUtil;
 import de.unijena.cheminf.mortar.gui.views.OverviewView;
 import de.unijena.cheminf.mortar.message.Message;
+import de.unijena.cheminf.mortar.model.data.FragmentDataModel;
 import de.unijena.cheminf.mortar.model.data.MoleculeDataModel;
 import de.unijena.cheminf.mortar.model.depict.DepictionUtil;
 
@@ -74,6 +75,7 @@ import javafx.stage.WindowEvent;
 
 import org.openscience.cdk.exception.CDKException;
 
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -167,6 +169,10 @@ public class OverviewViewController implements IViewToolController {
      * Logger of this class.
      */
     private static final Logger LOGGER = Logger.getLogger(OverviewViewController.class.getName());
+    /**
+     * Decimal format for fragment frequencies in the display.
+     */
+    private static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("#.##");
     //</editor-fold>
     //
     //<editor-fold desc="private final class constants" defaultstate="collapsed">
@@ -236,6 +242,10 @@ public class OverviewViewController implements IViewToolController {
      * are its fragments.
      */
     private boolean withFirstStructureHighlight;
+    /**
+     * Boolean value saying whether fragment frequencies should be displayed in the overview view.
+     */
+    private boolean withFrequencyDisplay;
     /**
      * Boolean value whether an event to return to a specific structure in the MainView occurred.
      */
@@ -399,6 +409,7 @@ public class OverviewViewController implements IViewToolController {
                                 + (aMoleculeDataModelList.size() != 1 ? "s" : ""));
                 this.withShowInMainViewOption = true;
                 this.withFirstStructureHighlight = false;
+                this.withFrequencyDisplay = (aDataSource == DataSources.FRAGMENTS_TAB);
             }
             case PARENT_MOLECULES_SAMPLE -> {
                 this.overviewViewTitle = Message.get("OverviewView.titleOfDataSource.parentMolecules") +
@@ -408,6 +419,7 @@ public class OverviewViewController implements IViewToolController {
                                 : "OverviewView.titleOfView.molecules"));
                 this.withShowInMainViewOption = false;
                 this.withFirstStructureHighlight = true;
+                this.withFrequencyDisplay = false;
             }
             case ITEM_WITH_FRAGMENTS_SAMPLE -> {
                 this.overviewViewTitle = Message.get("OverviewView.titleOfDataSource.itemsTab") +
@@ -417,6 +429,7 @@ public class OverviewViewController implements IViewToolController {
                                 : "OverviewView.titleOfView.fragments"));
                 this.withShowInMainViewOption = false;
                 this.withFirstStructureHighlight = true;
+                this.withFrequencyDisplay = false;
             }
             default -> {
                 this.setOverviewViewTitleForDefaultDataSource(aTabName, aMoleculeDataModelList.size());
@@ -752,12 +765,26 @@ public class OverviewViewController implements IViewToolController {
                             //depiction of structure image
                             final Node tmpFinalContentNode;
                             if (!(tmpIterator == 0 && this.withFirstStructureHighlight)) {
-                                tmpFinalContentNode = new ImageView(
-                                        DepictionUtil.depictImageWithZoomAndFillToFitAndWhiteBackground(
-                                                tmpMoleculeDataModel.getAtomContainer(), 1.0, tmpImageWidth,
-                                                tmpImageHeight, false, true
-                                        )
-                                );
+                                if (this.withFrequencyDisplay && tmpMoleculeDataModel instanceof FragmentDataModel tmpFragment) {
+                                    String tmpFrequencyLabel =
+                                            tmpFragment.getMoleculeFrequency()
+                                                    + " ("
+                                                    + OverviewViewController.DECIMAL_FORMAT.format(tmpFragment.getMoleculePercentage() * 100)
+                                                    + "%)";
+                                    tmpFinalContentNode = new ImageView(
+                                            DepictionUtil.depictImageWithTextForOverview(
+                                                    tmpMoleculeDataModel.getAtomContainer(), 1.0, tmpImageWidth,
+                                                    tmpImageHeight, tmpFrequencyLabel, false, true
+                                            )
+                                    );
+                                } else {
+                                    tmpFinalContentNode = new ImageView(
+                                            DepictionUtil.depictImageWithZoomAndFillToFitAndWhiteBackground(
+                                                    tmpMoleculeDataModel.getAtomContainer(), 1.0, tmpImageWidth,
+                                                    tmpImageHeight, false, true
+                                            )
+                                    );
+                                }
                             } else {
                                 //highlighting first structure in parent molecules and item overview view
                                 StackPane tmpStackPane = new StackPane(

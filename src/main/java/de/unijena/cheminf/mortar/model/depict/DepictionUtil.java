@@ -245,6 +245,72 @@ public class DepictionUtil {
             return DepictionUtil.depictErrorImage(anException.getMessage(), 250,250);
         }
     }
+    //
+    /**
+     * Depicts and returns an image with the given text below.
+     *
+     * @param anAtomContainer the molecule to depict
+     * @param aZoom double
+     * @param aWidth double
+     * @param aHeight double
+     * @param aText text label
+     * @param aFillToFit if true, resize depictions to fill all available space
+     * @param anIsBackgroundWhite true if the image should have an opaque white background; false if the background should be transparent
+     * @return Image of 2D structure of IAtomContainer with given text below
+     */
+    public static Image depictImageWithTextForOverview(
+            IAtomContainer anAtomContainer,
+            double aZoom,
+            double aWidth,
+            double aHeight,
+            String aText,
+            boolean aFillToFit,
+            boolean anIsBackgroundWhite
+    ) {
+        try {
+            BufferedImage tmpMolBufferedImage = DepictionUtil.depictBufferedImageWithZoom(
+                    anAtomContainer,
+                    aZoom,
+                    aWidth,
+                    // height - 25 magic number to compensate for the height of the text
+                    aHeight - 25.0,
+                    aFillToFit,
+                    anIsBackgroundWhite);
+            BufferedImage tmpBufferedImage = new BufferedImage(
+                    tmpMolBufferedImage.getWidth(),
+                    tmpMolBufferedImage.getHeight() + 25,
+                    anIsBackgroundWhite? Transparency.OPAQUE : Transparency.TRANSLUCENT);
+            Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
+            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
+            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_ENABLE);
+            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+            tmpGraphics2d.addRenderingHints(new RenderingHints(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON));
+            if (anIsBackgroundWhite) {
+                tmpGraphics2d.setColor(Color.WHITE);
+                tmpGraphics2d.fillRect(0, 0, tmpBufferedImage.getWidth(), tmpBufferedImage.getHeight());
+            }
+            tmpGraphics2d.drawImage(tmpMolBufferedImage, 0, 0,null);
+            tmpGraphics2d.setColor(Color.BLACK);
+            tmpGraphics2d.setFont(new Font("Calibri", Font.BOLD, 20));
+            FontMetrics tmpFontMetric = tmpGraphics2d.getFontMetrics();
+            int tmpTextWidth = tmpFontMetric.stringWidth(aText);
+            tmpGraphics2d.drawString(
+                    aText,
+                    (tmpBufferedImage.getWidth() / 2) - tmpTextWidth / 2,
+                    // - 7 magic number to align text
+                    tmpBufferedImage.getHeight() - 7);
+            tmpGraphics2d.dispose();
+            return SwingFXUtils.toFXImage(tmpBufferedImage, null);
+        } catch (CDKException anException) {
+            DepictionUtil.LOGGER.log(Level.SEVERE, anException.toString(), anException);
+            return DepictionUtil.depictErrorImage(anException.getMessage(), 250,250);
+        }
+    }
     //</editor-fold>
     //
     //<editor-fold desc="private static methods" defaultstate="collapsed">
