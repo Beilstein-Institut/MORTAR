@@ -769,6 +769,8 @@ public class OverviewViewController implements IViewToolController {
                                     String tmpFrequencyLabel =
                                             tmpFragment.getMoleculeFrequency()
                                                     + " ("
+                                                    // getMoleculePercentage() returns a decimal fraction (e.g. 0.25 for 25%),
+                                                    // so multiply by 100 to convert it to a percentage value for display
                                                     + OverviewViewController.DECIMAL_FORMAT.format(tmpFragment.getMoleculePercentage() * 100)
                                                     + "%)";
                                     tmpFinalContentNode = new ImageView(

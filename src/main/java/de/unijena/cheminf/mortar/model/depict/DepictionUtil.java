@@ -271,7 +271,7 @@ public class DepictionUtil {
             BufferedImage tmpBufferedImage = new BufferedImage(
                     tmpMolBufferedImage.getWidth(),
                     tmpMolBufferedImage.getHeight() + 25,
-                    anIsBackgroundWhite? Transparency.OPAQUE : Transparency.TRANSLUCENT);
+                    anIsBackgroundWhite ? Transparency.OPAQUE : Transparency.TRANSLUCENT);
             Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
             DepictionUtil.configureGraphics2D(tmpGraphics2d);
             if (anIsBackgroundWhite) {
