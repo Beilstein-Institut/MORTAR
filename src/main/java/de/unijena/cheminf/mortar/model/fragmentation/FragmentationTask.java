@@ -120,6 +120,7 @@ public class FragmentationTask implements Callable<FragmentationTaskResult> {
     public FragmentationTaskResult call() throws Exception {
         int tmpExceptionsCounter = 0;
         int tmpMoleculeProducedNoFragmentsCounter = 0;
+        int tmpMoleculeProducedFragmentsCounter = 0;
         int tmpMoleculeFailedGetAtomContainerCounter = 0;
         int tmpFilteredMoleculesCounter = 0;
         int tmpFragmentFailedSmilesGenerationCounter = 0;
@@ -162,6 +163,8 @@ public class FragmentationTask implements Callable<FragmentationTaskResult> {
                     tmpMolecule.getFragmentFrequencies().put(this.fragmentationName, new HashMap<>(0));
                     tmpMoleculeProducedNoFragmentsCounter++;
                     continue;
+                } else {
+                    tmpMoleculeProducedFragmentsCounter++;
                 }
                 // list of all fragments for this molecule
                 List<FragmentDataModel> tmpFragmentsOfMolList = new ArrayList<>(tmpFragmentsList.size());
@@ -215,6 +218,7 @@ public class FragmentationTask implements Callable<FragmentationTaskResult> {
         return new FragmentationTaskResult(
                 tmpExceptionsCounter,
                 tmpMoleculeProducedNoFragmentsCounter,
+                tmpMoleculeProducedFragmentsCounter,
                 tmpMoleculeFailedGetAtomContainerCounter,
                 tmpFilteredMoleculesCounter,
                 tmpFragmentFailedSmilesGenerationCounter,

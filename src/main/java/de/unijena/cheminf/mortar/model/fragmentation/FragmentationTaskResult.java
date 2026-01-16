@@ -30,6 +30,7 @@ package de.unijena.cheminf.mortar.model.fragmentation;
  *
  * @param exceptionsCount                     Nr. of exceptions that happened during molecule fragmentation.
  * @param moleculeProducedNoFragmentsCount    Nr. of molecules that were successfully(!) fragmented but produced no fragments.
+ * @param moleculeProducedFragmentsCount      Nr. of molecules that were successfully(!) fragmented and produced fragments (to check whether all molecules are accounted for).
  * @param moleculeFailedGetAtomContainerCount Nr. of molecules that gave no atom container.
  * @param filteredMoleculesCount              Nr. of molecules that were filtered according to the respective fragmentation algorithm method.
  * @param fragmentFailedSmilesGenerationCount Nr. of fragments that produced no SMILES code.
@@ -41,6 +42,7 @@ package de.unijena.cheminf.mortar.model.fragmentation;
 public record FragmentationTaskResult(
         int exceptionsCount,
         int moleculeProducedNoFragmentsCount,
+        int moleculeProducedFragmentsCount,
         int moleculeFailedGetAtomContainerCount,
         int filteredMoleculesCount,
         int fragmentFailedSmilesGenerationCount,
