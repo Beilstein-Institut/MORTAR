@@ -223,15 +223,7 @@ public class DepictionUtil {
             BufferedImage tmpMolBufferedImage = DepictionUtil.depictBufferedImageWithZoom(anAtomContainer, aZoom, aWidth, aHeight - 25, false, false);
             BufferedImage tmpBufferedImage = new BufferedImage(tmpMolBufferedImage.getWidth(), tmpMolBufferedImage.getHeight() + BasicDefinitions.DEFAULT_IMAGE_TEXT_DISTANCE, Transparency.TRANSLUCENT);
             Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
-            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
-            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
-            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_ENABLE);
-            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
-            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-            tmpGraphics2d.addRenderingHints(new RenderingHints(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON));
+            DepictionUtil.configureGraphics2D(tmpGraphics2d);
             tmpGraphics2d.drawImage(tmpMolBufferedImage, 0, 0,null);
             tmpGraphics2d.setColor(Color.BLACK);
             tmpGraphics2d.setFont(new Font("Calibri", Font.BOLD, 20));
@@ -281,15 +273,7 @@ public class DepictionUtil {
                     tmpMolBufferedImage.getHeight() + 25,
                     anIsBackgroundWhite? Transparency.OPAQUE : Transparency.TRANSLUCENT);
             Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
-            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
-            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
-            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_ENABLE);
-            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
-            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-            tmpGraphics2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-            tmpGraphics2d.addRenderingHints(new RenderingHints(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON));
+            DepictionUtil.configureGraphics2D(tmpGraphics2d);
             if (anIsBackgroundWhite) {
                 tmpGraphics2d.setColor(Color.WHITE);
                 tmpGraphics2d.fillRect(0, 0, tmpBufferedImage.getWidth(), tmpBufferedImage.getHeight());
@@ -339,6 +323,23 @@ public class DepictionUtil {
             tmpGenerator = tmpGenerator.withFillToFit();
         }
         return tmpGenerator.depict(anAtomContainer).toImg();
+    }
+    //
+    /**
+     * Configures the given Graphics2D instance according to the MORTAR standard.
+     *
+     * @param aGraphics2d Graphics2D instance
+     */
+    private static void configureGraphics2D(Graphics2D aGraphics2d) {
+        aGraphics2d.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+        aGraphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        aGraphics2d.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
+        aGraphics2d.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_ENABLE);
+        aGraphics2d.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+        aGraphics2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        aGraphics2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        aGraphics2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+        aGraphics2d.addRenderingHints(new RenderingHints(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON));
     }
     //</editor-fold>
 }
