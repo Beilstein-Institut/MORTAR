@@ -34,6 +34,7 @@ import org.openscience.cdk.smiles.SmiFlavor;
 import org.openscience.cdk.smiles.SmilesGenerator;
 import org.openscience.cdk.smiles.SmilesParser;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
+import org.openscience.cdk.tools.manipulator.HydrogenState;
 
 import java.io.File;
 import java.io.FileReader;
@@ -91,7 +92,7 @@ class ChemUtilTest {
     @Test
     void testFixRadicals() throws Exception {
         URL tmpURL = this.getClass().getResource("Mirabilin_B.mol");
-        File tmpResourceFile = Paths.get(Objects.requireNonNull(tmpURL).toURI()).toFile();
+        File tmpResourceFile = Paths.get(Objects.requireNonNull(tmpURL, "Failed to fetch resource file Mirabilin_B.mol").toURI()).toFile();
         MDLV2000Reader tmpReader = new MDLV2000Reader(new FileReader(tmpResourceFile));
         IAtomContainer tmpMolecule = tmpReader.read(SilentChemObjectBuilder.getInstance().newAtomContainer());
         tmpReader.close();
@@ -228,6 +229,10 @@ class ChemUtilTest {
         for (int i = 0; i < tmpSmilesCodes.length; i++) {
             IAtomContainer tmpMolecule = ChemUtil.parseSmilesToAtomContainer(tmpSmilesCodes[i], true, true);
             String tmpFormula = ChemUtil.generateMolecularFormula(tmpMolecule);
+            Assertions.assertEquals(tmpExpectedFormulas[i], tmpFormula);
+            // make sure molecular formula generation is independent of hydrogen state
+            AtomContainerManipulator.normalizeHydrogens(tmpMolecule, HydrogenState.Explicit);
+            tmpFormula = ChemUtil.generateMolecularFormula(tmpMolecule);
             Assertions.assertEquals(tmpExpectedFormulas[i], tmpFormula);
         }
     }
