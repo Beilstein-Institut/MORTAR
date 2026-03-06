@@ -44,6 +44,7 @@ import org.openscience.cdk.smiles.SmilesParser;
 import org.openscience.cdk.tools.CDKHydrogenAdder;
 import org.openscience.cdk.tools.LonePairElectronChecker;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
+import org.openscience.cdk.tools.manipulator.HydrogenState;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 
 import javax.vecmath.Point2d;
@@ -207,7 +208,8 @@ public final class ChemUtil {
         String tmpMolecularFormulaString = null;
         try {
             tmpAtomContainerClone = anAtomContainer.clone();
-            AtomContainerManipulator.suppressHydrogens(tmpAtomContainerClone);
+            //doc of MolecularFormulaManipulator.getMolecularFormula() says "The hydrogens must be implicit."
+            AtomContainerManipulator.normalizeHydrogens(tmpAtomContainerClone, HydrogenState.Minimal);
             IMolecularFormula tmpMolecularFormula = MolecularFormulaManipulator.getMolecularFormula(tmpAtomContainerClone);
             tmpMolecularFormulaString = MolecularFormulaManipulator.getString(tmpMolecularFormula);
         } catch (CloneNotSupportedException anException) {
