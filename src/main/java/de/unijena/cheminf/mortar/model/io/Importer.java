@@ -60,6 +60,7 @@ import org.openscience.cdk.silent.SilentChemObjectBuilder;
 import org.openscience.cdk.tools.CDKHydrogenAdder;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 import org.openscience.cdk.tools.manipulator.ChemFileManipulator;
+import org.openscience.cdk.tools.manipulator.HydrogenState;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -601,11 +602,9 @@ public class Importer {
                         }
                     }
                 }
-                /* note: the doc says: "Suppress any explicit hydrogens in the provided container. Only hydrogens that
-                can be represented as a hydrogen count value on the atom are suppressed." Therefore, there will
-                still be some explicit hydrogen atoms!
-                 */
-                AtomContainerManipulator.suppressHydrogens(tmpMolecule);
+                /* note: the doc says: "All explicit hydrogens that can safely be converted to a count on their attached
+                atom will be suppressed." Therefore, there will still be some explicit hydrogen atoms! */
+                AtomContainerManipulator.normalizeHydrogens(tmpMolecule, HydrogenState.Minimal);
                 //might throw exceptions if the implicit hydrogen count is unset or kekulization is impossible
                 Kekulization.kekulize(tmpMolecule);
             } catch (Exception anException) {
