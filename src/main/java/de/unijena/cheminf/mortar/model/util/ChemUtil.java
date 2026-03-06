@@ -44,7 +44,6 @@ import org.openscience.cdk.smiles.SmilesParser;
 import org.openscience.cdk.tools.CDKHydrogenAdder;
 import org.openscience.cdk.tools.LonePairElectronChecker;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
-import org.openscience.cdk.tools.manipulator.HydrogenState;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 
 import javax.vecmath.Point2d;
@@ -204,18 +203,11 @@ public final class ChemUtil {
      * @author Samuel Behr
      */
     public static String generateMolecularFormula(IAtomContainer anAtomContainer) {
-        IAtomContainer tmpAtomContainerClone;
         String tmpMolecularFormulaString = null;
-        try {
-            tmpAtomContainerClone = anAtomContainer.clone();
-            //doc of MolecularFormulaManipulator.getMolecularFormula() says "The hydrogens must be implicit."
-            AtomContainerManipulator.normalizeHydrogens(tmpAtomContainerClone, HydrogenState.Minimal);
-            IMolecularFormula tmpMolecularFormula = MolecularFormulaManipulator.getMolecularFormula(tmpAtomContainerClone);
-            tmpMolecularFormulaString = MolecularFormulaManipulator.getString(tmpMolecularFormula);
-        } catch (CloneNotSupportedException anException) {
-            ChemUtil.LOGGER.log(Level.WARNING, String.format("%s molecule name: %s", anException.toString(),
-                    anAtomContainer.getProperty(Importer.MOLECULE_NAME_PROPERTY_KEY)), anException);
-        }
+        /* the doc of MolecularFormulaManipulator.getMolecularFormula() says "The hydrogens must be implicit." but the
+           CDK tests indicate that both implicit and explicit hydrogens are working fine */
+        IMolecularFormula tmpMolecularFormula = MolecularFormulaManipulator.getMolecularFormula(anAtomContainer);
+        tmpMolecularFormulaString = MolecularFormulaManipulator.getString(tmpMolecularFormula);
         return tmpMolecularFormulaString;
     }
 
