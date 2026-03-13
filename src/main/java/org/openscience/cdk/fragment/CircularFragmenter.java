@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+//TODO replace this with the corresponding CDK dependency when it is available there!
 /**
  * Extracts atom-centered circular / spherical fragments from a molecule,
  * analogous to HOSE codes, circular Morgan-type
