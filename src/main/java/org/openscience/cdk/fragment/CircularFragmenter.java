@@ -1,0 +1,634 @@
+/*
+ * MORTAR - MOlecule fRagmenTAtion fRamework
+ * Copyright (C) 2026  Felix Baensch, Jonas Schaub (felix.j.baensch@gmail.com, jonas.schaub@uni-jena.de)
+ *
+ * Source code is available at <https://github.com/FelixBaensch/MORTAR>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+package org.openscience.cdk.fragment;
+
+import org.openscience.cdk.Bond;
+import org.openscience.cdk.exception.NoSuchAtomException;
+import org.openscience.cdk.exception.NoSuchBondException;
+import org.openscience.cdk.interfaces.IAtom;
+import org.openscience.cdk.interfaces.IAtomContainer;
+import org.openscience.cdk.interfaces.IBond;
+import org.openscience.cdk.interfaces.ILonePair;
+import org.openscience.cdk.interfaces.IPseudoAtom;
+import org.openscience.cdk.interfaces.ISingleElectron;
+import org.openscience.cdk.interfaces.IStereoElement;
+
+import javax.vecmath.Point2d;
+import javax.vecmath.Point3d;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
+/**
+ * Extracts atom-centered circular / spherical fragments from a molecule,
+ * analogous to HOSE codes, circular Morgan-type
+ * fingerprints, and Molecular Signatures.
+ *
+ * <p>For every atom in the input molecule, the neighborhood up to a
+ * user-defined radius (number of bonds, also called "height" or "level") is
+ * collected by a breadth-first expansion and returned as an independent
+ * {@link IAtomContainer}. All atoms and bonds in the resulting containers are
+ * <em>deep copies</em> of the originals, so modifying them does not
+ * affect the source molecule.</p>
+ *
+ * <p><b>Usage example:</b></p>
+ * <pre>{@code
+ * IAtomContainer molecule = ...; // fully configured molecule
+ * CircularFragmenter fragmenter = new CircularFragmenter(3); //radius 3
+ * List<IAtomContainer> fragments = fragmenter.getCircularFragments(molecule);
+ * }</pre>
+ *
+ * <p>The list index of each fragment corresponds to the index of the center atom (also called
+ * "root") in the original atom container. But note that <code>fragments.get(i).contains(mol.getAtom(i))</code>
+ * will produce <code>false</code> because the atoms (and bonds) are copied at fragment extraction.</p>
+ *
+ * <p>Note that the resulting fragments are not deduplicated! So, if you, e.g., fragment benzene
+ * with a radius of 3, you will get six benzene "fragments" as a result, since a radius of three
+ * includes the entire molecule, independent of which atom is taken as the center.</p>
+ *
+ * <p>Scaling: Let <em>n</em> be the number of atoms and <em>r</em> the radius.
+ * A single fragment extraction scales with the number of atoms <em>k</em> in the fragment
+ * (approx. min(<em>n</em>, 3<sup><em>r</em></sup>)).
+ * Extracting all fragments takes <em>O</em>(<em>n</em>&middot;<em>k</em>).
+ * For typical small radii, this is effectively linear <em>O</em>(<em>n</em>);
+ * for large radii covering the whole molecule, it is <em>O</em>(<em>n</em><sup>2</sup>).</p>
+ *
+ * @author Jonas Schaub (jonas.schaub@uni-jena.de | jonas-schaub@gmx.de | <a href="https://github.com/JonasSchaub">JonasSchaub on GitHub</a>)
+ */
+public class CircularFragmenter {
+    /**
+     * Default radius used when no explicit value is given (= 3 bonds).
+     */
+    public static final int DEFAULT_RADIUS = 3;
+
+    /**
+     * Default value for whether to preserve stereochemistry annotations during fragmentation (= false).
+     */
+    public static final boolean DEFAULT_PRESERVE_STEREO = false;
+
+    /**
+     * Default value for whether to mark attachment points of broken bonds with pseudo atoms (= false).
+     */
+    public static final boolean DEFAULT_MARK_ATTACHMENTS = false;
+
+    /**
+     * Radius of the circular neighborhood to extract (number of bonds).
+     */
+    private int radius;
+
+    /**
+     * Whether to preserve stereochemistry annotations during fragmentation.
+     */
+    private boolean preserveStereo;
+
+    /**
+     * Whether to mark attachment points of broken bonds with pseudo atoms.
+     */
+    private boolean markAttachments;
+
+    /**
+     * Creates a new {@code CircularFragmenter} with the {@link #DEFAULT_RADIUS}
+     * (= {@value #DEFAULT_RADIUS}), the {@link #DEFAULT_PRESERVE_STEREO} (= {@value #DEFAULT_PRESERVE_STEREO}),
+     * and the {@link #DEFAULT_MARK_ATTACHMENTS} (= {@value #DEFAULT_MARK_ATTACHMENTS}).
+     */
+    public CircularFragmenter() {
+        this(CircularFragmenter.DEFAULT_RADIUS, CircularFragmenter.DEFAULT_PRESERVE_STEREO, CircularFragmenter.DEFAULT_MARK_ATTACHMENTS);
+    }
+
+    /**
+     * Creates a new {@code CircularFragmenter} with the given radius,
+     * the {@link #DEFAULT_PRESERVE_STEREO} (= {@value #DEFAULT_PRESERVE_STEREO}),
+     * and the {@link #DEFAULT_MARK_ATTACHMENTS} (= {@value #DEFAULT_MARK_ATTACHMENTS}).
+     *
+     * @param radius the number of bonds to expand from each center atom;
+     *               must be >= 0; a radius of 0 produces fragments
+     *               containing only the respective center atom itself
+     * @throws IllegalArgumentException if {@code radius} is negative
+     */
+    public CircularFragmenter(int radius) {
+        this(radius, CircularFragmenter.DEFAULT_PRESERVE_STEREO, CircularFragmenter.DEFAULT_MARK_ATTACHMENTS);
+    }
+
+    /**
+     * Creates a new {@code CircularFragmenter} with the given radius and stereochemistry setting
+     * and the {@link #DEFAULT_MARK_ATTACHMENTS} (= {@value #DEFAULT_MARK_ATTACHMENTS}).
+     *
+     * @param radius the number of bonds to expand from each center atom;
+     *               must be >= 0; a radius of 0 produces fragments
+     *               containing only the respective center atom itself
+     * @param preserveStereo whether to preserve stereochemistry annotations during fragmentation
+     * @throws IllegalArgumentException if {@code radius} is negative
+     */
+    public CircularFragmenter(int radius, boolean preserveStereo) {
+        this(radius, preserveStereo, CircularFragmenter.DEFAULT_MARK_ATTACHMENTS);
+    }
+
+    /**
+     * Creates a new {@code CircularFragmenter} with the given radius, stereochemistry,
+     * and attachment point marking setting.
+     *
+     * @param radius the number of bonds to expand from each center atom;
+     *               must be >= 0; a radius of 0 produces fragments
+     *               containing only the respective center atom itself
+     * @param preserveStereo whether to preserve stereochemistry annotations during fragmentation
+     * @param markAttachments whether to mark attachment points of broken bonds with pseudo atoms
+     * @throws IllegalArgumentException if {@code radius} is negative
+     */
+    public CircularFragmenter(int radius, boolean preserveStereo, boolean markAttachments) {
+        if (radius < 0) {
+            throw new IllegalArgumentException("Radius must be >= 0, got: " + radius);
+        }
+        this.radius = radius;
+        this.preserveStereo = preserveStereo;
+        this.markAttachments = markAttachments;
+    }
+
+    /**
+     * Returns the current radius setting for atom environment extraction.
+     *
+     * @return radius in nr. of bonds
+     */
+    public int getRadius() {
+        return this.radius;
+    }
+
+    /**
+     * Sets the radius for atom environment extraction.
+     *
+     * @param radius in nr. of bonds; must be >= 0
+     * @throws IllegalArgumentException if {@code radius} is negative
+     */
+    public void setRadius(int radius) {
+        if (radius < 0) {
+            throw new IllegalArgumentException("Radius must be >= 0, got: " + radius);
+        }
+        this.radius = radius;
+    }
+
+    /**
+     * Returns the current stereochemistry setting.
+     *
+     * @return whether to preserve stereochemistry annotations during fragmentation
+     */
+    public boolean isPreserveStereo() {
+        return preserveStereo;
+    }
+
+    /**
+     * Sets the stereochemistry setting.
+     *
+     * @param preserveStereo whether to preserve stereochemistry annotations during fragmentation
+     */
+    public void setPreserveStereo(boolean preserveStereo) {
+        this.preserveStereo = preserveStereo;
+    }
+
+    /**
+     * Returns the current attachment point marking setting.
+     *
+     * @return whether to mark attachment points of broken bonds with pseudo atoms
+     */
+    public boolean isMarkAttachments() {
+        return markAttachments;
+    }
+
+    /**
+     * Sets the attachment point marking setting.
+     *
+     * @param markAttachments whether to mark attachment points of broken bonds with pseudo atoms
+     */
+    public void setMarkAttachments(boolean markAttachments) {
+        this.markAttachments = markAttachments;
+    }
+
+    /**
+     * Extracts one circular fragment per atom of the input molecule.
+     *
+     * <p>The fragment for atom {@code i} contains deep copies of all atoms
+     * reachable from atom {@code i} within at most {@link #getRadius()} bonds,
+     * together with all bonds between those atoms.</p>
+     *
+     * <p>The list index of each fragment corresponds to the index of the center atom
+     * in the input atom container.</p>
+     *
+     * <p>Note that the resulting fragments are not deduplicated!</p>
+     *
+     * @param molecule the input molecule; must not be {@code null}; an empty input
+     *                 molecule yields an empty return list; the method does not
+     *                 modify the molecule
+     * @return a list of {@link IAtomContainer} objects, one per atom in
+     *         {@code molecule}, in atom-index order; never {@code null} but can be
+     *         empty if the input molecule is empty
+     * @throws NullPointerException if {@code molecule} is {@code null}
+     */
+    public List<IAtomContainer> getCircularFragments(IAtomContainer molecule) {
+        Objects.requireNonNull(molecule, "Input molecule must not be null.");
+
+        int atomCount = molecule.getAtomCount();
+        List<IAtomContainer> fragments = new ArrayList<>(atomCount);
+
+        if (atomCount == 0) {
+            return fragments;
+        }
+
+        // Pre-build atom→index map once for O(1) lookups in both the BFS and bond-collection steps
+        Map<IAtom, Integer> atomIndexMap = new HashMap<>((int) (atomCount * 1.4));
+        for (int i = 0; i < atomCount; i++) {
+            atomIndexMap.put(molecule.getAtom(i), i);
+        }
+
+        int tmpRadius = this.radius;
+        boolean tmpPreserveStereo = this.preserveStereo;
+        boolean tmpMarkAttachments = this.markAttachments;
+        int initCollectionSize = CircularFragmenter.calculateInitCollectionSize(this.radius, atomCount);
+
+        for (int centerIdx = 0; centerIdx < atomCount; centerIdx++) {
+            IAtomContainer fragment = this.extractFragment(molecule, atomIndexMap, centerIdx, tmpRadius, initCollectionSize, tmpPreserveStereo, tmpMarkAttachments);
+            fragments.add(centerIdx, fragment);
+        }
+
+        return fragments;
+    }
+
+    /**
+     * Extracts a single circular fragment centered on the atom at
+     * {@code centerIdx} in {@code molecule}.
+     *
+     * <p>The same algorithm as in
+     * {@link #getCircularFragments(IAtomContainer)} is applied, but for only
+     * one center atom.</p>
+     *
+     * @param molecule  the source molecule; must not be {@code null}
+     * @param centerIdx zero-based index of the center atom in {@code molecule}
+     * @return a deep-copied {@link IAtomContainer} of the circular environment
+     * @throws NullPointerException      if {@code molecule} is {@code null}
+     * @throws IndexOutOfBoundsException if {@code centerIdx} is out of range (below than 0 or above/equal to atom count of molecule)
+     */
+    public IAtomContainer getCircularFragment(IAtomContainer molecule, int centerIdx) {
+        Objects.requireNonNull(molecule, "Input molecule must not be null.");
+        if (centerIdx < 0 || centerIdx >= molecule.getAtomCount()) {
+            throw new IndexOutOfBoundsException(
+                    "centerIdx " + centerIdx + " is out of range [0, " + molecule.getAtomCount() + ").");
+        }
+
+        // Pre-build atom→index map once for O(1) lookups in both the BFS and bond-collection steps
+        int atomCount = molecule.getAtomCount();
+        Map<IAtom, Integer> atomIndexMap = new HashMap<>((int) (atomCount * 1.4));
+        for (int i = 0; i < atomCount; i++) {
+            atomIndexMap.put(molecule.getAtom(i), i);
+        }
+
+        int initCollectionSize = CircularFragmenter.calculateInitCollectionSize(this.radius, atomCount);
+        int tmpRadius = this.radius;
+        boolean tmpPreserveStereo = this.preserveStereo;
+        boolean tmpMarkAttachments = this.markAttachments;
+        return this.extractFragment(molecule, atomIndexMap, centerIdx, tmpRadius, initCollectionSize, tmpPreserveStereo, tmpMarkAttachments);
+    }
+
+    /**
+     * Utility function to estimate the necessary initial collection size to possibly avoid resizing and rehashing.
+     *
+     * <p>No parameter checks are performed here!</p>
+     *
+     * @param radius in nr. of bonds
+     * @param atomCount total number of atoms in the molecule
+     * @return initial collection size = (1 + 4 * (3^(radius - 1) + 1)) / 2 or the atom count if it is smaller than the result
+     */
+    protected static int calculateInitCollectionSize(int radius, int atomCount) {
+        // radius = 0, initCollectionSize = 1 (-> the center atom)
+        int initCollectionSize = 1;
+        if (radius == 1) {
+            // radius = 1, initCollectionSize = 5 (-> the center atom, presumably carbon, plus up to 4 neighbors)
+            initCollectionSize += 4;
+        } else if (radius > 1) {
+            // radius >= 2, initCollectionSize = 1 + 4 * (3^(radius - 1) + 1)
+            // (-> presuming all are carbon atoms and each has 4 neighbors, i.e. 3 more atoms in each
+            // iteration per atom in the last sphere)
+            initCollectionSize +=  (4 * ((int)Math.pow(3, (double) radius - 1) + 1));
+        }
+        //for most small molecules, there will be rings and implicit hydrogens that minimize the required collection space
+        initCollectionSize = (int) Math.ceil((double) initCollectionSize / 2);
+        return Math.min(initCollectionSize, atomCount);
+    }
+
+    /**
+     * Core BFS-based fragment extraction.
+     *
+     * <p>Starting from the center atom, the algorithm performs a
+     * breadth-first expansion up to {@link #radius} bonds. It collects the
+     * set of atoms and all bonds between collected atoms, then builds
+     * a new {@link IAtomContainer} from deep copies of those atoms and bonds.</p>
+     *
+     * <p>No parameter checks are performed, they must be conducted by the calling code!</p>
+     *
+     * @param molecule  source molecule
+     * @param atomIndexMap pre-calculated map for O(1) lookups of atom indices in the source molecule
+     * @param centerIdx index of the center atom
+     * @param radius    in nr. of bonds; must be >= 0
+     * @param initCollectionSize estimated number of atoms in the fragment for collection sizing
+     * @param preserveStereo whether to preserve stereochemistry annotations during fragmentation
+     * @param markAttachments whether to mark attachment points of broken bonds with pseudo atoms
+     * @return fragment container (deep copy)
+     */
+    protected IAtomContainer extractFragment(
+            IAtomContainer molecule,
+            Map<IAtom, Integer> atomIndexMap,
+            int centerIdx,
+            int radius,
+            int initCollectionSize,
+            boolean preserveStereo,
+            boolean markAttachments) {
+
+        // --- 1. BFS to collect atoms within radius bonds ---
+
+        // Tracks which atom indices have been visited (O(1) membership test)
+        Set<Integer> visitedIndices = new HashSet<>((int) Math.ceil(initCollectionSize * 1.4));
+        // Stores collected atoms in BFS order; first entry is always the center atom.
+        // Both collections are kept in parallel: visitedIndices for fast lookup, collectedAtoms for ordered iteration.
+        List<IAtom> collectedAtoms = new ArrayList<>(initCollectionSize);
+
+        // BFS queue entries, [atomIndex, depth]
+        Deque<int[]> queue = new ArrayDeque<>(initCollectionSize);
+
+        IAtom centerAtom = molecule.getAtom(centerIdx);
+        visitedIndices.add(centerIdx);
+        collectedAtoms.add(centerAtom);
+        queue.add(new int[]{centerIdx, 0});
+
+        while (!queue.isEmpty()) {
+            int[] entry = queue.poll();
+            int currentIdx = entry[0];
+            int currentDepth = entry[1];
+
+            if (currentDepth >= radius) {
+                // Do not expand further, but the atom itself is already collected
+                continue;
+            }
+
+            IAtom currentAtom = molecule.getAtom(currentIdx);
+
+            for (IBond bond : currentAtom.bonds()) {
+                IAtom neighbor = bond.getOther(currentAtom);
+                Integer neighborIdx = atomIndexMap.get(neighbor);
+                if (neighborIdx == null) {
+                    continue; // Safety: atom not in molecule (should not happen if map is correct)
+                }
+                if (!visitedIndices.contains(neighborIdx)) {
+                    visitedIndices.add(neighborIdx);
+                    collectedAtoms.add(neighbor);
+                    queue.add(new int[]{neighborIdx, currentDepth + 1});
+                }
+            }
+        }
+
+        // --- 2. Collect all bonds whose both endpoints are in the fragment ---
+
+        List<IBond> collectedBonds = new ArrayList<>(initCollectionSize);
+        //set for faster look-up whether bond was already collected
+        Set<IBond> bondsInFragment = new HashSet<>(initCollectionSize);
+
+        for (IAtom atom : collectedAtoms) {
+            for (IBond bond : atom.bonds()) {
+                if (bondsInFragment.contains(bond)) {
+                    continue;
+                }
+                IAtom other = bond.getOther(atom);
+                Integer otherIdx = atomIndexMap.get(other);
+                if (otherIdx != null && visitedIndices.contains(otherIdx)) {
+                    collectedBonds.add(bond);
+                    bondsInFragment.add(bond);
+                }
+            }
+        }
+
+        // --- 3. Deep-copy atoms and bonds into a new container ---
+
+        IAtomContainer fragment = molecule.getBuilder().newAtomContainer();
+
+        // Map: original IAtom reference -> copied IAtom in the fragment
+        Map<IAtom, IAtom> originalAtomToCopyAtomMap = new HashMap<>((int) Math.ceil(collectedAtoms.size() * 1.4));
+        // Map: original IBond reference -> copied IBond in the fragment
+        Map<IBond, IBond> originalBondToCopyBondMap = new HashMap<>((int) Math.ceil(collectedBonds.size() * 1.4));
+
+        for (IAtom origAtom : collectedAtoms) {
+            IAtom copiedAtom = this.deeperCopy(origAtom, fragment);
+            originalAtomToCopyAtomMap.put(origAtom, copiedAtom);
+            fragment.addAtom(copiedAtom);
+        }
+
+        for (IBond origBond : collectedBonds) {
+            // Re-wire the copied bond to the copied atom instances
+            IAtom copiedBegin = originalAtomToCopyAtomMap.get(origBond.getBegin());
+            IAtom copiedEnd = originalAtomToCopyAtomMap.get(origBond.getEnd());
+            if (copiedBegin == null || copiedEnd == null || copiedBegin.getContainer() != copiedEnd.getContainer()) {
+                continue;
+            }
+            IBond copiedBond = this.deeperCopy(origBond, copiedBegin, copiedEnd);
+            originalBondToCopyBondMap.put(origBond, copiedBond);
+            fragment.addBond(copiedBond);
+        }
+
+        // single electrons
+        for (ISingleElectron se : molecule.singleElectrons()) {
+            IAtom atom = originalAtomToCopyAtomMap.get(se.getAtom());
+            if (!Objects.isNull(atom)) {
+                atom.getContainer().addSingleElectron(atom.getIndex());
+            }
+        }
+        // lone pairs
+        for (ILonePair lp : molecule.lonePairs()) {
+            IAtom atom = originalAtomToCopyAtomMap.get(lp.getAtom());
+            if (!Objects.isNull(atom)) {
+                atom.getContainer().addLonePair(atom.getIndex());
+            }
+        }
+        // stereo elements
+        if (preserveStereo) {
+            for (IStereoElement elem : molecule.stereoElements()) {
+                try {
+                    fragment.addStereoElement(elem.map(originalAtomToCopyAtomMap, originalBondToCopyBondMap));
+                } catch (NoSuchAtomException | NoSuchBondException exception) {
+                    //catch those because they appear if not all stereo carriers are present in the fragment
+                }
+            }
+        }
+
+        //saturation
+        for (Map.Entry<IAtom, IAtom> entry : originalAtomToCopyAtomMap.entrySet()) {
+            for (IBond originalBond : molecule.getConnectedBondsList(entry.getKey())) {
+                if (!originalBondToCopyBondMap.containsKey(originalBond)) {
+                    this.saturate(entry.getValue(), fragment, markAttachments, entry.getKey(), originalBond);
+                }
+            }
+        }
+
+        //note: properties of the original atom container are not copied.
+
+        return fragment;
+    }
+
+    /**
+     *  Creates a relatively deep ("deeper" than cloning but not as extensive) copy of the given atom and adds it to the given container.
+     *  Copies:
+     *  <br>- atomic number
+     *  <br>- implicit hydrogen count
+     *  <br>- aromaticity flag
+     *  <br>- valency
+     *  <br>- atom type name
+     *  <br>- formal charge
+     *  <br>- point 2D and 3D coordinates
+     *  <br>- flags
+     *  <br>- some primitive-based properties (String, Integer, Boolean)
+     * <br>Note: atom types and isotopes of the original atoms are not copied and hence, some properties will be unset in the copies.
+     * If you need atom types and their defining properties, you need to re-perceive them after copying.
+     *
+     * @param atom the atom to copy
+     * @param container the container to add the copied atom to
+     * @return the copied atom
+     */
+    protected IAtom deeperCopy(IAtom atom, IAtomContainer container) {
+        IAtom cpyAtom = container.newAtom(atom.getAtomicNumber(),
+                atom.getImplicitHydrogenCount());
+        cpyAtom.setIsAromatic(atom.isAromatic());
+        cpyAtom.setValency(atom.getValency());
+        cpyAtom.setAtomTypeName(atom.getAtomTypeName());
+        //setting the formal charge also sets the (partial) charge, see https://github.com/cdk/cdk/pull/1151
+        cpyAtom.setFormalCharge(atom.getFormalCharge());
+        if (atom.getPoint2d() != null) {
+            cpyAtom.setPoint2d(new Point2d(atom.getPoint2d().x, atom.getPoint2d().y));
+        }
+        if (atom.getPoint3d() != null) {
+            cpyAtom.setPoint3d(new Point3d(atom.getPoint3d().x, atom.getPoint3d().y, atom.getPoint3d().z));
+        }
+        cpyAtom.setFlags(atom.getFlags());
+        //fractional point 3D (location in a crystal unit cell) is deliberately not copied; add if needed
+        //fields related to atom type (max bond order, bond order sum, covalent radius, hybridization, formal neighbor count) are deliberately not copied; add if needed
+        //fields related to isotope (exact mass, natural abundance, mass number) are deliberately not copied; add if needed
+        //properties:
+        for (Map.Entry<Object, Object> entry : atom.getProperties().entrySet()) {
+            if ((entry.getKey() instanceof String || entry.getKey() instanceof Integer || entry.getKey() instanceof Boolean)
+                    && (entry.getValue() instanceof String || entry.getValue() instanceof Integer || entry.getValue() instanceof Boolean || entry.getValue() == null)) {
+                cpyAtom.setProperty(entry.getKey(), entry.getValue());
+            }
+        }
+        return cpyAtom;
+    }
+
+    /**
+     * Creates a relatively deep ("deeper" than cloning but not as extensive) copy of the given bond between the given begin and end atoms.
+     * Copies:
+     * <br>- order
+     * <br>- aromaticity flag
+     * <br>- display
+     * <br>- in ring flag
+     * <br>- flags
+     * <br>- electron count
+     * <br>- some primitive-based properties (String, Integer, Boolean)
+     * <br>Note: The begin and end atoms are not copied, but the given ones are used in the copy.
+     * <br>Note also: the created bond must be added to the copy atom container by the calling code!
+     *
+     * @param bond the bond to copy
+     * @param begin the begin atom of the bond in the copy(!)
+     * @param end the end atom of the bond in the copy(!)
+     * @return the copied bond
+     */
+    protected IBond deeperCopy(IBond bond, IAtom begin, IAtom end) {
+        //using begin.getContainer().newBond() here caused weird issues sometimes
+        IBond newBond = new Bond(begin, end, bond.getOrder());
+        newBond.setIsAromatic(bond.isAromatic());
+        newBond.setDisplay(bond.getDisplay());
+        newBond.setIsInRing(bond.isInRing());
+        newBond.setFlags(bond.getFlags());
+        newBond.setElectronCount(bond.getElectronCount());
+        //properties:
+        for (Map.Entry<Object, Object> entry : bond.getProperties().entrySet()) {
+            if ((entry.getKey() instanceof String || entry.getKey() instanceof Integer || entry.getKey() instanceof Boolean)
+                    && (entry.getValue() instanceof String || entry.getValue() instanceof Integer || entry.getValue() instanceof Boolean || entry.getValue() == null)) {
+                newBond.setProperty(entry.getKey(), entry.getValue());
+            }
+        }
+        return newBond;
+    }
+
+    /**
+     * Saturates a broken bond at an attachment point by either adding a pseudo atom or increasing the implicit hydrogen count.
+     * <p>
+     * No checks are performed!
+     *
+     * @param copyAtomToSaturate The atom in the copy container that needs to be saturated due to a broken bond
+     * @param copyContainer The atom container containing the atom to be saturated
+     * @param markAttachments If true, a pseudo atom is added to mark the attachment point;
+     *                        if false, the implicit hydrogen count is increased.
+     * @param originalAtom The original atom from the input molecule corresponding to the atom to be saturated.
+     *                     Used for determining bond properties
+     * @param originalBond The original bond that was broken during the extraction process.
+     *                     Used for determining the bond order of the new pseudo atom bond
+     */
+    protected void saturate(
+            IAtom copyAtomToSaturate,
+            IAtomContainer copyContainer,
+            boolean markAttachments,
+            IAtom originalAtom,
+            IBond originalBond
+    ) {
+        //correction for unset (aromatic) bonds and aromatic double bonds
+        IBond.Order effectiveOrder;
+        if (originalBond.getOrder() == null || originalBond.getOrder() == IBond.Order.UNSET) {
+            effectiveOrder = IBond.Order.SINGLE;
+        } else if (originalBond.isAromatic() && originalBond.getOrder() == IBond.Order.DOUBLE) {
+            effectiveOrder = IBond.Order.SINGLE;
+        } else {
+            effectiveOrder = originalBond.getOrder();
+        }
+
+        if (markAttachments) {
+            IPseudoAtom pseudoAtom = originalAtom.getBuilder().newInstance(IPseudoAtom.class, "R");
+            pseudoAtom.setAttachPointNum(1);
+            pseudoAtom.setImplicitHydrogenCount(0);
+            IBond bondToPseudoAtom;
+            if (originalBond.getBegin().equals(originalAtom)) {
+                bondToPseudoAtom = originalAtom.getBuilder().newInstance(
+                        IBond.class, copyAtomToSaturate, pseudoAtom, effectiveOrder);
+            } else {
+                bondToPseudoAtom = originalAtom.getBuilder().newInstance(
+                        IBond.class, pseudoAtom, copyAtomToSaturate, effectiveOrder);
+            }
+            copyContainer.addAtom(pseudoAtom);
+            copyContainer.addBond(bondToPseudoAtom);
+        } else {
+            copyAtomToSaturate.setImplicitHydrogenCount(
+                    copyAtomToSaturate.getImplicitHydrogenCount()
+                            + effectiveOrder.numeric());
+        }
+    }
+}
