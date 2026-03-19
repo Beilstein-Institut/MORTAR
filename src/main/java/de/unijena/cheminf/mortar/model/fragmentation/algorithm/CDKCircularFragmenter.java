@@ -30,13 +30,20 @@ import de.unijena.cheminf.mortar.message.Message;
 import de.unijena.cheminf.mortar.model.io.Importer;
 import de.unijena.cheminf.mortar.model.util.BasicDefinitions;
 import de.unijena.cheminf.mortar.model.util.CollectionUtil;
+import de.unijena.cheminf.mortar.model.util.IDisplayEnum;
+import de.unijena.cheminf.mortar.model.util.SimpleIDisplayEnumConstantProperty;
 
 import javafx.beans.property.Property;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 
+import org.openscience.cdk.aromaticity.Aromaticity;
+import org.openscience.cdk.aromaticity.ElectronDonation;
 import org.openscience.cdk.fragment.CircularFragmenter;
+import org.openscience.cdk.graph.CycleFinder;
+import org.openscience.cdk.graph.Cycles;
 import org.openscience.cdk.interfaces.IAtomContainer;
+import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -46,7 +53,6 @@ import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-//TODO: add aromaticity detection as optional preprocessing (setting!)
 /**
  * Wrapper class that makes the CDK {@link CircularFragmenter} available in MORTAR.
  * The fragmenter extracts atom-centered circular / spherical fragments from a molecule,
@@ -55,6 +61,9 @@ import java.util.logging.Logger;
  * (number of bonds) is collected by a breadth-first expansion and returned as an
  * independent {@link IAtomContainer}. Note that the resulting fragments are not
  * deduplicated.
+ * <br>
+ * Optionally, an aromaticity detection step can be applied as preprocessing before fragmentation.
+ * The aromaticity model is composed of a configurable electron donation model and cycle finder algorithm.
  *
  * @author Jonas Schaub
  * @version 1.0.0.0
@@ -80,6 +89,46 @@ public class CDKCircularFragmenter implements IMoleculeFragmenter {
      * Default mark attachments setting value, taken from {@link CircularFragmenter#DEFAULT_MARK_ATTACHMENTS}.
      */
     public static final boolean MARK_ATTACHMENTS_SETTING_DEFAULT = CircularFragmenter.DEFAULT_MARK_ATTACHMENTS;
+
+    /**
+     * Default value for the apply aromaticity detection setting; aromaticity detection is *not* applied by default.
+     */
+    public static final boolean APPLY_AROMATICITY_DETECTION_SETTING_DEFAULT = false;
+
+    /**
+     * Default electron donation model for aromaticity detection.
+     */
+    public static final IMoleculeFragmenter.ElectronDonationModelOption ELECTRON_DONATION_MODEL_OPTION_DEFAULT =
+            IMoleculeFragmenter.ElectronDonationModelOption.DAYLIGHT;
+
+    /**
+     * Default option for the cycle finder algorithm employed for aromaticity detection.
+     */
+    public static final IMoleculeFragmenter.CycleFinderOption CYCLE_FINDER_OPTION_DEFAULT =
+            IMoleculeFragmenter.CycleFinderOption.CDK_AROMATIC_SET;
+
+    /**
+     * Cycle finder algorithm that is used should the set option cause an IntractableException.
+     */
+    public static final CycleFinder AUXILIARY_CYCLE_FINDER = Cycles.cdkAromaticSet();
+    //</editor-fold>
+    //
+    //<editor-fold desc="Private variables">
+    /**
+     * The aromaticity model used for preprocessing prior to fragmentation. Constructed from the set electron donation
+     * model and cycle finder algorithm.
+     */
+    private Aromaticity aromaticityModelInstance;
+
+    /**
+     * A cycle finder instance for construction of the aromaticity model.
+     */
+    private CycleFinder cycleFinderInstance;
+
+    /**
+     * An electron donation instance for construction of the aromaticity model.
+     */
+    private ElectronDonation electronDonationInstance;
     //</editor-fold>
     //
     //<editor-fold desc="Private final variables">
@@ -94,6 +143,12 @@ public class CDKCircularFragmenter implements IMoleculeFragmenter {
     private final SimpleBooleanProperty preserveStereoSetting;
 
     private final SimpleBooleanProperty markAttachmentsSetting;
+
+    private final SimpleBooleanProperty applyAromaticityDetectionSetting;
+
+    private final SimpleIDisplayEnumConstantProperty electronDonationModelSetting;
+
+    private final SimpleIDisplayEnumConstantProperty cycleFinderSetting;
 
     /**
      * All settings of this fragmenter, encapsulated in JavaFX properties for binding in GUI.
@@ -126,7 +181,7 @@ public class CDKCircularFragmenter implements IMoleculeFragmenter {
                 CDKCircularFragmenter.PRESERVE_STEREO_SETTING_DEFAULT,
                 CDKCircularFragmenter.MARK_ATTACHMENTS_SETTING_DEFAULT
         );
-        int tmpNumberOfSettings = 3;
+        int tmpNumberOfSettings = 6;
         this.settings = new ArrayList<>(tmpNumberOfSettings);
         int tmpInitialCapacityForSettingNameTooltipTextMap = CollectionUtil.calculateInitialHashCollectionCapacity(
                 tmpNumberOfSettings,
@@ -188,6 +243,79 @@ public class CDKCircularFragmenter implements IMoleculeFragmenter {
                 Message.get("CDKCircularFragmenter.markAttachmentsSetting.tooltip"));
         this.settingNameToDisplayNameMap.put(this.markAttachmentsSetting.getName(),
                 Message.get("CDKCircularFragmenter.markAttachmentsSetting.displayName"));
+
+        this.applyAromaticityDetectionSetting = new SimpleBooleanProperty(this,
+                "Apply aromaticity detection setting",
+                CDKCircularFragmenter.APPLY_AROMATICITY_DETECTION_SETTING_DEFAULT);
+        this.settings.add(this.applyAromaticityDetectionSetting);
+        this.settingNameToTooltipTextMap.put(this.applyAromaticityDetectionSetting.getName(),
+                Message.get("CDKCircularFragmenter.applyAromaticityDetectionSetting.tooltip"));
+        this.settingNameToDisplayNameMap.put(this.applyAromaticityDetectionSetting.getName(),
+                Message.get("CDKCircularFragmenter.applyAromaticityDetectionSetting.displayName"));
+
+        //note: cycle finder and electron donation model have to be set prior to setting the aromaticity model!
+        this.cycleFinderSetting = new SimpleIDisplayEnumConstantProperty(this, "Cycle finder algorithm setting",
+                CDKCircularFragmenter.CYCLE_FINDER_OPTION_DEFAULT,
+                IMoleculeFragmenter.CycleFinderOption.class) {
+            @Override
+            public void set(IDisplayEnum newValue) throws NullPointerException, IllegalArgumentException {
+                try {
+                    //call to super.set() for parameter checks
+                    super.set(newValue);
+                } catch (NullPointerException | IllegalArgumentException anException) {
+                    CDKCircularFragmenter.LOGGER.log(Level.WARNING, anException.toString(), anException);
+                    GuiUtil.guiExceptionAlert(Message.get("Fragmenter.IllegalSettingValue.Title"),
+                            Message.get("Fragmenter.IllegalSettingValue.Header"),
+                            anException.toString(),
+                            anException);
+                    //re-throws the exception to properly reset the binding
+                    throw anException;
+                }
+                //throws no exception if super.set() throws no exception
+                CDKCircularFragmenter.this.setCycleFinderInstance((IMoleculeFragmenter.CycleFinderOption) this.get());
+                CDKCircularFragmenter.this.setAromaticityInstance(
+                        CDKCircularFragmenter.this.electronDonationInstance,
+                        CDKCircularFragmenter.this.cycleFinderInstance);
+            }
+        };
+        this.settings.add(this.cycleFinderSetting);
+        this.settingNameToTooltipTextMap.put(this.cycleFinderSetting.getName(),
+                Message.get("CDKCircularFragmenter.cycleFinderSetting.tooltip"));
+        this.settingNameToDisplayNameMap.put(this.cycleFinderSetting.getName(),
+                Message.get("CDKCircularFragmenter.cycleFinderSetting.displayName"));
+        this.setCycleFinderInstance((IMoleculeFragmenter.CycleFinderOption) this.cycleFinderSetting.get());
+
+        this.electronDonationModelSetting = new SimpleIDisplayEnumConstantProperty(this, "Electron donation model setting",
+                CDKCircularFragmenter.ELECTRON_DONATION_MODEL_OPTION_DEFAULT,
+                IMoleculeFragmenter.ElectronDonationModelOption.class) {
+            @Override
+            public void set(IDisplayEnum newValue) throws NullPointerException, IllegalArgumentException {
+                try {
+                    //call to super.set() for parameter checks
+                    super.set(newValue);
+                } catch (NullPointerException | IllegalArgumentException anException) {
+                    CDKCircularFragmenter.LOGGER.log(Level.WARNING, anException.toString(), anException);
+                    GuiUtil.guiExceptionAlert(Message.get("Fragmenter.IllegalSettingValue.Title"),
+                            Message.get("Fragmenter.IllegalSettingValue.Header"),
+                            anException.toString(),
+                            anException);
+                    //re-throws the exception to properly reset the binding
+                    throw anException;
+                }
+                //throws no exception if super.set() throws no exception
+                CDKCircularFragmenter.this.setElectronDonationInstance((IMoleculeFragmenter.ElectronDonationModelOption) this.get());
+                CDKCircularFragmenter.this.setAromaticityInstance(
+                        CDKCircularFragmenter.this.electronDonationInstance,
+                        CDKCircularFragmenter.this.cycleFinderInstance);
+            }
+        };
+        this.settings.add(this.electronDonationModelSetting);
+        this.settingNameToTooltipTextMap.put(this.electronDonationModelSetting.getName(),
+                Message.get("CDKCircularFragmenter.electronDonationModelSetting.tooltip"));
+        this.settingNameToDisplayNameMap.put(this.electronDonationModelSetting.getName(),
+                Message.get("CDKCircularFragmenter.electronDonationModelSetting.displayName"));
+        this.setElectronDonationInstance((IMoleculeFragmenter.ElectronDonationModelOption) this.electronDonationModelSetting.get());
+        this.setAromaticityInstance(this.electronDonationInstance, this.cycleFinderInstance);
     }
     //</editor-fold>
     //
@@ -245,6 +373,62 @@ public class CDKCircularFragmenter implements IMoleculeFragmenter {
     public SimpleBooleanProperty markAttachmentsSettingProperty() {
         return this.markAttachmentsSetting;
     }
+
+    /**
+     * Returns the current state of the apply aromaticity detection setting.
+     *
+     * @return true if aromaticity detection is applied as preprocessing before fragmentation
+     */
+    public boolean getApplyAromaticityDetectionSetting() {
+        return this.applyAromaticityDetectionSetting.get();
+    }
+
+    /**
+     * Returns the property object of the apply aromaticity detection setting that can be used to configure this setting.
+     *
+     * @return property object of the apply aromaticity detection setting
+     */
+    public SimpleBooleanProperty applyAromaticityDetectionSettingProperty() {
+        return this.applyAromaticityDetectionSetting;
+    }
+
+    /**
+     * Returns the currently set option for the electron donation model setting used for
+     * aromaticity detection together with the set cycle finder algorithm.
+     *
+     * @return enum constant of the set option
+     */
+    public IMoleculeFragmenter.ElectronDonationModelOption getElectronDonationModelSetting() {
+        return (IMoleculeFragmenter.ElectronDonationModelOption) this.electronDonationModelSetting.get();
+    }
+
+    /**
+     * Returns the property object of the electron donation model setting that can be used to configure this setting.
+     *
+     * @return property object of the electron donation model setting
+     */
+    public SimpleIDisplayEnumConstantProperty electronDonationModelSettingProperty() {
+        return this.electronDonationModelSetting;
+    }
+
+    /**
+     * Returns the currently set option for the cycle finder setting used for aromaticity
+     * detection together with the electron donation model setting.
+     *
+     * @return enum constant of the set option
+     */
+    public IMoleculeFragmenter.CycleFinderOption getCycleFinderSetting() {
+        return (IMoleculeFragmenter.CycleFinderOption) this.cycleFinderSetting.get();
+    }
+
+    /**
+     * Returns the property object of the cycle finder setting that can be used to configure this setting.
+     *
+     * @return property object of the cycle finder setting
+     */
+    public SimpleIDisplayEnumConstantProperty cycleFinderSettingProperty() {
+        return this.cycleFinderSetting;
+    }
     //</editor-fold>
     //
     //<editor-fold desc="Public properties set">
@@ -277,6 +461,42 @@ public class CDKCircularFragmenter implements IMoleculeFragmenter {
      */
     public void setMarkAttachmentsSetting(boolean aBoolean) {
         this.markAttachmentsSetting.set(aBoolean);
+    }
+
+    /**
+     * Sets the apply aromaticity detection setting. If true, aromaticity detection using the configured
+     * electron donation model and cycle finder algorithm is applied as preprocessing before fragmentation.
+     * If false, the aromaticity information already present in the input molecule is used as-is.
+     *
+     * @param aBoolean true if aromaticity detection should be applied as preprocessing
+     */
+    public void setApplyAromaticityDetectionSetting(boolean aBoolean) {
+        this.applyAromaticityDetectionSetting.set(aBoolean);
+    }
+
+    /**
+     * Sets the electron donation model setting. The set electron donation model is used for aromaticity detection in
+     * preprocessing together with the set cycle finder algorithm.
+     *
+     * @param anOption a constant from the {@link IMoleculeFragmenter.ElectronDonationModelOption} enum
+     * @throws NullPointerException if the given parameter is null
+     */
+    public void setElectronDonationModelSetting(IMoleculeFragmenter.ElectronDonationModelOption anOption) throws NullPointerException {
+        Objects.requireNonNull(anOption, "Given option is null.");
+        //synchronisation with aromaticity model instance done in overridden set() function of the property
+        this.electronDonationModelSetting.set(anOption);
+    }
+
+    /**
+     * Sets the cycle finder setting. The chosen cycle finder algorithm is used for aromaticity detection in
+     * preprocessing together with the set electron donation model.
+     *
+     * @param anOption a constant from the {@link IMoleculeFragmenter.CycleFinderOption} enum
+     * @throws NullPointerException if the given parameter is null
+     */
+    public void setCycleFinderSetting(IMoleculeFragmenter.CycleFinderOption anOption) throws NullPointerException {
+        Objects.requireNonNull(anOption, "Given option is null.");
+        this.cycleFinderSetting.set(anOption);
     }
     //</editor-fold>
     //
@@ -314,6 +534,9 @@ public class CDKCircularFragmenter implements IMoleculeFragmenter {
         tmpCopy.setRadiusSetting(this.radiusSetting.get());
         tmpCopy.setPreserveStereoSetting(this.preserveStereoSetting.get());
         tmpCopy.setMarkAttachmentsSetting(this.markAttachmentsSetting.get());
+        tmpCopy.setApplyAromaticityDetectionSetting(this.applyAromaticityDetectionSetting.get());
+        tmpCopy.setCycleFinderSetting((IMoleculeFragmenter.CycleFinderOption) this.cycleFinderSetting.get());
+        tmpCopy.setElectronDonationModelSetting((IMoleculeFragmenter.ElectronDonationModelOption) this.electronDonationModelSetting.get());
         return tmpCopy;
     }
 
@@ -322,6 +545,11 @@ public class CDKCircularFragmenter implements IMoleculeFragmenter {
         this.radiusSetting.set(CDKCircularFragmenter.RADIUS_SETTING_DEFAULT);
         this.preserveStereoSetting.set(CDKCircularFragmenter.PRESERVE_STEREO_SETTING_DEFAULT);
         this.markAttachmentsSetting.set(CDKCircularFragmenter.MARK_ATTACHMENTS_SETTING_DEFAULT);
+        this.applyAromaticityDetectionSetting.set(CDKCircularFragmenter.APPLY_AROMATICITY_DETECTION_SETTING_DEFAULT);
+        this.cycleFinderSetting.set(CDKCircularFragmenter.CYCLE_FINDER_OPTION_DEFAULT);
+        this.setCycleFinderInstance(CDKCircularFragmenter.CYCLE_FINDER_OPTION_DEFAULT);
+        this.electronDonationModelSetting.set(CDKCircularFragmenter.ELECTRON_DONATION_MODEL_OPTION_DEFAULT);
+        this.setAromaticityInstance(this.electronDonationInstance, this.cycleFinderInstance);
     }
 
     @Override
@@ -332,9 +560,22 @@ public class CDKCircularFragmenter implements IMoleculeFragmenter {
         if (!tmpCanBeFragmented) {
             throw new IllegalArgumentException("Given molecule cannot be fragmented but should be filtered or preprocessed first.");
         }
+        IAtomContainer tmpMoleculeToWorkWith;
         List<IAtomContainer> tmpFragments;
         try {
-            tmpFragments = this.circularFragmenterInstance.getCircularFragments(aMolecule);
+            if (this.applyAromaticityDetectionSetting.get()) {
+                tmpMoleculeToWorkWith = aMolecule.clone();
+                if (this.electronDonationModelSetting.get().equals(IMoleculeFragmenter.ElectronDonationModelOption.CDK)
+                        || this.electronDonationModelSetting.get().equals(IMoleculeFragmenter.ElectronDonationModelOption.CDK_ALLOWING_EXOCYCLIC)) {
+                    //the other aromaticity models do not need atom types to be set
+                    AtomContainerManipulator.percieveAtomTypesAndConfigureAtoms(tmpMoleculeToWorkWith);
+                }
+                Aromaticity.clear(tmpMoleculeToWorkWith);
+                this.aromaticityModelInstance.apply(tmpMoleculeToWorkWith);
+            } else {
+                tmpMoleculeToWorkWith = aMolecule;
+            }
+            tmpFragments = this.circularFragmenterInstance.getCircularFragments(tmpMoleculeToWorkWith);
         } catch (Exception anException) {
             throw new IllegalArgumentException("An error occurred during fragmentation: " + anException.toString()
                     + " Molecule Name: " + aMolecule.getProperty(Importer.MOLECULE_NAME_PROPERTY_KEY));
@@ -370,6 +611,104 @@ public class CDKCircularFragmenter implements IMoleculeFragmenter {
             throw new IllegalArgumentException("The given molecule cannot be preprocessed but should be filtered.");
         }
         return aMolecule.clone();
+    }
+    //</editor-fold>
+    //
+    //<editor-fold desc="Private methods">
+    /**
+     * Sets only the aromaticity model instance, not the property! So it is safe for the property to call this method
+     * when overriding set().
+     *
+     * @param anElectronDonation the electron donation model to use
+     * @param aCycleFinder the cycle finder algorithm to use
+     * @throws NullPointerException if any parameter is null
+     */
+    private void setAromaticityInstance(ElectronDonation anElectronDonation, CycleFinder aCycleFinder) throws NullPointerException {
+        Objects.requireNonNull(anElectronDonation, "Given electron donation model is null.");
+        Objects.requireNonNull(aCycleFinder, "Given cycle finder algorithm is null.");
+        this.aromaticityModelInstance = new Aromaticity(anElectronDonation, aCycleFinder);
+    }
+
+    /**
+     * Sets only the cycle finder instance, not the property! Calling method needs to update the aromaticity model
+     * afterwards!
+     *
+     * @param anOption a constant from the {@link IMoleculeFragmenter.CycleFinderOption} enum
+     * @throws NullPointerException if the given option is null
+     */
+    private void setCycleFinderInstance(IMoleculeFragmenter.CycleFinderOption anOption) throws NullPointerException {
+        //Developer comment: the switch way is used instead of having the CycleFinder objects as variables of the enum constants
+        // to not have static objects becoming bottlenecks in parallelization.
+        Objects.requireNonNull(anOption, "Given option is null.");
+        switch (anOption) {
+            case IMoleculeFragmenter.CycleFinderOption.ALL:
+                this.cycleFinderInstance = Cycles.or(Cycles.all(), CDKCircularFragmenter.AUXILIARY_CYCLE_FINDER);
+                break;
+            case IMoleculeFragmenter.CycleFinderOption.MCB:
+                this.cycleFinderInstance = Cycles.or(Cycles.mcb(), CDKCircularFragmenter.AUXILIARY_CYCLE_FINDER);
+                break;
+            case IMoleculeFragmenter.CycleFinderOption.RELEVANT:
+                this.cycleFinderInstance = Cycles.or(Cycles.relevant(), CDKCircularFragmenter.AUXILIARY_CYCLE_FINDER);
+                break;
+            case IMoleculeFragmenter.CycleFinderOption.ESSENTIAL:
+                this.cycleFinderInstance = Cycles.or(Cycles.essential(), CDKCircularFragmenter.AUXILIARY_CYCLE_FINDER);
+                break;
+            case IMoleculeFragmenter.CycleFinderOption.EDGE_SHORT:
+                this.cycleFinderInstance = Cycles.or(Cycles.edgeShort(), CDKCircularFragmenter.AUXILIARY_CYCLE_FINDER);
+                break;
+            case IMoleculeFragmenter.CycleFinderOption.VERTEX_SHORT:
+                this.cycleFinderInstance = Cycles.or(Cycles.vertexShort(), CDKCircularFragmenter.AUXILIARY_CYCLE_FINDER);
+                break;
+            case IMoleculeFragmenter.CycleFinderOption.TRIPLET_SHORT:
+                this.cycleFinderInstance = Cycles.or(Cycles.tripletShort(), CDKCircularFragmenter.AUXILIARY_CYCLE_FINDER);
+                break;
+            case IMoleculeFragmenter.CycleFinderOption.CDK_AROMATIC_SET:
+                this.cycleFinderInstance = Cycles.cdkAromaticSet();
+                break;
+            default:
+                throw new IllegalArgumentException("Undefined cycle finder option.");
+        }
+    }
+
+    /**
+     * Sets only the electron donation instance, not the property! Calling method needs to update the aromaticity model
+     * afterwards!
+     *
+     * @param anOption a constant from the {@link IMoleculeFragmenter.ElectronDonationModelOption} enum
+     * @throws NullPointerException if the given option is null
+     */
+    private void setElectronDonationInstance(IMoleculeFragmenter.ElectronDonationModelOption anOption) throws NullPointerException {
+        //Developer comment: the switch way is used instead of having the ElectronDonation objects as variables of the enum constants
+        // to not have static objects becoming bottlenecks in parallelization.
+        Objects.requireNonNull(anOption, "Given option is null.");
+        switch (anOption) {
+            case IMoleculeFragmenter.ElectronDonationModelOption.CDK:
+                this.electronDonationInstance = Aromaticity.Model.CDK_AtomTypes;
+                break;
+            case IMoleculeFragmenter.ElectronDonationModelOption.DAYLIGHT:
+                this.electronDonationInstance = Aromaticity.Model.Daylight;
+                break;
+            case IMoleculeFragmenter.ElectronDonationModelOption.CDK_ALLOWING_EXOCYCLIC:
+                this.electronDonationInstance = ElectronDonation.cdkAllowingExocyclic();
+                break;
+            case IMoleculeFragmenter.ElectronDonationModelOption.CDK_1X:
+                this.electronDonationInstance = Aromaticity.Model.CDK_1x;
+                break;
+            case IMoleculeFragmenter.ElectronDonationModelOption.CDK_2X:
+                this.electronDonationInstance = Aromaticity.Model.CDK_2x;
+                break;
+            case IMoleculeFragmenter.ElectronDonationModelOption.MDL:
+                this.electronDonationInstance = Aromaticity.Model.Mdl;
+                break;
+            case IMoleculeFragmenter.ElectronDonationModelOption.OPEN_SMILES:
+                this.electronDonationInstance = Aromaticity.Model.OpenSmiles;
+                break;
+            case IMoleculeFragmenter.ElectronDonationModelOption.PI_BONDS:
+                this.electronDonationInstance = Aromaticity.Model.PiBonds;
+                break;
+            default:
+                throw new IllegalArgumentException("Undefined electron donation model option.");
+        }
     }
     //</editor-fold>
 }
