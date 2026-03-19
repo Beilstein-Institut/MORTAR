@@ -32,11 +32,11 @@ Name: "{app}"
 
 [Files]
 ; Place any regular files here
-Source: ".\in\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion recursesubdirs createallsubdirs;
-Source: ".\in\jdk-21.0.1_12_jre\*"; DestDir: "{app}\jdk-21.0.1_12_jre"; Flags: ignoreversion recursesubdirs createallsubdirs;
-Source: ".\in\lib\*"; DestDir: "{app}\lib"; Flags: ignoreversion recursesubdirs createallsubdirs;
-Source: ".\in\tutorial\*"; DestDir: "{app}\tutorial"; Flags: ignoreversion recursesubdirs createallsubdirs;
-Source: ".\in\icon\*"; DestDir: "{app}\icon"; Flags: ignoreversion recursesubdirs createallsubdirs;
+Source: ".\in\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion recursesubdirs createallsubdirs; Compression=lzma
+Source: ".\in\jdk-21.0.1_12_jre\*"; DestDir: "{app}\jdk-21.0.1_12_jre"; Flags: ignoreversion recursesubdirs createallsubdirs; Compression=lzma
+Source: ".\in\lib\*"; DestDir: "{app}\lib"; Flags: ignoreversion recursesubdirs createallsubdirs; Compression=lzma
+Source: ".\in\tutorial\*"; DestDir: "{app}\tutorial"; Flags: ignoreversion recursesubdirs createallsubdirs; Compression=lzma
+Source: ".\in\icon\*"; DestDir: "{app}\icon"; Flags: ignoreversion recursesubdirs createallsubdirs; Compression=lzma
 
 [Icons]
 ; Mortar
