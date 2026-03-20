@@ -76,19 +76,19 @@ public class CDKCircularFragmenter implements IMoleculeFragmenter {
     public static final String ALGORITHM_NAME = "CDK Circular Fragmenter";
 
     /**
-     * Default radius setting value (number of bonds), taken from {@link CircularFragmenter#DEFAULT_RADIUS}.
+     * Default radius setting value (number of bonds), taken from {@link CircularFragmenter}.
      */
-    public static final int RADIUS_SETTING_DEFAULT = CircularFragmenter.DEFAULT_RADIUS;
+    public static final int RADIUS_SETTING_DEFAULT = 3;
 
     /**
-     * Default preserve stereo setting value, taken from {@link CircularFragmenter#DEFAULT_PRESERVE_STEREO}.
+     * Default preserve stereo setting value, taken from {@link CircularFragmenter}.
      */
-    public static final boolean PRESERVE_STEREO_SETTING_DEFAULT = CircularFragmenter.DEFAULT_PRESERVE_STEREO;
+    public static final boolean PRESERVE_STEREO_SETTING_DEFAULT = false;
 
     /**
-     * Default mark attachments setting value, taken from {@link CircularFragmenter#DEFAULT_MARK_ATTACHMENTS}.
+     * Default mark attachments setting value, taken from {@link CircularFragmenter}.
      */
-    public static final boolean MARK_ATTACHMENTS_SETTING_DEFAULT = CircularFragmenter.DEFAULT_MARK_ATTACHMENTS;
+    public static final boolean MARK_ATTACHMENTS_SETTING_DEFAULT = false;
 
     /**
      * Default value for the apply aromaticity detection setting; aromaticity detection is *not* applied by default.
