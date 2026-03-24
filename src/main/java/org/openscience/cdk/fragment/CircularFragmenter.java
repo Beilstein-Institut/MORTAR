@@ -25,7 +25,6 @@
 
 package org.openscience.cdk.fragment;
 
-import org.openscience.cdk.Bond;
 import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IBond;
@@ -48,7 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-//TODO replace this with the corresponding CDK dependency when it is available there!
+//TODO replace this with the corresponding CDK dependency when the snapshot srtifact is updated
 /**
  * Extracts atom-centered circular / spherical fragments from a molecule,
  * analogous to HOSE codes, circular Morgan-type
@@ -547,7 +546,6 @@ public class CircularFragmenter {
             }
             IBond copiedBond = this.deeperCopy(origBond, copiedBegin, copiedEnd);
             originalBondToCopyBondMap.put(origBond, copiedBond);
-            fragment.addBond(copiedBond);
         }
         // single electrons
         for (ISingleElectron se : molecule.singleElectrons()) {
@@ -599,8 +597,11 @@ public class CircularFragmenter {
      * @return the copied atom
      */
     private IAtom deeperCopy(IAtom atom, IAtomContainer container) {
-        IAtom cpyAtom = container.newAtom(atom.getAtomicNumber(),
-                atom.getImplicitHydrogenCount());
+        Integer hCount = atom.getImplicitHydrogenCount();
+        int implicitHs = (hCount == null) ? 0 : hCount;
+        Integer atomicNumber = atom.getAtomicNumber();
+        int element = (atomicNumber == null) ? 0 : atomicNumber;
+        IAtom cpyAtom = container.newAtom(element, implicitHs);
         cpyAtom.setIsAromatic(atom.isAromatic());
         cpyAtom.setValency(atom.getValency());
         cpyAtom.setAtomTypeName(atom.getAtomTypeName());
@@ -639,7 +640,7 @@ public class CircularFragmenter {
      * <br>- electron count
      * <br>- some primitive-based properties (String, Integer, Boolean)
      * <br>Note: The begin and end atoms are not copied, but the given ones are used in the copy.
-     * <br>Note also: the created bond must be added to the copy atom container by the calling code!
+     * <br>Note also: the created bond is already added to the copy atom container.
      *
      * @param bond the bond to copy
      * @param begin the begin atom of the bond in the copy(!)
@@ -647,8 +648,7 @@ public class CircularFragmenter {
      * @return the copied bond
      */
     private IBond deeperCopy(IBond bond, IAtom begin, IAtom end) {
-        //using begin.getContainer().newBond() here caused weird issues sometimes
-        IBond newBond = new Bond(begin, end, bond.getOrder());
+        IBond newBond = begin.getContainer().newBond(begin, end, bond.getOrder());
         newBond.setIsAromatic(bond.isAromatic());
         newBond.setDisplay(bond.getDisplay());
         newBond.setIsInRing(bond.isInRing());

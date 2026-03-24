@@ -24,8 +24,8 @@ java {
 
 repositories {
     mavenCentral()
-    // CDK SNAPSHOT repository, uncomment if needed
-    //maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
+    // CDK SNAPSHOT repository
+    maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
     // GitLab Maven repository for MolWURCS
     maven { url = uri("https://gitlab.com/api/v4/projects/20390948/packages/maven") }
     // GitLab Maven repository for WURCSFramework
