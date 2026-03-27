@@ -37,7 +37,7 @@ jobs:
       - name: Verify Gradle Wrapper
         uses: gradle/actions/wrapper-validation@v3
       - name: Download Inno Setup installer
-        run: Invoke-WebRequest -Uri https://files.jrsoftware.org/is/6/innosetup-6.4.2.exe -OutFile inno-setup.exe
+        run: Invoke-WebRequest -Uri https://github.com/jrsoftware/issrc/releases/download/is-6_4_2/innosetup-6.4.2.exe -OutFile inno-setup.exe
       - name: Install Inno Setup
         run: .\inno-setup.exe /SILENT
       - name: Add Inno Setup to PATH
