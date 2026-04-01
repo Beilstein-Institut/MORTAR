@@ -243,10 +243,6 @@ public class OverviewViewController implements IViewToolController {
      */
     private boolean withFirstStructureHighlight;
     /**
-     * Boolean value saying whether fragment frequencies should be displayed in the overview view.
-     */
-    private boolean withFrequencyDisplay;
-    /**
      * Boolean value whether an event to return to a specific structure in the MainView occurred.
      */
     private boolean returnToStructureEventOccurred;
@@ -370,7 +366,7 @@ public class OverviewViewController implements IViewToolController {
     @Override
     public boolean canBeUsedOnTab(TabNames aTabNameEnumConstant) {
         return switch (aTabNameEnumConstant) {
-            case MOLECULES, FRAGMENTS -> true;
+            case TabNames.MOLECULES, TabNames.FRAGMENTS -> true;
             default -> false;
         };
     }
@@ -397,7 +393,7 @@ public class OverviewViewController implements IViewToolController {
         Objects.requireNonNull(aMoleculeDataModelList, "aMoleculeDataModelList (list of MoleculeDataModel instances) is null");
         //</editor-fold>
         switch (aDataSource) {
-            case MOLECULES_TAB, FRAGMENTS_TAB -> {
+            case DataSources.MOLECULES_TAB, DataSources.FRAGMENTS_TAB -> {
                 Objects.requireNonNull(aTabName, "aTabName (instance of String) is null");
                 if (aTabName.isBlank()) {
                     OverviewViewController.LOGGER.log(Level.WARNING, "aTabName (instance of String) is blank");
@@ -409,9 +405,8 @@ public class OverviewViewController implements IViewToolController {
                                 + (aMoleculeDataModelList.size() != 1 ? "s" : ""));
                 this.withShowInMainViewOption = true;
                 this.withFirstStructureHighlight = false;
-                this.withFrequencyDisplay = (aDataSource == DataSources.FRAGMENTS_TAB);
             }
-            case PARENT_MOLECULES_SAMPLE -> {
+            case DataSources.PARENT_MOLECULES_SAMPLE -> {
                 this.overviewViewTitle = Message.get("OverviewView.titleOfDataSource.parentMolecules") +
                         " - " + Message.get("OverviewView.nameOfView") +
                         " - " + (aMoleculeDataModelList.size() - 1) +  " " +
@@ -419,9 +414,8 @@ public class OverviewViewController implements IViewToolController {
                                 : "OverviewView.titleOfView.molecules"));
                 this.withShowInMainViewOption = false;
                 this.withFirstStructureHighlight = true;
-                this.withFrequencyDisplay = false;
             }
-            case ITEM_WITH_FRAGMENTS_SAMPLE -> {
+            case DataSources.ITEM_WITH_FRAGMENTS_SAMPLE -> {
                 this.overviewViewTitle = Message.get("OverviewView.titleOfDataSource.itemsTab") +
                         " - " + Message.get("OverviewView.nameOfView") +
                         " - " + (aMoleculeDataModelList.size() - 1) + " " +
@@ -429,7 +423,6 @@ public class OverviewViewController implements IViewToolController {
                                 : "OverviewView.titleOfView.fragments"));
                 this.withShowInMainViewOption = false;
                 this.withFirstStructureHighlight = true;
-                this.withFrequencyDisplay = false;
             }
             default -> {
                 this.setOverviewViewTitleForDefaultDataSource(aTabName, aMoleculeDataModelList.size());
@@ -765,7 +758,7 @@ public class OverviewViewController implements IViewToolController {
                             //depiction of structure image
                             final Node tmpFinalContentNode;
                             if (!(tmpIterator == 0 && this.withFirstStructureHighlight)) {
-                                if (this.withFrequencyDisplay && tmpMoleculeDataModel instanceof FragmentDataModel tmpFragment) {
+                                if (this.dataSource == DataSources.FRAGMENTS_TAB && tmpMoleculeDataModel instanceof FragmentDataModel tmpFragment) {
                                     String tmpFrequencyLabel =
                                             tmpFragment.getMoleculeFrequency()
                                                     + " ("
