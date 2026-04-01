@@ -172,7 +172,7 @@ public class OverviewViewController implements IViewToolController {
     /**
      * Decimal format for fragment frequencies in the display.
      */
-    private static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("#.##");
+    private static final DecimalFormat FRAGMENT_FREQUENCIES_DECIMAL_FORMAT = new DecimalFormat("#.##");
     //</editor-fold>
     //
     //<editor-fold desc="private final class constants" defaultstate="collapsed">
@@ -771,8 +771,17 @@ public class OverviewViewController implements IViewToolController {
                                                     + " ("
                                                     // getMoleculePercentage() returns a decimal fraction (e.g. 0.25 for 25%),
                                                     // so multiply by 100 to convert it to a percentage value for display
-                                                    + OverviewViewController.DECIMAL_FORMAT.format(tmpFragment.getMoleculePercentage() * 100)
+                                                    + OverviewViewController.FRAGMENT_FREQUENCIES_DECIMAL_FORMAT.format(tmpFragment.getMoleculePercentage() * 100)
                                                     + "%)";
+                                    if (DepictionUtil.isTextWiderThanImage(tmpImageWidth, tmpFrequencyLabel)) {
+                                        tmpFrequencyLabel = tmpFragment.getMoleculeFrequency() + " (...)";
+                                    }
+                                    if (DepictionUtil.isTextWiderThanImage(tmpImageWidth, tmpFrequencyLabel)) {
+                                        tmpFrequencyLabel = String.valueOf(tmpFragment.getMoleculeFrequency());
+                                    }
+                                    if (DepictionUtil.isTextWiderThanImage(tmpImageWidth, tmpFrequencyLabel)) {
+                                        tmpFrequencyLabel = DepictionUtil.fitIntegerDisplayToImageWidth(tmpImageWidth, tmpFragment.getMoleculeFrequency());
+                                    }
                                     tmpFinalContentNode = new ImageView(
                                             DepictionUtil.depictImageWithText(
                                                     tmpMoleculeDataModel.getAtomContainer(), 1.0, tmpImageWidth,

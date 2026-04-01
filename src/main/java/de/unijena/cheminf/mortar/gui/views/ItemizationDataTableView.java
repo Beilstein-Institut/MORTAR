@@ -31,6 +31,7 @@ import de.unijena.cheminf.mortar.message.Message;
 import de.unijena.cheminf.mortar.model.data.DataModelPropertiesForTableView;
 import de.unijena.cheminf.mortar.model.data.FragmentDataModel;
 import de.unijena.cheminf.mortar.model.data.MoleculeDataModel;
+import de.unijena.cheminf.mortar.model.depict.DepictionUtil;
 import de.unijena.cheminf.mortar.model.settings.SettingsContainer;
 
 import javafx.beans.binding.Bindings;
@@ -225,8 +226,10 @@ public class ItemizationDataTableView extends TableView implements IDataTableVie
                 if (!cellData.getValue().hasMoleculeUndergoneSpecificFragmentation(this.fragmentationName)) {
                     return null;
                 }
-                String tmpFrequency = cellData.getValue().getFragmentFrequencyOfSpecificFragmentation(this.fragmentationName).get(tmpFragment.getUniqueSmiles()).toString();
-                return tmpFragment.getStructureWithText(tmpFrequency);
+                int tmpFrequency = cellData.getValue().getFragmentFrequencyOfSpecificFragmentation(this.fragmentationName).get(tmpFragment.getUniqueSmiles());
+                // just a precaution; it is highly unlikely that we get that many fragments of the same type for one(!) molecule
+                String tmpFrequencyString = DepictionUtil.fitIntegerDisplayToImageWidth(cellData.getValue().getStructureImageWidth(), tmpFrequency);
+                return tmpFragment.getStructureWithText(tmpFrequencyString);
             }));
             tmpColumn.setMinWidth(300);
             this.fragmentStructureColumn.getColumns().add(tmpColumn);

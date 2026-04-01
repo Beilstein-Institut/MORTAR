@@ -41,6 +41,7 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.Transparency;
 import java.awt.image.BufferedImage;
+import java.text.DecimalFormat;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -53,6 +54,22 @@ import java.util.logging.Logger;
  * @version 1.0.0.0
  */
 public class DepictionUtil {
+    //<editor-fold desc="Decimal formats enum">
+    /**
+     * Collection of progressively shorter decimal formats for fitting a number for display to a limiting image width.
+     */
+    private static final DecimalFormat[] FORMATS = {
+            new DecimalFormat("#,##0.000"),   // 1,234.567
+            new DecimalFormat("#,##0.00"),    // 1,234.57
+            new DecimalFormat("#,##0.0"),     // 1,234.6
+            new DecimalFormat("#,##0"),       // 1,235
+            new DecimalFormat("0.000E0"),     // 1.235E3
+            new DecimalFormat("0.00E0"),      // 1.24E3
+            new DecimalFormat("0.0E0"),       // 1.2E3
+            new DecimalFormat("0E0"),         // 1E3
+    };
+    //</editor-fold>
+    //
     //<editor-fold desc="private static final class variables" defaultstate="collapsed">
     /**
      * Logger of this class.
@@ -205,6 +222,46 @@ public class DepictionUtil {
         tmpGraphic.dispose();
         tmpGraphic.drawImage(tmpBufferedImage, 0, 0, null);
         return SwingFXUtils.toFXImage(tmpBufferedImage, null);
+    }
+    //
+    /**
+     * Checks whether the given text would be wider than the image if both are used with depictImageWithText().
+     *
+     * @param anImageWidth the width of the image that is intended to be generated
+     * @param aText the text that is supposed to be included in the image
+     * @return true if the text would be wider than the image; false otherwise
+     */
+    public static boolean isTextWiderThanImage(double anImageWidth, String aText) {
+        BufferedImage tmpBufferedImage = new BufferedImage((int) anImageWidth, 1, Transparency.OPAQUE);
+        Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
+        DepictionUtil.configureGraphics2D(tmpGraphics2d);
+        Font tmpFont = new Font("Calibri", Font.BOLD, 20);
+        tmpGraphics2d.setFont(tmpFont);
+        FontMetrics tmpFontMetrics = tmpGraphics2d.getFontMetrics();
+        return tmpFontMetrics.stringWidth(aText) > anImageWidth;
+    }
+    //
+    /**
+     * Formats the given integer value using progressively shorter decimal formats until the resulting text is not
+     * wider than the given image width (using the default text font). If all formats are too wide, scientific notation
+     * with no decimals will be used as a last resort.
+     *
+     * @param anImageWidth the width of the image that is intended to be generated
+     * @param aValue the value that is supposed to be included in the image
+     * @return a String representation of the given value that is not wider than the given image width when using the default text font
+     */
+    public static String fitIntegerDisplayToImageWidth(double anImageWidth, int aValue) {
+        if (!DepictionUtil.isTextWiderThanImage(anImageWidth, String.valueOf(aValue))) {
+            return String.valueOf(aValue);
+        }
+        for (DecimalFormat tmpDecimalFormat : DepictionUtil.FORMATS) {
+            String tmpResult = tmpDecimalFormat.format(aValue);
+            if (!DepictionUtil.isTextWiderThanImage(anImageWidth, tmpResult)) {
+                return tmpResult;
+            }
+        }
+        // Last resort: scientific notation with no decimals
+        return String.format("%.0e", (double) aValue);
     }
     //
     /**
