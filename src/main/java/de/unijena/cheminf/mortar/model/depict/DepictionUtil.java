@@ -208,7 +208,7 @@ public class DepictionUtil {
     }
     //
     /**
-     * Depicts and returns an image with the given text below. Background will be transparent.
+     * Depicts and returns an image with the given text below. Background will be transparent and fill to fit turned off.
      *
      * @param anAtomContainer IAtomContainer
      * @param aZoom double
@@ -217,25 +217,14 @@ public class DepictionUtil {
      * @param aString String
      * @return Image of 2D structure of IAtomContainer with given String below
      */
-    public static Image depictImageWithText(IAtomContainer anAtomContainer, double aZoom, double aWidth, double aHeight, String aString) {
-        try {
-            // height - 25 magic number to compensate for the height of the text
-            BufferedImage tmpMolBufferedImage = DepictionUtil.depictBufferedImageWithZoom(anAtomContainer, aZoom, aWidth, aHeight - 25, false, false);
-            BufferedImage tmpBufferedImage = new BufferedImage(tmpMolBufferedImage.getWidth(), tmpMolBufferedImage.getHeight() + BasicDefinitions.DEFAULT_IMAGE_TEXT_DISTANCE, Transparency.TRANSLUCENT);
-            Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
-            DepictionUtil.configureGraphics2D(tmpGraphics2d);
-            tmpGraphics2d.drawImage(tmpMolBufferedImage, 0, 0,null);
-            tmpGraphics2d.setColor(Color.BLACK);
-            tmpGraphics2d.setFont(new Font("Calibri", Font.BOLD, 20));
-            FontMetrics tmpFontMetric = tmpGraphics2d.getFontMetrics();
-            int tmpTextWidth = tmpFontMetric.stringWidth(aString);
-            tmpGraphics2d.drawString(aString, (tmpBufferedImage.getWidth() / 2) - tmpTextWidth / 2, tmpBufferedImage.getHeight());
-            tmpGraphics2d.dispose();
-            return SwingFXUtils.toFXImage(tmpBufferedImage, null);
-        } catch (CDKException anException) {
-            DepictionUtil.LOGGER.log(Level.SEVERE, anException.toString(), anException);
-            return DepictionUtil.depictErrorImage(anException.getMessage(), 250,250);
-        }
+    public static Image depictImageWithText(
+            IAtomContainer anAtomContainer,
+            double aZoom,
+            double aWidth,
+            double aHeight,
+            String aString
+    ) {
+        return DepictionUtil.depictImageWithText(anAtomContainer, aZoom, aWidth, aHeight, aString, false, false);
     }
     //
     /**
@@ -250,7 +239,7 @@ public class DepictionUtil {
      * @param anIsBackgroundWhite true if the image should have an opaque white background; false if the background should be transparent
      * @return Image of 2D structure of IAtomContainer with given text below
      */
-    public static Image depictImageWithTextForOverview(
+    public static Image depictImageWithText(
             IAtomContainer anAtomContainer,
             double aZoom,
             double aWidth,
@@ -264,13 +253,12 @@ public class DepictionUtil {
                     anAtomContainer,
                     aZoom,
                     aWidth,
-                    // height - 25 magic number to compensate for the height of the text
-                    aHeight - 25.0,
+                    aHeight - BasicDefinitions.DEFAULT_IMAGE_TEXT_DISTANCE,
                     aFillToFit,
                     anIsBackgroundWhite);
             BufferedImage tmpBufferedImage = new BufferedImage(
                     tmpMolBufferedImage.getWidth(),
-                    tmpMolBufferedImage.getHeight() + 25,
+                    tmpMolBufferedImage.getHeight() + BasicDefinitions.DEFAULT_IMAGE_TEXT_DISTANCE,
                     anIsBackgroundWhite ? Transparency.OPAQUE : Transparency.TRANSLUCENT);
             Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
             DepictionUtil.configureGraphics2D(tmpGraphics2d);
@@ -286,7 +274,7 @@ public class DepictionUtil {
             tmpGraphics2d.drawString(
                     aText,
                     (tmpBufferedImage.getWidth() / 2) - tmpTextWidth / 2,
-                    // - 7 magic number to align text
+                    // - 7 magic number to align text, i.e. add a spacing between the bottom of the image and the text
                     tmpBufferedImage.getHeight() - 7);
             tmpGraphics2d.dispose();
             return SwingFXUtils.toFXImage(tmpBufferedImage, null);

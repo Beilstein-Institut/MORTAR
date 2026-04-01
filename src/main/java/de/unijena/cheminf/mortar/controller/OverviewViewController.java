@@ -774,7 +774,7 @@ public class OverviewViewController implements IViewToolController {
                                                     + OverviewViewController.DECIMAL_FORMAT.format(tmpFragment.getMoleculePercentage() * 100)
                                                     + "%)";
                                     tmpFinalContentNode = new ImageView(
-                                            DepictionUtil.depictImageWithTextForOverview(
+                                            DepictionUtil.depictImageWithText(
                                                     tmpMoleculeDataModel.getAtomContainer(), 1.0, tmpImageWidth,
                                                     tmpImageHeight, tmpFrequencyLabel, false, true
                                             )
