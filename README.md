@@ -35,10 +35,11 @@
 MORTAR ('MOlecule fRagmenTation fRamework') is a free and open-source graphical desktop application that supports 
 molecular <i>in silico</i> fragmentation and substructure analysis. The Java/JavaFX rich client offers extensive graphical 
 functions for visualizing the fragmentation results of individual compounds or entire compound sets. 
-In addition to four currently integrated methods for fragmentation and substructure analysis - 
+In addition to five currently integrated methods for fragmentation and substructure analysis -
 <a href="https://github.com/JonasSchaub/ErtlFunctionalGroupsFinder">ErtlFunctionalGroupsFinder</a>, 
 <a href="https://github.com/JonasSchaub/SugarRemoval">Sugar Removal Utility</a> (with the <a href="https://github.com/cdk/cdk/pull/1225">Sugar Detection Utility</a> extension), 
-<a href="https://github.com/cdk/cdk-scaffold">CDK-Scaffold</a>, and <a href="https://gitlab.com/glycoinfo/molwurcs">MolWURCS</a> - MORTAR allows straightforward integration of 
+<a href="https://github.com/cdk/cdk-scaffold">CDK-Scaffold</a>, <a href="https://gitlab.com/glycoinfo/molwurcs">MolWURCS</a>,
+and Circular Fragmentation analogous to HOSE codes or Morgan Fingerprints - MORTAR allows straightforward integration of
 additional fragmentation algorithms to support the development of new methods at an early stage. 
 All cheminformatics functionalities are implemented based on the <a href="https://github.com/cdk/cdk">Chemistry Development Kit (CDK)</a>.<br>
 The scientific article describing MORTAR can be found here: 
@@ -210,7 +211,7 @@ will take care of it automatically.
 * JavaFX version 21.0.1
   * [Open JavaFX](https://openjfx.io)
   * GNU General Public License (GPL) Version 2
-* Chemistry Development Kit (CDK) version 2.12-SNAPSHOT
+* Chemistry Development Kit (CDK) version 2.13-SNAPSHOT
     * [Chemistry Development Kit on GitHub](https://cdk.github.io/)
     * License: GNU Lesser General Public License 2.1
 * MolWURCS version 0.12.1
@@ -261,6 +262,11 @@ fragmentation (Baensch et al. 2023)</a>).
 * [Matsubara, M., Bolton, E.E., Aoki-Kinoshita, K.F. et al. Toward integration of glycan chemical databases: an algorithm and software tool for extracting sugars from chemical structures. Anal Bioanal Chem 417, 945–956 (2025). https://doi.org/10.1007/s00216-024-05508-1](https://doi.org/10.1007/s00216-024-05508-1)
 * [Masaaki Matsubara, Kiyoko F. Aoki-Kinoshita, Nobuyuki P. Aoki, Issaku Yamada, and Hisashi Narimatsu. WURCS 2.0 Update To Encapsulate Ambiguous Carbohydrate Structures. Journal of Chemical Information and Modeling 2017 57 (4), 632-637. https://doi.org/10.1021/acs.jcim.6b00650](https://doi.org/10.1021/acs.jcim.6b00650)
 * [Kenichi Tanaka, Kiyoko F. Aoki-Kinoshita, Masaaki Kotera, Hiromichi Sawaki, Shinichiro Tsuchiya, Noriaki Fujita, Toshihide Shikanai, Masaki Kato, Shin Kawano, Issaku Yamada, and Hisashi Narimatsu. WURCS: The Web3 Unique Representation of Carbohydrate Structures. Journal of Chemical Information and Modeling 2014 54 (6), 1558-1566. https://doi.org/10.1021/ci400571e](https://doi.org/10.1021/ci400571e)
+
+**Circular Fragmentation**
+* [W. Bremser, Hose — a novel substructure code, Analytica Chimica Acta, Volume 103, Issue 4, 1978, Pages 355-365, ISSN 0003-2670, https://doi.org/10.1016/S0003-2670(01)83100-7.](https://doi.org/10.1016/S0003-2670(01)83100-7)
+* [Rogers, D.; Hahn, M. Extended-Connectivity Fingerprints. J. Chem. Inf. Model. 2010, 50, 742–754, doi:10.1021/ci100050t.](https://doi.org/10.1021/ci100050t)
+* [Faulon, J.-L.; Visco, D.P.; Pophale, R.S. The Signature Molecular Descriptor. 1. Using Extended Valence Sequences in QSAR and QSPR Studies. J. Chem. Inf. Comput. Sci. 2003, 43, 707–720, doi:10.1021/ci020345w.](https://doi.org/10.1021/ci020345w)
 
 **Chemistry Development Kit (CDK)**
 * [Chemistry Development Kit on GitHub](https://cdk.github.io/)
