@@ -34,11 +34,13 @@ import de.unijena.cheminf.mortar.message.Message;
 import de.unijena.cheminf.mortar.model.data.FragmentDataModel;
 import de.unijena.cheminf.mortar.model.data.MoleculeDataModel;
 import de.unijena.cheminf.mortar.model.depict.DepictionUtil;
+import de.unijena.cheminf.mortar.model.settings.SettingsContainer;
 
 import javafx.application.Platform;
 import javafx.beans.property.Property;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.value.ChangeListener;
+import javafx.embed.swing.SwingFXUtils;
 import javafx.event.ActionEvent;
 import javafx.event.Event;
 import javafx.event.EventHandler;
@@ -53,6 +55,7 @@ import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.image.WritableImage;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.KeyCode;
@@ -69,12 +72,17 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
 
 import org.openscience.cdk.exception.CDKException;
 
+import javax.imageio.ImageIO;
+
+import java.io.File;
+import java.io.IOException;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -181,6 +189,10 @@ public class OverviewViewController implements IViewToolController {
      */
     private final IConfiguration configuration;
     /**
+     * Settings container class to get settings like the recent directory path from.
+     */
+    private final SettingsContainer settingsContainer;
+    /**
      * Integer property that holds the number of rows of structure images to be displayed per page.
      */
     private final SimpleIntegerProperty rowsPerPageSetting;
@@ -269,9 +281,11 @@ public class OverviewViewController implements IViewToolController {
      * Constructor, initialises all settings with their default values. Does *not* open the view.
      *
      * @param aConfiguration configuration instance to read resource file paths from
+     * @param aSettingsContainer settings container instance to get settings like the recent directory path from
      */
-    public OverviewViewController(IConfiguration aConfiguration) {
+    public OverviewViewController(IConfiguration aConfiguration, SettingsContainer aSettingsContainer) {
         this.configuration = aConfiguration;
+        this.settingsContainer = aSettingsContainer;
         this.settings = new ArrayList<>(2);
         this.rowsPerPageSetting = new SimpleIntegerProperty(this,
                 //the name could be displayed but is not used for that currently
@@ -512,6 +526,9 @@ public class OverviewViewController implements IViewToolController {
         //close button listener
         this.overviewView.getCloseButton().setOnAction(actionEvent -> this.closeOverviewViewEvent());
         //
+        //screenshot button listener
+        this.overviewView.getScreenshotButton().setOnAction(actionEvent -> this.takeScreenshotOfStructureGridPane());
+        //
         //listener to distinguish a drag from a click event (on the image views)
         /*
          * The following block of code was inspired by a post of the user "mipa" of the stackoverflow community;
@@ -690,6 +707,53 @@ public class OverviewViewController implements IViewToolController {
     }
     //
     /**
+     * Takes a snapshot of the structure grid pane, opens a save-file dialog, and writes the result as a PNG file
+     * to the location chosen by the user.
+     */
+    private void takeScreenshotOfStructureGridPane() {
+        FileChooser tmpFileChooser = new FileChooser();
+        tmpFileChooser.setTitle(Message.get("OverviewView.screenshotButton.fileChooser.title"));
+        tmpFileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("PNG Image", "*.png")
+        );
+        //get the title of the overview without the number of molecules
+        tmpFileChooser.setInitialFileName(
+                this.overviewViewTitle
+                        .substring(0, this.overviewViewTitle.lastIndexOf('-') - 1)
+                        .replaceAll("\\s+","")
+                        .trim()
+                        + ".png"
+        );
+        tmpFileChooser.setInitialDirectory(new File(this.settingsContainer.getRecentDirectoryPathSetting()));
+        File tmpFile = tmpFileChooser.showSaveDialog(this.overviewViewStage);
+        if (tmpFile == null) {
+            // user canceled the dialog
+            return;
+        }
+        this.settingsContainer.setRecentDirectoryPathSetting(tmpFile.getParent() + File.separator);
+        WritableImage tmpSnapshot = this.overviewView.getStructureGridPane().snapshot(null, null);
+        try {
+            //note: this could be done in a separate thread, but it actually works pretty fast
+            ImageIO.write(SwingFXUtils.fromFXImage(tmpSnapshot, null), "png", tmpFile);
+            //note: we cannot report this via the status bar because the MainViewController alone can update it
+            GuiUtil.guiMessageAlert(
+                    Alert.AlertType.INFORMATION,
+                    Message.get("OverviewView.screenshotButton.success.title"),
+                    Message.get("OverviewView.screenshotButton.success.header"),
+                    tmpFile.getAbsolutePath()
+            );
+        } catch (IOException anIOException) {
+            OverviewViewController.LOGGER.log(Level.SEVERE, anIOException.toString(), anIOException);
+            GuiUtil.guiExceptionAlert(
+                    Message.get("OverviewView.screenshotButton.error.title"),
+                    Message.get("OverviewView.screenshotButton.error.header"),
+                    Message.get("OverviewView.screenshotButton.error.text"),
+                    anIOException
+            );
+        }
+    }
+    //
+    /**
      * Creates an overview view page according to the given page index. This method is called again and again for every page!
      * A GridPane containing structure images is returned. The SMILES and image of each structure can be copied and an
      * enlarged version of the image be shown in a separate view via a context menu.
@@ -781,6 +845,9 @@ public class OverviewViewController implements IViewToolController {
                                                     tmpImageHeight, tmpFrequencyLabel, false, true
                                             )
                                     );
+                                    //note: the same could be done for the item overview, but it is more complicated (too
+                                    // complicated?) to get the individual fragment frequencies from the molecule, since
+                                    // we do not know the fragmentation name, atm
                                 } else {
                                     tmpFinalContentNode = new ImageView(
                                             DepictionUtil.depictImageWithZoomAndFillToFitAndWhiteBackground(

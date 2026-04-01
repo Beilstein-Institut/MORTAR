@@ -243,7 +243,7 @@ public class MainViewController {
         this.fragmentationService = new FragmentationService();
         this.fragmentationService.reloadFragmenterSettings();
         this.fragmentationService.reloadActiveFragmenterAndPipeline();
-        this.viewToolsManager = new ViewToolsManager(this.configuration);
+        this.viewToolsManager = new ViewToolsManager(this.configuration, this.settingsContainer);
         this.viewToolsManager.reloadViewToolsSettings();
         //<editor-fold desc="show MainView inside primaryStage" defaultstate="collapsed">
         this.mainTabPane = new TabPane();
