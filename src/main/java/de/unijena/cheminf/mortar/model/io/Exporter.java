@@ -1172,7 +1172,13 @@ public class Exporter {
         FileChooser.ExtensionFilter tmpExtensionFilter2 = new FileChooser.ExtensionFilter(aDescription, anExtension);
         tmpFileChooser.getExtensionFilters().addAll(tmpExtensionFilter2);
         tmpFileChooser.setInitialFileName(aFileName);
-        tmpFileChooser.setInitialDirectory(new File(this.settingsContainer.getRecentDirectoryPathSetting()));
+        File tmpRecentDirectory = new File(this.settingsContainer.getRecentDirectoryPathSetting());
+        if (!tmpRecentDirectory.isDirectory()) {
+            tmpRecentDirectory = new File(SettingsContainer.RECENT_DIRECTORY_PATH_SETTING_DEFAULT);
+            this.settingsContainer.setRecentDirectoryPathSetting(SettingsContainer.RECENT_DIRECTORY_PATH_SETTING_DEFAULT);
+            Exporter.LOGGER.log(Level.INFO, "Recent directory could not be read, resetting to default.");
+        }
+        tmpFileChooser.setInitialDirectory(tmpRecentDirectory);
         File tmpFile = tmpFileChooser.showSaveDialog(aParentStage);
         if (tmpFile != null) {
             this.settingsContainer.setRecentDirectoryPathSetting(tmpFile.getParent() + File.separator);

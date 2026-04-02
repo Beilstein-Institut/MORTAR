@@ -249,28 +249,38 @@ public class DepictionUtil {
     /**
      * Formats the given integer value using progressively shorter decimal formats until the resulting text is not
      * wider than the given image width (using the default text font). If all formats are too wide, scientific notation
-     * with no decimals will be used as a last resort.
+     * with no decimals will be used as a last resort. Note that no initial check is performed whether the given value
+     * in standard String notation is actually wider than the given image width. This must be done by the calling code!
      *
      * @param anImageWidth the width of the image that is intended to be generated
      * @param aValue the value that is supposed to be included in the image
      * @return a String representation of the given value that is not wider than the given image width when using the default text font
      */
     public static String fitIntegerDisplayToImageWidth(double anImageWidth, int aValue) {
-        if (!DepictionUtil.isTextWiderThanImage(anImageWidth, String.valueOf(aValue))) {
-            return String.valueOf(aValue);
-        }
         String tmpResult = String.valueOf(aValue);
         Locale tmpDefaultLocale = Locale.getDefault();
         DecimalFormatSymbols tmpSymbols = new DecimalFormatSymbols(tmpDefaultLocale);
-        for (String tmpFormatString : DepictionUtil.FORMAT_PATTERNS_INT) {
-            DecimalFormat tmpDecimalFormat = new DecimalFormat(tmpFormatString, tmpSymbols);
-            tmpResult = tmpDecimalFormat.format(aValue);
-            if (!DepictionUtil.isTextWiderThanImage(anImageWidth, tmpResult)) {
-                return tmpResult;
+        BufferedImage tmpBufferedImage = new BufferedImage((int) anImageWidth, 1, BufferedImage.TYPE_INT_RGB);
+        Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
+        try {
+            DepictionUtil.configureGraphics2D(tmpGraphics2d);
+            Font tmpFont = new Font("Calibri", Font.BOLD, 20);
+            tmpGraphics2d.setFont(tmpFont);
+            FontMetrics tmpFontMetrics = tmpGraphics2d.getFontMetrics();
+            int tmpTextWidth = tmpFontMetrics.stringWidth(String.valueOf(aValue));
+            for (String tmpFormatString : DepictionUtil.FORMAT_PATTERNS_INT) {
+                DecimalFormat tmpDecimalFormat = new DecimalFormat(tmpFormatString, tmpSymbols);
+                tmpResult = tmpDecimalFormat.format(aValue);
+                //not using isTextWiderThanImage() here to not create new graphics every iteration
+                if (tmpTextWidth < anImageWidth) {
+                    return tmpResult;
+                }
             }
+            // Last resort: return the formatted string produced last, since it is the shortest one possible
+            return tmpResult;
+        } finally {
+            tmpGraphics2d.dispose();
         }
-        // Last resort: return the formatted string produced last, since it is the shortest one possible
-        return tmpResult;
     }
     //
     /**

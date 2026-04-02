@@ -117,25 +117,6 @@ class DepictionUtilTest extends DepictionUtil {
     }
     //
     /**
-     * Tests that {@link DepictionUtil#fitIntegerDisplayToImageWidth(double, int)} returns the plain
-     * {@link String#valueOf(int)} representation when the image is wide enough to display it without any
-     * reformatting.
-     */
-    @Test
-    void testFitIntegerDisplayToImageWidthReturnsPlainStringForWideImage() {
-        // 100,000 pixels should always be sufficient for any int's string representation
-        double tmpVeryWideImage = 100_000.0;
-        Assertions.assertEquals("42",
-                DepictionUtil.fitIntegerDisplayToImageWidth(tmpVeryWideImage, 42));
-        Assertions.assertEquals("1234",
-                DepictionUtil.fitIntegerDisplayToImageWidth(tmpVeryWideImage, 1234));
-        Assertions.assertEquals("1234567890",
-                DepictionUtil.fitIntegerDisplayToImageWidth(tmpVeryWideImage, 1_234_567_890));
-        Assertions.assertEquals(String.valueOf(Integer.MAX_VALUE),
-                DepictionUtil.fitIntegerDisplayToImageWidth(tmpVeryWideImage, Integer.MAX_VALUE));
-    }
-    //
-    /**
      * Tests that {@link DepictionUtil#fitIntegerDisplayToImageWidth(double, int)} produces a compressed
      * (shorter) representation when the image is too narrow to display the plain integer string.
      * A width of 2 pixels is far too narrow for any text, so the method must fall back to the shortest

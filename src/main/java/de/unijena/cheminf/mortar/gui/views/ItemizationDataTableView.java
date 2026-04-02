@@ -228,7 +228,12 @@ public class ItemizationDataTableView extends TableView implements IDataTableVie
                 }
                 int tmpFrequency = cellData.getValue().getFragmentFrequencyOfSpecificFragmentation(this.fragmentationName).get(tmpFragment.getUniqueSmiles());
                 // just a precaution; it is highly unlikely that we get that many fragments of the same type for one(!) molecule
-                String tmpFrequencyString = DepictionUtil.fitIntegerDisplayToImageWidth(cellData.getValue().getStructureImageWidth(), tmpFrequency);
+                String tmpFrequencyString;
+                if (DepictionUtil.isTextWiderThanImage(cellData.getValue().getStructureImageWidth(), String.valueOf(tmpFrequency))) {
+                    tmpFrequencyString = DepictionUtil.fitIntegerDisplayToImageWidth(cellData.getValue().getStructureImageWidth(), tmpFrequency);
+                } else {
+                    tmpFrequencyString = String.valueOf(tmpFrequency);
+                }
                 return tmpFragment.getStructureWithText(tmpFrequencyString);
             }));
             tmpColumn.setMinWidth(300);

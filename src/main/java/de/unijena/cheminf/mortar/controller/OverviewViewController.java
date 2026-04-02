@@ -40,6 +40,7 @@ import javafx.application.Platform;
 import javafx.beans.property.Property;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.value.ChangeListener;
+import javafx.concurrent.Task;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.event.ActionEvent;
 import javafx.event.Event;
@@ -84,8 +85,10 @@ import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.IOException;
 import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -180,7 +183,7 @@ public class OverviewViewController implements IViewToolController {
     /**
      * Decimal format for fragment frequencies in the display.
      */
-    private static final DecimalFormat FRAGMENT_FREQUENCIES_DECIMAL_FORMAT = new DecimalFormat("#.##");
+    private static final String FRAGMENT_FREQUENCIES_DECIMAL_FORMAT = "#.##";
     //</editor-fold>
     //
     //<editor-fold desc="private final class constants" defaultstate="collapsed">
@@ -709,32 +712,59 @@ public class OverviewViewController implements IViewToolController {
     /**
      * Takes a snapshot of the structure grid pane, opens a save-file dialog, and writes the result as a PNG file
      * to the location chosen by the user.
+     *
+     * <p>
+     *     The {@link javax.imageio.ImageIO#write} call is executed in a background {@link Task} so that
+     *     encoding and disk I/O do not block the JavaFX event thread for large grid snapshots.
+     *     Success and error alerts are shown back on the FX thread via the task's
+     *     {@code onSucceeded}/{@code onFailed} callbacks, which JavaFX dispatches on the application thread.
+     * </p>
      */
     private void takeScreenshotOfStructureGridPane() {
         FileChooser tmpFileChooser = new FileChooser();
         tmpFileChooser.setTitle(Message.get("OverviewView.screenshotButton.fileChooser.title"));
         tmpFileChooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("PNG Image", "*.png")
+                new FileChooser.ExtensionFilter("PNG", "*.png")
         );
-        //get the title of the overview without the number of molecules
-        tmpFileChooser.setInitialFileName(
-                this.overviewViewTitle
-                        .substring(0, this.overviewViewTitle.lastIndexOf('-') - 1)
-                        .replaceAll("\\s+","")
-                        .trim()
-                        + ".png"
-        );
-        tmpFileChooser.setInitialDirectory(new File(this.settingsContainer.getRecentDirectoryPathSetting()));
+        File tmpRecentDirectory = new File(this.settingsContainer.getRecentDirectoryPathSetting());
+        if (!tmpRecentDirectory.isDirectory()) {
+            tmpRecentDirectory = new File(SettingsContainer.RECENT_DIRECTORY_PATH_SETTING_DEFAULT);
+            this.settingsContainer.setRecentDirectoryPathSetting(SettingsContainer.RECENT_DIRECTORY_PATH_SETTING_DEFAULT);
+            OverviewViewController.LOGGER.log(Level.INFO, "Recent directory could not be read, resetting to default.");
+        }
+        tmpFileChooser.setInitialDirectory(tmpRecentDirectory);
+        //get the title of the overview without the number of molecules for the initial file name
+        String tmpBaseName = this.overviewViewTitle;
+        int tmpLastSeparatorIndex = tmpBaseName.lastIndexOf(" - ");
+        if (tmpLastSeparatorIndex > 0) {
+            tmpBaseName = tmpBaseName.substring(0, tmpLastSeparatorIndex);
+        }
+        tmpBaseName = tmpBaseName.replaceAll("\\s+", "").trim();
+        if (tmpBaseName.isEmpty()) {
+            tmpBaseName = "Overview_Screenshot";
+        }
+        tmpFileChooser.setInitialFileName(tmpBaseName + ".png");
         File tmpFile = tmpFileChooser.showSaveDialog(this.overviewViewStage);
         if (tmpFile == null) {
             // user canceled the dialog
             return;
         }
         this.settingsContainer.setRecentDirectoryPathSetting(tmpFile.getParent() + File.separator);
+        // Snapshot must be taken on the FX thread; the resulting WritableImage is then passed to the background task
         WritableImage tmpSnapshot = this.overviewView.getStructureGridPane().snapshot(null, null);
-        try {
-            //note: this could be done in a separate thread, but it actually works pretty fast
-            ImageIO.write(SwingFXUtils.fromFXImage(tmpSnapshot, null), "png", tmpFile);
+        // Disable the button while the write is in progress to prevent duplicate saves
+        this.overviewView.getScreenshotButton().setDisable(true);
+        // Perform the potentially slow PNG encoding and disk write off the FX thread
+        Task<Void> tmpWriteTask = new Task<>() {
+            @Override
+            protected Void call() throws IOException {
+                ImageIO.write(SwingFXUtils.fromFXImage(tmpSnapshot, null), "png", tmpFile);
+                return null;
+            }
+        };
+        // setOnSucceeded / setOnFailed are dispatched back on the JavaFX application thread by the framework
+        tmpWriteTask.setOnSucceeded(workerStateEvent -> {
+            this.overviewView.getScreenshotButton().setDisable(false);
             //note: we cannot report this via the status bar because the MainViewController alone can update it
             GuiUtil.guiMessageAlert(
                     Alert.AlertType.INFORMATION,
@@ -742,15 +772,23 @@ public class OverviewViewController implements IViewToolController {
                     Message.get("OverviewView.screenshotButton.success.header"),
                     tmpFile.getAbsolutePath()
             );
-        } catch (IOException anIOException) {
-            OverviewViewController.LOGGER.log(Level.SEVERE, anIOException.toString(), anIOException);
+        });
+        tmpWriteTask.setOnFailed(workerStateEvent -> {
+            this.overviewView.getScreenshotButton().setDisable(false);
+            Throwable tmpCause = tmpWriteTask.getException();
+            OverviewViewController.LOGGER.log(Level.SEVERE, tmpCause.toString(), tmpCause);
+            Exception tmpException = (tmpCause instanceof Exception anException)
+                    ? anException : new RuntimeException(tmpCause);
             GuiUtil.guiExceptionAlert(
                     Message.get("OverviewView.screenshotButton.error.title"),
                     Message.get("OverviewView.screenshotButton.error.header"),
                     Message.get("OverviewView.screenshotButton.error.text"),
-                    anIOException
+                    tmpException
             );
-        }
+        });
+        Thread tmpWriteThread = new Thread(tmpWriteTask, "OverviewView-ScreenshotWrite");
+        tmpWriteThread.setDaemon(true);
+        tmpWriteThread.start();
     }
     //
     /**
@@ -823,12 +861,15 @@ public class OverviewViewController implements IViewToolController {
                             final Node tmpFinalContentNode;
                             if (!(tmpIterator == 0 && this.withFirstStructureHighlight)) {
                                 if (this.dataSource == DataSources.FRAGMENTS_TAB && tmpMoleculeDataModel instanceof FragmentDataModel tmpFragment) {
+                                    //note: we could make it configurable to use the molecule freq. or fragment freq.
+                                    DecimalFormat tmpDecimalFormat = new DecimalFormat(OverviewViewController.FRAGMENT_FREQUENCIES_DECIMAL_FORMAT,
+                                            new DecimalFormatSymbols(Locale.getDefault()));
                                     String tmpFrequencyLabel =
                                             tmpFragment.getMoleculeFrequency()
                                                     + " ("
                                                     // getMoleculePercentage() returns a decimal fraction (e.g. 0.25 for 25%),
                                                     // so multiply by 100 to convert it to a percentage value for display
-                                                    + OverviewViewController.FRAGMENT_FREQUENCIES_DECIMAL_FORMAT.format(tmpFragment.getMoleculePercentage() * 100)
+                                                    + tmpDecimalFormat.format(tmpFragment.getMoleculePercentage() * 100)
                                                     + "%)";
                                     if (DepictionUtil.isTextWiderThanImage(tmpImageWidth, tmpFrequencyLabel)) {
                                         tmpFrequencyLabel = tmpFragment.getMoleculeFrequency() + " (...)";
