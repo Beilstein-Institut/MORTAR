@@ -75,6 +75,21 @@ public class DepictionUtil {
      * Logger of this class.
      */
     private static final Logger LOGGER = Logger.getLogger(DepictionUtil.class.getName());
+    //
+    /**
+     * Standard font name for depicting structure images with text.
+     */
+    private static final String FONT_NAME_FOR_IMAGE_WITH_TEXT = "Calibri";
+    //
+    /**
+     * Standard font size for depicting structure images with text.
+     */
+    private static final int FONT_SIZE_FOR_IMAGE_WITH_TEXT = 20;
+    //
+    /**
+     * Standard font style for depicting structure images with text.
+     */
+    private static final int FONT_STYLE_FOR_IMAGE_WITH_TEXT = Font.BOLD;
     //</editor-fold>
     //
     //<editor-fold desc="private constructor">
@@ -236,7 +251,10 @@ public class DepictionUtil {
         Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
         try {
             DepictionUtil.configureGraphics2D(tmpGraphics2d);
-            Font tmpFont = new Font("Calibri", Font.BOLD, 20);
+            Font tmpFont = new Font(
+                    DepictionUtil.FONT_NAME_FOR_IMAGE_WITH_TEXT,
+                    DepictionUtil.FONT_STYLE_FOR_IMAGE_WITH_TEXT,
+                    DepictionUtil.FONT_SIZE_FOR_IMAGE_WITH_TEXT);
             tmpGraphics2d.setFont(tmpFont);
             FontMetrics tmpFontMetrics = tmpGraphics2d.getFontMetrics();
             int tmpTextWidth = tmpFontMetrics.stringWidth(aText);
@@ -264,7 +282,9 @@ public class DepictionUtil {
         Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
         try {
             DepictionUtil.configureGraphics2D(tmpGraphics2d);
-            Font tmpFont = new Font("Calibri", Font.BOLD, 20);
+            Font tmpFont = new Font(DepictionUtil.FONT_NAME_FOR_IMAGE_WITH_TEXT,
+                    DepictionUtil.FONT_STYLE_FOR_IMAGE_WITH_TEXT,
+                    DepictionUtil.FONT_SIZE_FOR_IMAGE_WITH_TEXT);
             tmpGraphics2d.setFont(tmpFont);
             FontMetrics tmpFontMetrics = tmpGraphics2d.getFontMetrics();
             int tmpTextWidth = tmpFontMetrics.stringWidth(String.valueOf(aValue));
@@ -344,7 +364,9 @@ public class DepictionUtil {
             }
             tmpGraphics2d.drawImage(tmpMolBufferedImage, 0, 0,null);
             tmpGraphics2d.setColor(Color.BLACK);
-            tmpGraphics2d.setFont(new Font("Calibri", Font.BOLD, 20));
+            tmpGraphics2d.setFont(new Font(DepictionUtil.FONT_NAME_FOR_IMAGE_WITH_TEXT,
+                    DepictionUtil.FONT_STYLE_FOR_IMAGE_WITH_TEXT,
+                    DepictionUtil.FONT_SIZE_FOR_IMAGE_WITH_TEXT));
             FontMetrics tmpFontMetric = tmpGraphics2d.getFontMetrics();
             int tmpTextWidth = tmpFontMetric.stringWidth(aText);
             tmpGraphics2d.drawString(
