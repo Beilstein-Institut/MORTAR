@@ -258,7 +258,7 @@ public class DepictionUtil {
      * @return true if the text would be wider than the image; false otherwise
      */
     public static boolean isTextWiderThanImage(double anImageWidth, String aText) {
-        BufferedImage tmpBufferedImage = new BufferedImage((int) anImageWidth, 1, Transparency.OPAQUE);
+        BufferedImage tmpBufferedImage = new BufferedImage((int) anImageWidth, 1, BufferedImage.TYPE_INT_RGB);
         Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
         try {
             DepictionUtil.configureGraphics2D(tmpGraphics2d);
