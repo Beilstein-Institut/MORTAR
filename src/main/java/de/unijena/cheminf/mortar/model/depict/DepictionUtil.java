@@ -57,17 +57,43 @@ public class DepictionUtil {
     //<editor-fold desc="Decimal formats enum">
     /**
      * Collection of progressively shorter decimal formats for fitting a number for display to a limiting image width.
+     * 
+     * To avoid sharing mutable and non-thread-safe {@link DecimalFormat} instances across threads,
+     * only the patterns are stored statically. Per-thread {@code DecimalFormat} instances are created
+     * lazily from these patterns.
      */
-    private static final DecimalFormat[] FORMATS = {
-            new DecimalFormat("#,##0.000"),   // 1,234.567
-            new DecimalFormat("#,##0.00"),    // 1,234.57
-            new DecimalFormat("#,##0.0"),     // 1,234.6
-            new DecimalFormat("#,##0"),       // 1,235
-            new DecimalFormat("0.000E0"),     // 1.235E3
-            new DecimalFormat("0.00E0"),      // 1.24E3
-            new DecimalFormat("0.0E0"),       // 1.2E3
-            new DecimalFormat("0E0"),         // 1E3
+    private static final String[] FORMAT_PATTERNS = {
+            "#,##0.000",   // 1,234.567
+            "#,##0.00",    // 1,234.57
+            "#,##0.0",     // 1,234.6
+            "#,##0",       // 1,235
+            "0.000E0",     // 1.235E3
+            "0.00E0",      // 1.24E3
+            "0.0E0",       // 1.2E3
+            "0E0",         // 1E3
     };
+
+    /**
+     * Per-thread {@link DecimalFormat} instances corresponding to {@link #FORMAT_PATTERNS}.
+     */
+    private static final ThreadLocal<DecimalFormat[]> FORMATTERS = ThreadLocal.withInitial(() -> {
+        DecimalFormat[] formats = new DecimalFormat[FORMAT_PATTERNS.length];
+        for (int i = 0; i < FORMAT_PATTERNS.length; i++) {
+            formats[i] = new DecimalFormat(FORMAT_PATTERNS[i]);
+        }
+        return formats;
+    });
+
+    /**
+     * Returns the {@link DecimalFormat} instance for the given index in a thread-safe manner.
+     *
+     * @param index index into the format patterns
+     * @return per-thread {@code DecimalFormat} for the given index
+     * @throws IndexOutOfBoundsException if the index is invalid
+     */
+    static DecimalFormat getDecimalFormat(int index) {
+        return FORMATTERS.get()[index];
+    }
     //</editor-fold>
     //
     //<editor-fold desc="private static final class variables" defaultstate="collapsed">
