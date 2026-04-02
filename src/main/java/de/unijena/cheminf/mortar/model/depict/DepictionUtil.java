@@ -42,6 +42,8 @@ import java.awt.RenderingHints;
 import java.awt.Transparency;
 import java.awt.image.BufferedImage;
 import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -54,18 +56,13 @@ import java.util.logging.Logger;
  * @version 1.0.0.0
  */
 public class DepictionUtil {
-    //<editor-fold desc="Decimal formats enum">
+    //<editor-fold desc="Decimal format patterns enum">
     /**
-     * Collection of progressively shorter decimal formats for fitting a number for display to a limiting image width.
+     * Collection of progressively shorter decimal formats for fitting an integer number for display to a limiting image width.
      * <br>To avoid sharing mutable and non-thread-safe {@link DecimalFormat} instances across threads,
-     * only the patterns are stored statically. Per-thread {@code DecimalFormat} instances are created
-     * lazily from these patterns.
+     * only the patterns are stored statically.
      */
-    private static final String[] FORMAT_PATTERNS = {
-            "#,##0.000",   // 1,234.567
-            "#,##0.00",    // 1,234.57
-            "#,##0.0",     // 1,234.6
-            "#,##0",       // 1,235
+    protected static final String[] FORMAT_PATTERNS_INT = {
             "0.000E0",     // 1.235E3
             "0.00E0",      // 1.24E3
             "0.0E0",       // 1.2E3
@@ -85,7 +82,7 @@ public class DepictionUtil {
      * Private parameter-less constructor.
      * Introduced because javadoc build complained about classes without declared default constructor.
      */
-    private DepictionUtil() {
+    protected DepictionUtil() {
     }
     //</editor-fold>
     //
@@ -262,15 +259,18 @@ public class DepictionUtil {
         if (!DepictionUtil.isTextWiderThanImage(anImageWidth, String.valueOf(aValue))) {
             return String.valueOf(aValue);
         }
-        for (String tmpFormatString : DepictionUtil.FORMAT_PATTERNS) {
-            DecimalFormat tmpDecimalFormat = new DecimalFormat(tmpFormatString);
-            String tmpResult = tmpDecimalFormat.format(aValue);
+        String tmpResult = String.valueOf(aValue);
+        Locale tmpDefaultLocale = Locale.getDefault();
+        DecimalFormatSymbols tmpSymbols = new DecimalFormatSymbols(tmpDefaultLocale);
+        for (String tmpFormatString : DepictionUtil.FORMAT_PATTERNS_INT) {
+            DecimalFormat tmpDecimalFormat = new DecimalFormat(tmpFormatString, tmpSymbols);
+            tmpResult = tmpDecimalFormat.format(aValue);
             if (!DepictionUtil.isTextWiderThanImage(anImageWidth, tmpResult)) {
                 return tmpResult;
             }
         }
-        // Last resort: scientific notation with no decimals
-        return String.format("%.0e", (double) aValue);
+        // Last resort: return the formatted string produced last, since it is the shortest one possible
+        return tmpResult;
     }
     //
     /**
