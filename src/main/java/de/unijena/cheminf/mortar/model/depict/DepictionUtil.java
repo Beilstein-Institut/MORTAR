@@ -57,8 +57,7 @@ public class DepictionUtil {
     //<editor-fold desc="Decimal formats enum">
     /**
      * Collection of progressively shorter decimal formats for fitting a number for display to a limiting image width.
-     * 
-     * To avoid sharing mutable and non-thread-safe {@link DecimalFormat} instances across threads,
+     * <br>To avoid sharing mutable and non-thread-safe {@link DecimalFormat} instances across threads,
      * only the patterns are stored statically. Per-thread {@code DecimalFormat} instances are created
      * lazily from these patterns.
      */
@@ -72,28 +71,6 @@ public class DepictionUtil {
             "0.0E0",       // 1.2E3
             "0E0",         // 1E3
     };
-
-    /**
-     * Per-thread {@link DecimalFormat} instances corresponding to {@link #FORMAT_PATTERNS}.
-     */
-    private static final ThreadLocal<DecimalFormat[]> FORMATTERS = ThreadLocal.withInitial(() -> {
-        DecimalFormat[] formats = new DecimalFormat[FORMAT_PATTERNS.length];
-        for (int i = 0; i < FORMAT_PATTERNS.length; i++) {
-            formats[i] = new DecimalFormat(FORMAT_PATTERNS[i]);
-        }
-        return formats;
-    });
-
-    /**
-     * Returns the {@link DecimalFormat} instance for the given index in a thread-safe manner.
-     *
-     * @param index index into the format patterns
-     * @return per-thread {@code DecimalFormat} for the given index
-     * @throws IndexOutOfBoundsException if the index is invalid
-     */
-    static DecimalFormat getDecimalFormat(int index) {
-        return FORMATTERS.get()[index];
-    }
     //</editor-fold>
     //
     //<editor-fold desc="private static final class variables" defaultstate="collapsed">
@@ -285,7 +262,8 @@ public class DepictionUtil {
         if (!DepictionUtil.isTextWiderThanImage(anImageWidth, String.valueOf(aValue))) {
             return String.valueOf(aValue);
         }
-        for (DecimalFormat tmpDecimalFormat : DepictionUtil.FORMATS) {
+        for (String tmpFormatString : DepictionUtil.FORMAT_PATTERNS) {
+            DecimalFormat tmpDecimalFormat = new DecimalFormat(tmpFormatString);
             String tmpResult = tmpDecimalFormat.format(aValue);
             if (!DepictionUtil.isTextWiderThanImage(anImageWidth, tmpResult)) {
                 return tmpResult;
