@@ -260,11 +260,16 @@ public class DepictionUtil {
     public static boolean isTextWiderThanImage(double anImageWidth, String aText) {
         BufferedImage tmpBufferedImage = new BufferedImage((int) anImageWidth, 1, Transparency.OPAQUE);
         Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
-        DepictionUtil.configureGraphics2D(tmpGraphics2d);
-        Font tmpFont = new Font("Calibri", Font.BOLD, 20);
-        tmpGraphics2d.setFont(tmpFont);
-        FontMetrics tmpFontMetrics = tmpGraphics2d.getFontMetrics();
-        return tmpFontMetrics.stringWidth(aText) > anImageWidth;
+        try {
+            DepictionUtil.configureGraphics2D(tmpGraphics2d);
+            Font tmpFont = new Font("Calibri", Font.BOLD, 20);
+            tmpGraphics2d.setFont(tmpFont);
+            FontMetrics tmpFontMetrics = tmpGraphics2d.getFontMetrics();
+            int tmpTextWidth = tmpFontMetrics.stringWidth(aText);
+            return tmpTextWidth > anImageWidth;
+        } finally {
+            tmpGraphics2d.dispose();
+        }
     }
     //
     /**
