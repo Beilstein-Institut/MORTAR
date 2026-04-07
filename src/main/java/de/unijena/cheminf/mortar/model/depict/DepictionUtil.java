@@ -207,7 +207,7 @@ public class DepictionUtil {
             return SwingFXUtils.toFXImage(tmpBufferedImage, null);
         } catch (CDKException | NullPointerException anException) {
             DepictionUtil.LOGGER.log(Level.SEVERE, anException.toString(), anException);
-            return DepictionUtil.depictErrorImage(anException.getMessage(), 250,250);
+            return DepictionUtil.depictErrorImage(anException.getMessage(), (int) BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,(int) BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
         }
     }
     //
@@ -230,7 +230,7 @@ public class DepictionUtil {
             return SwingFXUtils.toFXImage(tmpBufferedImage, null);
         } catch (CDKException | NullPointerException anException) {
             DepictionUtil.LOGGER.log(Level.SEVERE, anException.toString(), anException);
-            return DepictionUtil.depictErrorImage(anException.getMessage(), 250,250);
+            return DepictionUtil.depictErrorImage(anException.getMessage(), (int) BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,(int) BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
         }
     }
     //
@@ -244,28 +244,54 @@ public class DepictionUtil {
      */
     public static Image depictErrorImage(String aMessage, int aWidth, int aHeight) {
         String tmpMessage = Objects.requireNonNullElse(aMessage, "Error");
-        BufferedImage tmpBufferedImage = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage tmpBufferedImage = new BufferedImage(aWidth, aHeight, BufferedImage.TYPE_INT_ARGB);
         Graphics2D tmpGraphic = tmpBufferedImage.createGraphics();
-        Font tmpFont = new Font("Arial", Font.PLAIN, 20);
-        tmpGraphic.setFont(tmpFont);
-        tmpGraphic.dispose();
-        tmpBufferedImage = new BufferedImage(aWidth, aHeight, BufferedImage.TYPE_INT_ARGB);
-        tmpGraphic = tmpBufferedImage.createGraphics();
-        tmpGraphic.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
-        tmpGraphic.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        tmpGraphic.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
-        tmpGraphic.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_ENABLE);
-        tmpGraphic.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
-        tmpGraphic.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        tmpGraphic.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        tmpGraphic.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+        DepictionUtil.configureGraphics2D(tmpGraphic);
+        tmpGraphic.setColor(Color.BLACK);
+        Font tmpFont = new Font(DepictionUtil.FONT_NAME_FOR_IMAGE_WITH_TEXT,
+                DepictionUtil.FONT_STYLE_FOR_IMAGE_WITH_TEXT,
+                DepictionUtil.FONT_SIZE_FOR_IMAGE_WITH_TEXT);
         tmpGraphic.setFont(tmpFont);
         FontMetrics tmpFontMetrics = tmpGraphic.getFontMetrics();
-        tmpGraphic.setColor(Color.BLACK);
-        tmpGraphic.drawString(tmpMessage, 0, tmpFontMetrics.getAscent());
-        tmpGraphic.dispose();
+        int tmpTextWidth = tmpFontMetrics.stringWidth(tmpMessage);
+        int tmpTextPositionX = (aWidth - tmpTextWidth) / 2;
+        int tmpTextPositionY = (aHeight - tmpFontMetrics.getAscent()) / 2;
+        tmpGraphic.drawString(tmpMessage, tmpTextPositionX, tmpTextPositionY);
         tmpGraphic.drawImage(tmpBufferedImage, 0, 0, null);
+        tmpGraphic.dispose();
         return SwingFXUtils.toFXImage(tmpBufferedImage, null);
+    }
+    //
+    /**
+     * Creates and returns a {@link Graphics2D} instance backed by a {@link BufferedImage} of the given dimensions,
+     * configured with the MORTAR standard rendering hints (see {@link #configureGraphics2D(Graphics2D)}) and the
+     * standard text font ({@value #FONT_NAME_FOR_IMAGE_WITH_TEXT}, {@value #FONT_STYLE_FOR_IMAGE_WITH_TEXT}, {@value #FONT_SIZE_FOR_IMAGE_WITH_TEXT} pt).
+     * <p>
+     * This method is intended for use in scenarios where many images with fitted text labels need to be created, so the
+     * Graphics2D and FontMetrics instances can be reused.
+     * </p>
+     * <p>
+     * <b>The caller is responsible for disposing the returned instance</b> by calling
+     * {@link Graphics2D#dispose()} when it is no longer needed.
+     * </p>
+     *
+     * @param anImageWidth  width in pixels of the backing image; must be &gt; 0
+     * @param anImageHeight height in pixels of the backing image; must be &gt; 0
+     * @return a fully configured {@link Graphics2D} with the standard MORTAR text font set
+     */
+    public static Graphics2D getGraphicsInstanceWithStandardFontForTestingPurposes(int anImageWidth, int anImageHeight) {
+        if (anImageWidth <= 0 || anImageHeight <= 0) {
+            throw new IllegalArgumentException("image width and height need to be positive and larger than 0!");
+        }
+        BufferedImage tmpBufferedImage = new BufferedImage(anImageWidth, anImageHeight, BufferedImage.TYPE_INT_RGB);
+        Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
+        DepictionUtil.configureGraphics2D(tmpGraphics2d);
+        Font tmpFont = new Font(
+                DepictionUtil.FONT_NAME_FOR_IMAGE_WITH_TEXT,
+                DepictionUtil.FONT_STYLE_FOR_IMAGE_WITH_TEXT,
+                DepictionUtil.FONT_SIZE_FOR_IMAGE_WITH_TEXT);
+        tmpGraphics2d.setFont(tmpFont);
+        return tmpGraphics2d;
     }
     //
     /**
@@ -276,22 +302,18 @@ public class DepictionUtil {
      * @return true if the text would be wider than the image; false otherwise
      */
     public static boolean isTextWiderThanImage(double anImageWidth, String aText) {
-        //the image is only created to obtain the Graphics2D instance; its width does not matter
-        BufferedImage tmpBufferedImage = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
-        Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
+        Graphics2D tmpGraphics2d = null;
         try {
-            DepictionUtil.configureGraphics2D(tmpGraphics2d);
-            Font tmpFont = new Font(
-                    DepictionUtil.FONT_NAME_FOR_IMAGE_WITH_TEXT,
-                    DepictionUtil.FONT_STYLE_FOR_IMAGE_WITH_TEXT,
-                    DepictionUtil.FONT_SIZE_FOR_IMAGE_WITH_TEXT);
-            tmpGraphics2d.setFont(tmpFont);
+            //the image is only created to obtain the Graphics2D instance; its width does not matter
+            tmpGraphics2d = DepictionUtil.getGraphicsInstanceWithStandardFontForTestingPurposes(1, 1);
             FontMetrics tmpFontMetrics = tmpGraphics2d.getFontMetrics();
             int tmpTextWidth = tmpFontMetrics.stringWidth(aText);
             //not using  >= here because a text that has no padding to the images sides looks crammed
             return tmpTextWidth > anImageWidth;
         } finally {
-            tmpGraphics2d.dispose();
+            if (tmpGraphics2d != null) {
+                tmpGraphics2d.dispose();
+            }
         }
     }
     //
@@ -309,15 +331,10 @@ public class DepictionUtil {
         String tmpResult = String.valueOf(aValue);
         Locale tmpDefaultLocale = Locale.getDefault();
         DecimalFormatSymbols tmpSymbols = new DecimalFormatSymbols(tmpDefaultLocale);
-        //the image is only created to obtain the Graphics2D instance; its width does not matter
-        BufferedImage tmpBufferedImage = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
-        Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
+        Graphics2D tmpGraphics2d = null;
         try {
-            DepictionUtil.configureGraphics2D(tmpGraphics2d);
-            Font tmpFont = new Font(DepictionUtil.FONT_NAME_FOR_IMAGE_WITH_TEXT,
-                    DepictionUtil.FONT_STYLE_FOR_IMAGE_WITH_TEXT,
-                    DepictionUtil.FONT_SIZE_FOR_IMAGE_WITH_TEXT);
-            tmpGraphics2d.setFont(tmpFont);
+            //the image is only created to obtain the Graphics2D instance; its width does not matter
+            tmpGraphics2d = DepictionUtil.getGraphicsInstanceWithStandardFontForTestingPurposes(1, 1);
             FontMetrics tmpFontMetrics = tmpGraphics2d.getFontMetrics();
             for (IntegerFormatPattern tmpFormatPattern : IntegerFormatPattern.values()) {
                 DecimalFormat tmpDecimalFormat = new DecimalFormat(tmpFormatPattern.getPattern(), tmpSymbols);
@@ -331,7 +348,9 @@ public class DepictionUtil {
             // Last resort: return the formatted string produced last, since it is the shortest one possible
             return tmpResult;
         } finally {
-            tmpGraphics2d.dispose();
+            if (tmpGraphics2d != null) {
+                tmpGraphics2d.dispose();
+            }
         }
     }
     //
@@ -410,7 +429,7 @@ public class DepictionUtil {
             return SwingFXUtils.toFXImage(tmpBufferedImage, null);
         } catch (CDKException anException) {
             DepictionUtil.LOGGER.log(Level.SEVERE, anException.toString(), anException);
-            return DepictionUtil.depictErrorImage(anException.getMessage(), 250,250);
+            return DepictionUtil.depictErrorImage(anException.getMessage(), (int) BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,(int) BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
         }
     }
     //</editor-fold>

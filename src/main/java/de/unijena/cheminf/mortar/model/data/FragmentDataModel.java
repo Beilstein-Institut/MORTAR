@@ -233,7 +233,7 @@ public class FragmentDataModel extends MoleculeDataModel {
      */
     public ImageView getParentMoleculeStructure() throws NullPointerException {
         if (this.parentMolecules.isEmpty()) {
-            return new ImageView(DepictionUtil.depictErrorImage("No parent molecules", 250, 250));
+            return new ImageView(DepictionUtil.depictErrorImage("No parent molecules", (int) super.getStructureImageWidth(), (int) super.getStructureImageHeight()));
         }
         if (this.parentMolecule == null) {
             this.parentMolecule = this.parentMolecules.stream().findFirst().orElse(null);
@@ -247,7 +247,7 @@ public class FragmentDataModel extends MoleculeDataModel {
                     Level.SEVERE,
                     String.format("Molecule name: %s; exception: %s", this.parentMolecule.getName(), anException.toString()),
                     anException);
-            return new ImageView(DepictionUtil.depictErrorImage(anException.getMessage(), 250, 250));
+            return new ImageView(DepictionUtil.depictErrorImage(anException.getMessage(), (int) super.getStructureImageWidth(), (int) super.getStructureImageHeight()));
         }
     }
     //

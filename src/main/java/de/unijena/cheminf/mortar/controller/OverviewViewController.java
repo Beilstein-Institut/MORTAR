@@ -83,6 +83,8 @@ import org.openscience.cdk.exception.CDKException;
 
 import javax.imageio.ImageIO;
 
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
 import java.io.File;
 import java.io.IOException;
 import java.text.DecimalFormat;
@@ -290,6 +292,8 @@ public class OverviewViewController implements IViewToolController {
      * @param aSettingsContainer settings container instance to get settings like the recent directory path from
      */
     public OverviewViewController(IConfiguration aConfiguration, SettingsContainer aSettingsContainer) {
+        Objects.requireNonNull(aConfiguration, "MORTAR configuration instance is null, this should never happen!");
+        Objects.requireNonNull(aSettingsContainer, "Settings container instance is null, this should never happen!");
         this.configuration = aConfiguration;
         this.settingsContainer = aSettingsContainer;
         this.settings = new ArrayList<>(2);
@@ -846,6 +850,12 @@ public class OverviewViewController implements IViewToolController {
                     && (tmpImageWidth >= OverviewViewController.OVERVIEW_VIEW_STRUCTURE_IMAGE_MIN_WIDTH)) {
                 //optional setting for change in usage of shadow effect - deprecated
                 boolean tmpDrawImagesWithShadow = true;
+                //DecimalFormat for fragment frequencies in fragment overview; instantiated once and not per cell
+                DecimalFormat tmpDecimalFormat = new DecimalFormat(OverviewViewController.FRAGMENT_FREQUENCIES_DECIMAL_FORMAT,
+                        new DecimalFormatSymbols(Locale.getDefault()));
+                //Graphics and font metrics instances to be re-used per cell for checking whether a fragment frequency label fits in the image
+                Graphics2D tmpGraphics2D = DepictionUtil.getGraphicsInstanceWithStandardFontForTestingPurposes(1, 1);
+                FontMetrics tmpFontMetrics = tmpGraphics2D.getFontMetrics();
                 //main loop for generation of the page content
                 generationOfStructureImagesLoop:
                 for (int i = 0; i < aRowsPerPage; i++) {
@@ -864,23 +874,21 @@ public class OverviewViewController implements IViewToolController {
                             final Node tmpFinalContentNode;
                             if (!(tmpIterator == 0 && this.withFirstStructureHighlight)) {
                                 if (this.dataSource == DataSources.FRAGMENTS_TAB && tmpMoleculeDataModel instanceof FragmentDataModel tmpFragment) {
-                                    //note: we could make it configurable to use the molecule freq. or fragment freq.
-                                    DecimalFormat tmpDecimalFormat = new DecimalFormat(OverviewViewController.FRAGMENT_FREQUENCIES_DECIMAL_FORMAT,
-                                            new DecimalFormatSymbols(Locale.getDefault()));
                                     String tmpFrequencyLabel =
+                                            //note: we could make it configurable to use the molecule freq. or fragment freq.
                                             tmpFragment.getMoleculeFrequency()
                                                     + " ("
                                                     // getMoleculePercentage() returns a decimal fraction (e.g. 0.25 for 25%),
                                                     // so multiply by 100 to convert it to a percentage value for display
                                                     + tmpDecimalFormat.format(tmpFragment.getMoleculePercentage() * 100)
                                                     + "%)";
-                                    if (DepictionUtil.isTextWiderThanImage(tmpImageWidth, tmpFrequencyLabel)) {
+                                    if (tmpImageWidth <= tmpFontMetrics.stringWidth(tmpFrequencyLabel)) {
                                         tmpFrequencyLabel = tmpFragment.getMoleculeFrequency() + " (...)";
                                     }
-                                    if (DepictionUtil.isTextWiderThanImage(tmpImageWidth, tmpFrequencyLabel)) {
+                                    if (tmpImageWidth <= tmpFontMetrics.stringWidth(tmpFrequencyLabel)) {
                                         tmpFrequencyLabel = String.valueOf(tmpFragment.getMoleculeFrequency());
                                     }
-                                    if (DepictionUtil.isTextWiderThanImage(tmpImageWidth, tmpFrequencyLabel)) {
+                                    if (tmpImageWidth <= tmpFontMetrics.stringWidth(tmpFrequencyLabel)) {
                                         tmpFrequencyLabel = DepictionUtil.fitIntegerDisplayToImageWidth(tmpImageWidth, tmpFragment.getMoleculeFrequency());
                                     }
                                     tmpFinalContentNode = new ImageView(
@@ -1001,8 +1009,9 @@ public class OverviewViewController implements IViewToolController {
                         //
                         this.overviewView.getStructureGridPane().add(tmpContentNode, j, i);
                         tmpIterator++;
-                    }
-                }
+                    } //end of columns iteration
+                } // end of rows iteration
+                tmpGraphics2D.dispose();
             } else {
                 //informing the user if the image dimensions fell below the defined limit
                 this.overviewView.getStructureGridPane().add(this.overviewView.getImageDimensionsBelowLimitVBox(),
