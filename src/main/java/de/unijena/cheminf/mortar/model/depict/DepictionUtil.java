@@ -58,16 +58,45 @@ import java.util.logging.Logger;
 public class DepictionUtil {
     //<editor-fold desc="Decimal format patterns enum">
     /**
-     * Collection of progressively shorter decimal formats for fitting an integer number for display to a limiting image width.
-     * <br>To avoid sharing mutable and non-thread-safe {@link DecimalFormat} instances across threads,
-     * only the patterns are stored statically.
+     * Progressively shorter scientific-notation {@link DecimalFormat} patterns used by
+     * {@link #fitIntegerDisplayToImageWidth(double, int)} to shrink an integer label until it fits
+     * within the target image width.
+     * <br>The constants are ordered from most precise to least precise; iteration over
+     * {@link #values()} therefore tries the most detailed representation first.
+     * <br>To avoid sharing mutable and non-thread-safe {@link DecimalFormat} instances across
+     * threads, only the pattern strings are stored here.
      */
-    protected static final String[] FORMAT_PATTERNS_INT = {
-            "0.000E0",     // 1.235E3
-            "0.00E0",      // 1.24E3
-            "0.0E0",       // 1.2E3
-            "0E0",         // 1E3
-    };
+    public enum IntegerFormatPattern {
+        /** Three decimal places in scientific notation, e.g. {@code 1.235E3}. */
+        THREE_DECIMALS_SCIENTIFIC("0.000E0"),
+        /** Two decimal places in scientific notation, e.g. {@code 1.24E3}. */
+        TWO_DECIMALS_SCIENTIFIC("0.00E0"),
+        /** One decimal place in scientific notation, e.g. {@code 1.2E3}. */
+        ONE_DECIMAL_SCIENTIFIC("0.0E0"),
+        /** No decimal places in scientific notation, e.g. {@code 1E3}. */
+        ZERO_DECIMALS_SCIENTIFIC("0E0");
+
+        /** The {@link DecimalFormat} pattern string represented by this constant. */
+        private final String pattern;
+
+        /**
+         * Creates the constant with the given pattern string.
+         *
+         * @param aPattern the {@link DecimalFormat} pattern string
+         */
+        IntegerFormatPattern(String aPattern) {
+            this.pattern = aPattern;
+        }
+
+        /**
+         * Returns the {@link DecimalFormat} pattern string.
+         *
+         * @return pattern string, never {@code null}
+         */
+        public String getPattern() {
+            return this.pattern;
+        }
+    }
     //</editor-fold>
     //
     //<editor-fold desc="private static final class variables" defaultstate="collapsed">
@@ -95,9 +124,9 @@ public class DepictionUtil {
     //<editor-fold desc="private constructor">
     /**
      * Private parameter-less constructor.
-     * Introduced because javadoc build complained about classes without declared default constructor.
+     * Introduced because Javadoc build complained about classes without declared default constructor.
      */
-    protected DepictionUtil() {
+    private DepictionUtil() {
     }
     //</editor-fold>
     //
@@ -247,7 +276,8 @@ public class DepictionUtil {
      * @return true if the text would be wider than the image; false otherwise
      */
     public static boolean isTextWiderThanImage(double anImageWidth, String aText) {
-        BufferedImage tmpBufferedImage = new BufferedImage((int) anImageWidth, 1, BufferedImage.TYPE_INT_RGB);
+        //the image is only created to obtain the Graphics2D instance; its width does not matter
+        BufferedImage tmpBufferedImage = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
         Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
         try {
             DepictionUtil.configureGraphics2D(tmpGraphics2d);
@@ -278,7 +308,8 @@ public class DepictionUtil {
         String tmpResult = String.valueOf(aValue);
         Locale tmpDefaultLocale = Locale.getDefault();
         DecimalFormatSymbols tmpSymbols = new DecimalFormatSymbols(tmpDefaultLocale);
-        BufferedImage tmpBufferedImage = new BufferedImage((int) anImageWidth, 1, BufferedImage.TYPE_INT_RGB);
+        //the image is only created to obtain the Graphics2D instance; its width does not matter
+        BufferedImage tmpBufferedImage = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
         Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
         try {
             DepictionUtil.configureGraphics2D(tmpGraphics2d);
@@ -287,10 +318,10 @@ public class DepictionUtil {
                     DepictionUtil.FONT_SIZE_FOR_IMAGE_WITH_TEXT);
             tmpGraphics2d.setFont(tmpFont);
             FontMetrics tmpFontMetrics = tmpGraphics2d.getFontMetrics();
-            int tmpTextWidth = tmpFontMetrics.stringWidth(String.valueOf(aValue));
-            for (String tmpFormatString : DepictionUtil.FORMAT_PATTERNS_INT) {
-                DecimalFormat tmpDecimalFormat = new DecimalFormat(tmpFormatString, tmpSymbols);
+            for (IntegerFormatPattern tmpFormatPattern : IntegerFormatPattern.values()) {
+                DecimalFormat tmpDecimalFormat = new DecimalFormat(tmpFormatPattern.getPattern(), tmpSymbols);
                 tmpResult = tmpDecimalFormat.format(aValue);
+                int tmpTextWidth = tmpFontMetrics.stringWidth(tmpResult);
                 //not using isTextWiderThanImage() here to not create new graphics every iteration
                 if (tmpTextWidth < anImageWidth) {
                     return tmpResult;

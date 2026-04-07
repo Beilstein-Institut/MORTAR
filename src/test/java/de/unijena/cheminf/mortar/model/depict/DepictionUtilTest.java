@@ -38,17 +38,11 @@ import java.util.Locale;
  * @author Jonas Schaub
  * @version 1.0.0.0
  */
-class DepictionUtilTest extends DepictionUtil {
-    /**
-     * Private constructor calling the protected constructor from super.
-     */
-    private DepictionUtilTest() {
-        super();
-    }
+class DepictionUtilTest {
     //<editor-fold desc="Tests">
     /**
-     * Illustrates the effect of each format pattern stored in the private {@code DepictionUtil.FORMAT_PATTERNS_INT}
-     * array on selected large integer values. The patterns are applied progressively (most detail → the least detail)
+     * Illustrates the effect of each format pattern defined in {@link DepictionUtil.IntegerFormatPattern}
+     * enum on selected large integer values. The patterns are applied progressively (most detail → the least detail)
      * by {@link DepictionUtil#fitIntegerDisplayToImageWidth(double, int)} until the resulting text fits the given
      * image width.
      *
@@ -75,12 +69,12 @@ class DepictionUtilTest extends DepictionUtil {
             "1.2E9",    // 1.23...   rounded at the 2nd decimal (digit = 3) → rounds down
             "1E9"       // 1.2...    rounded at the 1st decimal (digit = 2) → rounds down
         };
-        for (int i = 0; i < DepictionUtil.FORMAT_PATTERNS_INT.length; i++) {
-            DecimalFormat tmpFmt = new DecimalFormat(DepictionUtil.FORMAT_PATTERNS_INT[i], tmpUsSymbols);
+        for (int i = 0; i < DepictionUtil.IntegerFormatPattern.values().length; i++) {
+            DecimalFormat tmpFmt = new DecimalFormat(DepictionUtil.IntegerFormatPattern.values()[i].getPattern(), tmpUsSymbols);
             String tmpResult = tmpFmt.format(tmpValue1);
             Assertions.assertEquals(
                     tmpExpected1[i], tmpResult,
-                    "Pattern \"" + DepictionUtil.FORMAT_PATTERNS_INT[i] + "\" applied to " + tmpValue1);
+                    "Pattern \"" + DepictionUtil.IntegerFormatPattern.values()[i].getPattern() + "\" applied to " + tmpValue1);
         }
 
         // --- Example 2: 9,876,543 – demonstrates carry-propagation on rounding ---
@@ -91,12 +85,12 @@ class DepictionUtilTest extends DepictionUtil {
             "9.9E6",    // 9.876    rounded at the 2nd decimal (digit = 7) → rounds up
             "1E7"       // 9.9      rounded at the 1st decimal (digit = 9) → carry: 10 → 1×10^7
         };
-        for (int i = 0; i < DepictionUtil.FORMAT_PATTERNS_INT.length; i++) {
-            DecimalFormat tmpFmt = new DecimalFormat(DepictionUtil.FORMAT_PATTERNS_INT[i], tmpUsSymbols);
+        for (int i = 0; i < DepictionUtil.IntegerFormatPattern.values().length; i++) {
+            DecimalFormat tmpFmt = new DecimalFormat(DepictionUtil.IntegerFormatPattern.values()[i].getPattern(), tmpUsSymbols);
             String tmpResult = tmpFmt.format(tmpValue2);
             Assertions.assertEquals(
                     tmpExpected2[i], tmpResult,
-                    "Pattern \"" + DepictionUtil.FORMAT_PATTERNS_INT[i] + "\" applied to " + tmpValue2);
+                    "Pattern \"" + DepictionUtil.IntegerFormatPattern.values()[i].getPattern() + "\" applied to " + tmpValue2);
         }
 
         // --- Example 3: Integer.MAX_VALUE (2,147,483,647) ---
@@ -107,12 +101,12 @@ class DepictionUtilTest extends DepictionUtil {
             "2.1E9",    // 2.147...    rounded at the 2nd decimal (digit = 4) → rounds down
             "2E9"       // 2.1...      rounded at the 1st decimal (digit = 1) → rounds down
         };
-        for (int i = 0; i < DepictionUtil.FORMAT_PATTERNS_INT.length; i++) {
-            DecimalFormat tmpFmt = new DecimalFormat(DepictionUtil.FORMAT_PATTERNS_INT[i], tmpUsSymbols);
+        for (int i = 0; i < DepictionUtil.IntegerFormatPattern.values().length; i++) {
+            DecimalFormat tmpFmt = new DecimalFormat(DepictionUtil.IntegerFormatPattern.values()[i].getPattern(), tmpUsSymbols);
             String tmpResult = tmpFmt.format(tmpValue3);
             Assertions.assertEquals(
                     tmpExpected3[i], tmpResult,
-                    "Pattern \"" + DepictionUtil.FORMAT_PATTERNS_INT[i] + "\" applied to " + tmpValue3);
+                    "Pattern \"" + DepictionUtil.IntegerFormatPattern.values()[i].getPattern() + "\" applied to " + tmpValue3);
         }
     }
     //
