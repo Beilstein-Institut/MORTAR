@@ -288,6 +288,7 @@ public class DepictionUtil {
             tmpGraphics2d.setFont(tmpFont);
             FontMetrics tmpFontMetrics = tmpGraphics2d.getFontMetrics();
             int tmpTextWidth = tmpFontMetrics.stringWidth(aText);
+            //not using  >= here because a text that has no padding to the images sides looks crammed
             return tmpTextWidth > anImageWidth;
         } finally {
             tmpGraphics2d.dispose();
@@ -296,7 +297,7 @@ public class DepictionUtil {
     //
     /**
      * Formats the given integer value using progressively shorter decimal formats until the resulting text is not
-     * wider than the given image width (using the default text font). If all formats are too wide, scientific notation
+     * wider than the given image width anymore (using the default text font). If all formats are too wide, scientific notation
      * with no decimals will be used as a last resort. Note that no initial check is performed whether the given value
      * in standard String notation is actually wider than the given image width. This must be done by the calling code!
      *

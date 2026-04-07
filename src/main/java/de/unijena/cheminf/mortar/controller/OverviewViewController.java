@@ -142,12 +142,12 @@ public class OverviewViewController implements IViewToolController {
      * Minimum value for the width of structure images displayed in the overview view.
      */
     //see the height below; should be quadratic
-    public static final double OVERVIEW_VIEW_STRUCTURE_IMAGE_MIN_WIDTH = BasicDefinitions.DEFAULT_IMAGE_TEXT_LABEL_HEIGHT * 2;
+    public static final double OVERVIEW_VIEW_STRUCTURE_IMAGE_MIN_WIDTH = BasicDefinitions.DEFAULT_IMAGE_TEXT_LABEL_HEIGHT * 2.0;
     /**
      * Minimum value for the height of structure images displayed in the overview view.
      */
     //to make sure the text label always fits in the image
-    public static final double OVERVIEW_VIEW_STRUCTURE_IMAGE_MIN_HEIGHT = BasicDefinitions.DEFAULT_IMAGE_TEXT_LABEL_HEIGHT * 2;
+    public static final double OVERVIEW_VIEW_STRUCTURE_IMAGE_MIN_HEIGHT = BasicDefinitions.DEFAULT_IMAGE_TEXT_LABEL_HEIGHT * 2.0;
     /**
      * Default value for columns of structure images per overview view page.
      */
