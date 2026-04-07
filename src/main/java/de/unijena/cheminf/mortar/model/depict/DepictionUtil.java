@@ -380,12 +380,12 @@ public class DepictionUtil {
                     anAtomContainer,
                     aZoom,
                     aWidth,
-                    aHeight - BasicDefinitions.DEFAULT_IMAGE_TEXT_DISTANCE,
+                    aHeight - BasicDefinitions.DEFAULT_IMAGE_TEXT_LABEL_HEIGHT,
                     aFillToFit,
                     anIsBackgroundWhite);
             BufferedImage tmpBufferedImage = new BufferedImage(
                     tmpMolBufferedImage.getWidth(),
-                    tmpMolBufferedImage.getHeight() + BasicDefinitions.DEFAULT_IMAGE_TEXT_DISTANCE,
+                    tmpMolBufferedImage.getHeight() + BasicDefinitions.DEFAULT_IMAGE_TEXT_LABEL_HEIGHT,
                     anIsBackgroundWhite ? Transparency.OPAQUE : Transparency.TRANSLUCENT);
             Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
             DepictionUtil.configureGraphics2D(tmpGraphics2d);

@@ -129,9 +129,9 @@ public final class BasicDefinitions {
      */
     public static final double DEFAULT_IMAGE_HEIGHT_DEFAULT = 250.0;
     /**
-     * Default distance between image and text.
+     * Default height of a text label in images.
      */
-    public static final int DEFAULT_IMAGE_TEXT_DISTANCE = 25;
+    public static final int DEFAULT_IMAGE_TEXT_LABEL_HEIGHT = 25;
     /**
      * Default load factor for HashMap and HashSet instances, defined based on default value given in the Java documentation.
      */
