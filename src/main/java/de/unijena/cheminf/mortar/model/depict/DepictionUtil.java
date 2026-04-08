@@ -39,7 +39,6 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
-import java.awt.Transparency;
 import java.awt.image.BufferedImage;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -132,114 +131,191 @@ public class DepictionUtil {
     //
     //<editor-fold desc="public static methods" defaultstate="collapsed">
     /**
-     * Creates and returns an Image of the given AtomContainer. Background will be transparent.
+     * Creates and returns an Image of the given AtomContainer with given height and width.
+     * The zoom factor will be 1.0 (meaning no zoom, the structure size is taken as is).
+     * Background will be transparent and fill to fit will be off.
      *
-     * @param anAtomContainer IAtomContainer
+     * @param anAtomContainer IAtomContainer; the molecule to depict
      * @param aWidth double for image width
      * @param aHeight  double for image height
      * @return Image of 2D structure of IAtomContainer
      */
-    public static Image depictImage(IAtomContainer anAtomContainer, double aWidth, double aHeight) {
-        return DepictionUtil.depictImageWithZoom(anAtomContainer, 1.0, aWidth, aHeight);
+    public static Image depictImageWithNoZoomNoFillToFitAndTransparentBackground(
+            IAtomContainer anAtomContainer,
+            double aWidth,
+            double aHeight
+    ) {
+        return DepictionUtil.depictImage(
+                anAtomContainer,
+                1.0,
+                aWidth,
+                aHeight,
+                false,
+                false);
     }
     //
     /**
-     * Creates and returns an Image of the AtomContainer with given height and default width (250.0). Background will be transparent.
+     * Creates and returns an Image of the AtomContainer with given height and default width
+     * ({@value BasicDefinitions#DEFAULT_IMAGE_WIDTH_DEFAULT}).
+     * The zoom factor will be 1.0 (meaning no zoom, the structure size is taken as is).
+     * Background will be transparent and fill to fit will be off.
      *
-     * @param anAtomContainer IAtomContainer
-     * @param aHeight double
+     * @param anAtomContainer IAtomContainer; the molecule to depict
+     * @param aHeight double for image height
      * @return Image of 2D structure of IAtomContainer
      */
-    public static Image depictImageWithHeight(IAtomContainer anAtomContainer, double aHeight) {
-        return DepictionUtil.depictImageWithZoom(anAtomContainer, 1.0, BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT, aHeight);
+    public static Image depictImageWithDefaultWidthNoZoomNoFillToFitAndTransparentBackground(
+            IAtomContainer anAtomContainer,
+            double aHeight
+    ) {
+        return DepictionUtil.depictImage(
+                anAtomContainer,
+                1.0,
+                BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,
+                aHeight,
+                false,
+                false);
     }
     //
     /**
-     * Creates and returns an Image of the AtomContainer with given width and default height (250.0). Background will be transparent.
+     * Creates and returns an Image of the AtomContainer with given width and default height
+     * ({@value BasicDefinitions#DEFAULT_IMAGE_HEIGHT_DEFAULT}).
+     * The zoom factor will be 1.0 (meaning no zoom, the structure size is taken as is).
+     * Background will be transparent and fill to fit will be off.
      *
-     * @param anAtomContainer IAtomContainer
-     * @param aWidth double
+     * @param anAtomContainer IAtomContainer; the molecule to depict
+     * @param aWidth double for image width
      * @return Image of 2D structure of IAtomContainer
      */
-    public static Image depictImageWithWidth(IAtomContainer anAtomContainer, double aWidth) {
-        return DepictionUtil.depictImageWithZoom(anAtomContainer, 1.0, aWidth, BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
+    public static Image depictImageWithDefaultHeightNoZoomNoFillToFitAndTransparentBackground(
+            IAtomContainer anAtomContainer,
+            double aWidth
+    ) {
+        return DepictionUtil.depictImage(
+                anAtomContainer,
+                1.0,
+                aWidth,
+                BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT,
+                false,
+                false);
     }
     //
     /**
-     * Creates and returns an Image of the AtomContainer with any zoom factor and default width (250.0) and height (250.0).
-     * Background will be transparent.
+     * Creates and returns an Image of the AtomContainer with the given zoom factor and default width
+     * ({@value BasicDefinitions#DEFAULT_IMAGE_WIDTH_DEFAULT}) and default height
+     * ({@value BasicDefinitions#DEFAULT_IMAGE_HEIGHT_DEFAULT}).
+     * Background will be transparent and fill to fit will be off.
      *
-     * @param anAtomContainer IAtomContainer
-     * @param aZoom double
+     * @param anAtomContainer IAtomContainer; the molecule to depict
+     * @param aZoom double; the zoom is a scaling factor, specifying a zoom of 2 is double size, 0.5 half size, etc.
      * @return Image of 2D structure of IAtomContainer
      */
-    public static Image depictImageWithZoom(IAtomContainer anAtomContainer, double aZoom) {
-        return DepictionUtil.depictImageWithZoom(anAtomContainer, aZoom, BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT, BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
+    public static Image depictImageWithDefaultWidthDefaultHeightNoFillToFitAndTransparentBackground(
+            IAtomContainer anAtomContainer,
+            double aZoom) {
+        return DepictionUtil.depictImage(
+                anAtomContainer,
+                aZoom,
+                BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,
+                BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT,
+                false,
+                false);
     }
     /**
-     * Creates and returns an Image of the AtomContainer with any zoom factor and given width and height.
-     * Background will be transparent.
+     * Creates and returns an Image of the AtomContainer with the given zoom factor and given width and height.
+     * Background will be transparent and fill to fit will be off.
      *
-     * @param anAtomContainer IAtomContainer
-     * @param aZoom double
-     * @param aWidth double
-     * @param aHeight double
+     * @param anAtomContainer IAtomContainer; the molecule to depict
+     * @param aZoom double; the zoom is a scaling factor, specifying a zoom of 2 is double size, 0.5 half size, etc.
+     * @param aWidth double for image width
+     * @param aHeight double for image height
      * @return Image of 2D structure of IAtomContainer
      */
-    public static Image depictImageWithZoom(IAtomContainer anAtomContainer, double aZoom, double aWidth, double aHeight) {
-        return DepictionUtil.depictImageWithZoomAndFillToFit(anAtomContainer, aZoom, aWidth, aHeight, false);
+    public static Image depictImageWithNoFillToFitAndTransparentBackground(
+            IAtomContainer anAtomContainer,
+            double aZoom,
+            double aWidth,
+            double aHeight) {
+        return DepictionUtil.depictImage(
+                anAtomContainer,
+                aZoom,
+                aWidth,
+                aHeight,
+                false,
+                false);
     }
     //
     /**
-     * Creates and returns an Image of the AtomContainer with any zoom factor and given width and height and fill to fit.
-     * Background will be transparent.
+     * Creates and returns an Image of the AtomContainer with the given zoom factor and given width and height
+     * and fill to fit. Background will be transparent.
      *
-     * @param anAtomContainer IAtomContainer
-     * @param aZoom double
-     * @param aWidth double
-     * @param aHeight double
-     * @param fillToFit boolean Resize depictions to fill all available space (only if a size is specified)
+     * @param anAtomContainer IAtomContainer; the molecule to depict
+     * @param aZoom double; the zoom is a scaling factor, specifying a zoom of 2 is double size, 0.5 half size, etc.
+     * @param aWidth double for image width
+     * @param aHeight double for image height
+     * @param aFillToFit boolean; if true, resizes depictions to fill all available space (only if a size is specified)
      * @return Image of 2D structure of IAtomContainer
      */
-    public static Image depictImageWithZoomAndFillToFit(IAtomContainer anAtomContainer, double aZoom, double aWidth, double aHeight, boolean fillToFit) {
-        try {
-            BufferedImage tmpBufferedImage = DepictionUtil.depictBufferedImageWithZoom(anAtomContainer, aZoom, aWidth, aHeight, fillToFit, false);
-            return SwingFXUtils.toFXImage(tmpBufferedImage, null);
-        } catch (CDKException | NullPointerException anException) {
-            DepictionUtil.LOGGER.log(Level.SEVERE, anException.toString(), anException);
-            return DepictionUtil.depictErrorImage(anException.getMessage(), (int) BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,(int) BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
-        }
+    public static Image depictImageWithTransparentBackground(
+            IAtomContainer anAtomContainer,
+            double aZoom,
+            double aWidth,
+            double aHeight,
+            boolean aFillToFit) {
+        return DepictionUtil.depictImage(
+                anAtomContainer,
+                aZoom,
+                aWidth,
+                aHeight,
+                aFillToFit,
+                false);
     }
     //
     /**
-     * Creates and returns an Image of the AtomContainer with any zoom factor and given width and height and fill to fit
-     * and a white background.
+     * Creates and returns an Image of the AtomContainer with the given zoom factor and given width and height
+     * and fill to fit and a white or transparent background.
      *
-     * @param anAtomContainer IAtomContainer
-     * @param aZoom double
-     * @param aWidth double
-     * @param aHeight double
-     * @param fillToFit boolean Resize depictions to fill all available space (only if a size is specified)
+     * @param anAtomContainer IAtomContainer; the molecule to depict
+     * @param aZoom double; the zoom is a scaling factor, specifying a zoom of 2 is double size, 0.5 half size, etc.
+     * @param aWidth double for image width
+     * @param aHeight double for image height
+     * @param aFillToFit boolean; if true, resizes depictions to fill all available space (only if a size is specified)
      * @param isBackgroundWhite true if the image should have an opaque white background; false if the background
      *                          should be transparent
      * @return Image of 2D structure of IAtomContainer
      */
-    public static Image depictImageWithZoomAndFillToFitAndWhiteBackground(IAtomContainer anAtomContainer, double aZoom, double aWidth, double aHeight, boolean fillToFit, boolean isBackgroundWhite) {
+    public static Image depictImage(
+            IAtomContainer anAtomContainer,
+            double aZoom,
+            double aWidth,
+            double aHeight,
+            boolean aFillToFit,
+            boolean isBackgroundWhite
+    ) {
         try {
-            BufferedImage tmpBufferedImage = DepictionUtil.depictBufferedImageWithZoom(anAtomContainer, aZoom, aWidth, aHeight, fillToFit, isBackgroundWhite);
+            BufferedImage tmpBufferedImage = DepictionUtil.depictBufferedImage(
+                    anAtomContainer,
+                    aZoom,
+                    aWidth,
+                    aHeight,
+                    aFillToFit,
+                    isBackgroundWhite);
             return SwingFXUtils.toFXImage(tmpBufferedImage, null);
         } catch (CDKException | NullPointerException anException) {
             DepictionUtil.LOGGER.log(Level.SEVERE, anException.toString(), anException);
-            return DepictionUtil.depictErrorImage(anException.getMessage(), (int) BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,(int) BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
+            return DepictionUtil.depictErrorImage(
+                    anException.getMessage(),
+                    (int) BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,
+                    (int) BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
         }
     }
     //
     /**
-     * Creates and returns an image of the given message.
+     * Creates and returns an image of the given error message.
      *
-     * @param aMessage String
-     * @param aWidth int
-     * @param aHeight int
+     * @param aMessage String; the error message tp depict
+     * @param aWidth int for image width
+     * @param aHeight int for image height
      * @return Image of given String
      */
     public static Image depictErrorImage(String aMessage, int aWidth, int aHeight) {
@@ -332,7 +408,8 @@ public class DepictionUtil {
      *
      * @param anImageWidth the width of the image that is intended to be generated
      * @param aValue the value that is supposed to be included in the image
-     * @return a String representation of the given value that is not wider than the given image width when using the default text font
+     * @return a String representation of the given value that is not wider than the given image width when using the
+     * default text font
      */
     public static String fitIntegerDisplayToImageWidth(double anImageWidth, int aValue) {
         String tmpResult = String.valueOf(aValue);
@@ -362,35 +439,44 @@ public class DepictionUtil {
     }
     //
     /**
-     * Depicts and returns an image with the given text below. Background will be transparent and fill to fit turned off.
+     * Depicts and returns an image of the AtomContainer with the given text below it.
+     * Background will be transparent and fill to fit turned off.
      *
-     * @param anAtomContainer IAtomContainer
-     * @param aZoom double
-     * @param aWidth double
-     * @param aHeight double
-     * @param aString String
+     * @param anAtomContainer IAtomContainer; the molecule to depict
+     * @param aZoom double; the zoom is a scaling factor, specifying a zoom of 2 is double size, 0.5 half size, etc.
+     * @param aWidth double for image width
+     * @param aHeight double for image height
+     * @param aString String; the text label below the structure
      * @return Image of 2D structure of IAtomContainer with given String below
      */
-    public static Image depictImageWithText(
+    public static Image depictImageWithTextNoFillToFitAndTransparentBackground(
             IAtomContainer anAtomContainer,
             double aZoom,
             double aWidth,
             double aHeight,
             String aString
     ) {
-        return DepictionUtil.depictImageWithText(anAtomContainer, aZoom, aWidth, aHeight, aString, false, false);
+        return DepictionUtil.depictImageWithText(
+                anAtomContainer,
+                aZoom,
+                aWidth,
+                aHeight,
+                aString,
+                false,
+                false);
     }
     //
     /**
-     * Depicts and returns an image with the given text below.
+     * Depicts and returns an image of the AtomContainer with the given text below it.
      *
      * @param anAtomContainer the molecule to depict
-     * @param aZoom double
-     * @param aWidth double
-     * @param aHeight double
-     * @param aText text label
+     * @param aZoom double; the zoom is a scaling factor, specifying a zoom of 2 is double size, 0.5 half size, etc.
+     * @param aWidth double for image width
+     * @param aHeight double for image height
+     * @param aText text label below the structure
      * @param aFillToFit if true, resize depictions to fill all available space
-     * @param anIsBackgroundWhite true if the image should have an opaque white background; false if the background should be transparent
+     * @param anIsBackgroundWhite true if the image should have an opaque white background; false if the background
+     *                            should be transparent
      * @return Image of 2D structure of IAtomContainer with given text below
      */
     public static Image depictImageWithText(
@@ -403,7 +489,7 @@ public class DepictionUtil {
             boolean anIsBackgroundWhite
     ) {
         try {
-            BufferedImage tmpMolBufferedImage = DepictionUtil.depictBufferedImageWithZoom(
+            BufferedImage tmpMolBufferedImage = DepictionUtil.depictBufferedImage(
                     anAtomContainer,
                     aZoom,
                     aWidth,
@@ -413,7 +499,7 @@ public class DepictionUtil {
             BufferedImage tmpBufferedImage = new BufferedImage(
                     tmpMolBufferedImage.getWidth(),
                     tmpMolBufferedImage.getHeight() + BasicDefinitions.DEFAULT_IMAGE_TEXT_LABEL_HEIGHT,
-                    anIsBackgroundWhite ? Transparency.OPAQUE : Transparency.TRANSLUCENT);
+                    anIsBackgroundWhite ? BufferedImage.TYPE_INT_RGB : BufferedImage.TYPE_INT_ARGB);
             Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
             DepictionUtil.configureGraphics2D(tmpGraphics2d);
             if (anIsBackgroundWhite) {
@@ -435,7 +521,10 @@ public class DepictionUtil {
             return SwingFXUtils.toFXImage(tmpBufferedImage, null);
         } catch (CDKException anException) {
             DepictionUtil.LOGGER.log(Level.SEVERE, anException.toString(), anException);
-            return DepictionUtil.depictErrorImage(anException.getMessage(), (int) BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,(int) BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
+            return DepictionUtil.depictErrorImage(
+                    anException.getMessage(),
+                    (int) BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,
+                    (int) BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
         }
     }
     //</editor-fold>
@@ -444,17 +533,24 @@ public class DepictionUtil {
     /**
      * Creates and returns a BufferedImage of given IAtomContainer.
      *
-     * @param anAtomContainer IAtomContainer
-     * @param aZoom double
-     * @param aWidth double
-     * @param aHeight double
-     * @param fillToFit boolean
+     * @param anAtomContainer IAtomContainer; the molecule to depict
+     * @param aZoom double; the zoom is a scaling factor, specifying a zoom of 2 is double size, 0.5 half size, etc.
+     * @param aWidth double for image width
+     * @param aHeight double for image height
+     * @param aFillToFit boolean; if true, resizes depictions to fill all available space (only if a size is specified)
      * @param isBackgroundWhite true if the image should have an opaque white background; false if the background
      *                          should be transparent
      * @return BufferedImage of given IAtomContainer
      * @throws CDKException if a depiction cannot be generated
      */
-    private static BufferedImage depictBufferedImageWithZoom(IAtomContainer anAtomContainer, double aZoom, double aWidth, double aHeight, boolean fillToFit, boolean isBackgroundWhite) throws CDKException {
+    private static BufferedImage depictBufferedImage(
+            IAtomContainer anAtomContainer,
+            double aZoom,
+            double aWidth,
+            double aHeight,
+            boolean aFillToFit,
+            boolean isBackgroundWhite
+    ) throws CDKException {
         DepictionGenerator tmpGenerator = new DepictionGenerator()
                 .withAtomColors()
                 .withAromaticDisplay()
@@ -462,7 +558,7 @@ public class DepictionUtil {
                 .withZoom(aZoom)
                 //color is white by sRGB values and fourth param alpha decides over opaque (1.0f) and transparent (0.0f)
                 .withBackgroundColor(new Color(1.0f, 1.0f, 1.0f, isBackgroundWhite? 1.0f : 0.0f));
-        if (fillToFit) {
+        if (aFillToFit) {
             tmpGenerator = tmpGenerator.withFillToFit();
         }
         return tmpGenerator.depict(anAtomContainer).toImg();

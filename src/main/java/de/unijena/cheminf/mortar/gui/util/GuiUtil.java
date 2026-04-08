@@ -35,7 +35,6 @@ import de.unijena.cheminf.mortar.model.data.FragmentDataModel;
 import de.unijena.cheminf.mortar.model.data.MoleculeDataModel;
 import de.unijena.cheminf.mortar.model.depict.DepictionUtil;
 import de.unijena.cheminf.mortar.model.util.CollectionUtil;
-
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
@@ -62,7 +61,6 @@ import javafx.scene.layout.Region;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import javafx.util.StringConverter;
-
 import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.interfaces.IAtomContainer;
 
@@ -516,7 +514,13 @@ public class GuiUtil {
                         } else {
                             tmpAtomContainer = ((MoleculeDataModel) aTableView.getItems().get(tmpRowIndex)).getAtomContainer();
                         }
-                        Image tmpImage = DepictionUtil.depictImageWithZoomAndFillToFitAndWhiteBackground(tmpAtomContainer, 1, GuiDefinitions.GUI_COPY_IMAGE_IMAGE_WIDTH, GuiDefinitions.GUI_COPY_IMAGE_IMAGE_HEIGHT,true, true);
+                        Image tmpImage = DepictionUtil.depictImage(
+                                tmpAtomContainer,
+                                1.0,
+                                GuiDefinitions.GUI_COPY_IMAGE_IMAGE_WIDTH,
+                                GuiDefinitions.GUI_COPY_IMAGE_IMAGE_HEIGHT,
+                                true,
+                                true);
                         tmpClipboardContent.putImage(tmpImage);
                     } catch (CDKException | ClassCastException tmpException) {
                         tmpClipboardContent.putImage(((ImageView) tmpCell).getImage());

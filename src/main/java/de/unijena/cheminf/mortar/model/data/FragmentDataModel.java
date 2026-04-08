@@ -241,7 +241,7 @@ public class FragmentDataModel extends MoleculeDataModel {
         try {
             // throws NullPointerException if parent molecule is null
             IAtomContainer tmpAtomContainer = this.parentMolecule.getAtomContainer();
-            return new ImageView(DepictionUtil.depictImageWithHeight(tmpAtomContainer, super.getStructureImageHeight()));
+            return new ImageView(DepictionUtil.depictImageWithDefaultWidthNoZoomNoFillToFitAndTransparentBackground(tmpAtomContainer, super.getStructureImageHeight()));
         } catch (CDKException | NullPointerException anException) {
             FragmentDataModel.LOGGER.log(
                     Level.SEVERE,

@@ -650,7 +650,7 @@ public class Exporter {
                     continue;
                 }
                 //cannot be imported because com.lowagie.text.Image is already imported
-                javafx.scene.image.Image tmpImageStructureOfFragment = DepictionUtil.depictImageWithZoom(tmpStructureOfFragment, 4.0);
+                javafx.scene.image.Image tmpImageStructureOfFragment = DepictionUtil.depictImageWithDefaultWidthDefaultHeightNoFillToFitAndTransparentBackground(tmpStructureOfFragment, 4.0);
                 BufferedImage tmpBufferedImageFragment = SwingFXUtils.fromFXImage(tmpImageStructureOfFragment, null);
                 Image tmpImageFragment = this.convertToITextImage(tmpBufferedImageFragment);
                 //inserts the data into the table
@@ -742,7 +742,7 @@ public class Exporter {
                 PdfPCell tmpMoleculeStructureCell = new PdfPCell();
                 tmpMoleculeStructureCell.setFixedHeight(120f);
                 //cannot be imported because com.lowagie.text.Image is already imported
-                javafx.scene.image.Image tmpMoleculeImage = DepictionUtil.depictImageWithZoom(tmpMoleculeStructure, 3.0);
+                javafx.scene.image.Image tmpMoleculeImage = DepictionUtil.depictImageWithDefaultWidthDefaultHeightNoFillToFitAndTransparentBackground(tmpMoleculeStructure, 3.0);
                 BufferedImage tmpBufferedImageOfMolecule = SwingFXUtils.fromFXImage(tmpMoleculeImage, null);
                 Image tmpMolecule = this.convertToITextImage(tmpBufferedImageOfMolecule);
                 tmpMoleculeStructureCell.addElement(tmpMolecule);
@@ -784,7 +784,7 @@ public class Exporter {
                             continue;
                         }
                         String tmpFrequency = tmpMoleculeDataModel.getFragmentFrequencyOfSpecificFragmentation(aFragmentationName).get(tmpFragmentDatModel.getUniqueSmiles()).toString();
-                        javafx.scene.image.Image tmpFragmentImage = DepictionUtil.depictImageWithText(
+                        javafx.scene.image.Image tmpFragmentImage = DepictionUtil.depictImageWithTextNoFillToFitAndTransparentBackground(
                                 tmpFragmentStructure,
                                 3.0,
                                 BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,

@@ -914,7 +914,7 @@ public class OverviewViewController implements IViewToolController {
                                     // we do not know the fragmentation name, atm
                                 } else {
                                     tmpFinalContentNode = new ImageView(
-                                            DepictionUtil.depictImageWithZoomAndFillToFitAndWhiteBackground(
+                                            DepictionUtil.depictImage(
                                                     tmpMoleculeDataModel.getAtomContainer(), 1.0, tmpImageWidth,
                                                     tmpImageHeight, false, true
                                             )
@@ -924,7 +924,7 @@ public class OverviewViewController implements IViewToolController {
                                 //highlighting first structure in parent molecules and item overview view
                                 StackPane tmpStackPane = new StackPane(
                                         new ImageView(
-                                                DepictionUtil.depictImageWithZoomAndFillToFitAndWhiteBackground(
+                                                DepictionUtil.depictImage(
                                                         tmpMoleculeDataModel.getAtomContainer(), 1.0, tmpImageWidth,
                                                         tmpImageHeight, false, false
                                                 )
@@ -1164,14 +1164,15 @@ public class OverviewViewController implements IViewToolController {
         tmpCopyImageMenuItem.setOnAction((ActionEvent anActionEvent) -> {
             if (this.cachedIndexOfStructureInMoleculeDataModelList >= 0) {
                 try {
-                    ClipboardContent tmpContent = new ClipboardContent();
-                    tmpContent.putImage(DepictionUtil.depictImageWithZoomAndFillToFitAndWhiteBackground(
-                            this.moleculeDataModelList.get(this.cachedIndexOfStructureInMoleculeDataModelList)
-                                    .getAtomContainer(), 1.0,
+                    Image tmpStructureImage = DepictionUtil.depictImage(
+                            this.moleculeDataModelList.get(this.cachedIndexOfStructureInMoleculeDataModelList).getAtomContainer(),
+                            1.0,
                             GuiDefinitions.GUI_COPY_IMAGE_IMAGE_WIDTH,
                             GuiDefinitions.GUI_COPY_IMAGE_IMAGE_HEIGHT,
-                            true, true
-                    ));
+                            true,
+                            true);
+                    ClipboardContent tmpContent = new ClipboardContent();
+                    tmpContent.putImage(tmpStructureImage);
                     Clipboard.getSystemClipboard().setContent(tmpContent);
                 } catch (CDKException aCDKException) {
                     //should not happen since an initial depiction is needed to make the context menu accessible to the user
@@ -1393,7 +1394,7 @@ public class OverviewViewController implements IViewToolController {
         //
         try {
             //depiction of the structure
-            ImageView tmpStructureImage = new ImageView(DepictionUtil.depictImageWithZoomAndFillToFitAndWhiteBackground(
+            ImageView tmpStructureImage = new ImageView(DepictionUtil.depictImage(
                     aMoleculeDataModel.getAtomContainer(),1.0,
                     OverviewViewController.ENLARGED_STRUCTURE_VIEW_SCENE_INITIAL_WIDTH
                             * OverviewViewController.ENLARGED_STRUCTURE_VIEW_IMAGE_TO_STACK_PANE_SIZE_RATIO,
@@ -1408,7 +1409,7 @@ public class OverviewViewController implements IViewToolController {
                 tmpEnlargedStructureViewStackPane.getChildren().clear();
                 try {
                     ImageView tmpUpdatedStructureImage = new ImageView(
-                            DepictionUtil.depictImageWithZoomAndFillToFitAndWhiteBackground(
+                            DepictionUtil.depictImage(
                                     aMoleculeDataModel.getAtomContainer(), 1.0,
                                     tmpEnlargedStructureViewStackPane.getWidth()
                                             * OverviewViewController.ENLARGED_STRUCTURE_VIEW_IMAGE_TO_STACK_PANE_SIZE_RATIO,
