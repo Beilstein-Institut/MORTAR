@@ -79,6 +79,7 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -303,7 +304,7 @@ public class Exporter {
             case ExportTypes.FRAGMENT_CSV_FILE -> {
                 tmpFileName = "Fragments_" + tmpFragmentationName;
                 tmpFile = this.chooseFile(aParentStage, "CSV", "*" + FileExtension.CSV, tmpFileName);
-                if (tmpFile != null && !tmpFile.getName().endsWith(FileExtension.CSV.extension)) {
+                if (tmpFile != null && !tmpFile.getName().toLowerCase(Locale.ROOT).endsWith(FileExtension.CSV.extension.toLowerCase(Locale.ROOT))) {
                     tmpFile = new File(tmpFile.getAbsolutePath() + FileExtension.CSV);
                 }
                 yield tmpFile;
@@ -313,7 +314,7 @@ public class Exporter {
             case ExportTypes.FRAGMENT_PDF_FILE -> {
                 tmpFileName = "Fragments_" + tmpFragmentationName;
                 tmpFile = this.chooseFile(aParentStage, "PDF", "*" + FileExtension.PDF, tmpFileName);
-                if (tmpFile != null && !tmpFile.getName().endsWith(FileExtension.PDF.extension)) {
+                if (tmpFile != null && !tmpFile.getName().toLowerCase(Locale.ROOT).endsWith(FileExtension.PDF.extension.toLowerCase(Locale.ROOT))) {
                     tmpFile = new File(tmpFile.getAbsolutePath() + FileExtension.PDF);
                 }
                 yield tmpFile;
@@ -321,7 +322,7 @@ public class Exporter {
             case ExportTypes.FRAGMENT_SINGLE_SD_FILE -> {
                 tmpFileName = "Fragments_Export_" + tmpFragmentationName;
                 tmpFile = this.chooseFile(aParentStage, "SD-File", "*" + FileExtension.SDF, tmpFileName);
-                if (tmpFile != null && !tmpFile.getName().endsWith(FileExtension.SDF.extension)) {
+                if (tmpFile != null && !tmpFile.getName().toLowerCase(Locale.ROOT).endsWith(FileExtension.SDF.extension.toLowerCase(Locale.ROOT))) {
                     tmpFile = new File(tmpFile.getAbsolutePath() + FileExtension.SDF);
                 }
                 yield tmpFile;
@@ -329,7 +330,7 @@ public class Exporter {
             case ExportTypes.ITEM_CSV_FILE -> {
                 tmpFileName = "Items_" + tmpFragmentationName;
                 tmpFile = this.chooseFile(aParentStage, "CSV", "*" + FileExtension.CSV, tmpFileName);
-                if (tmpFile != null && !tmpFile.getName().endsWith(FileExtension.CSV.extension)) {
+                if (tmpFile != null && !tmpFile.getName().toLowerCase(Locale.ROOT).endsWith(FileExtension.CSV.extension.toLowerCase(Locale.ROOT))) {
                     tmpFile = new File(tmpFile.getAbsolutePath() + FileExtension.CSV);
                 }
                 yield tmpFile;
@@ -337,7 +338,7 @@ public class Exporter {
             case ExportTypes.ITEM_PDF_FILE -> {
                 tmpFileName = "Items_" + tmpFragmentationName;
                 tmpFile = this.chooseFile(aParentStage, "PDF", "*" + FileExtension.PDF, tmpFileName);
-                if (tmpFile != null && !tmpFile.getName().endsWith(FileExtension.PDF.extension)) {
+                if (tmpFile != null && !tmpFile.getName().toLowerCase(Locale.ROOT).endsWith(FileExtension.PDF.extension.toLowerCase(Locale.ROOT))) {
                     tmpFile = new File(tmpFile.getAbsolutePath() + FileExtension.PDF);
                 }
                 yield tmpFile;

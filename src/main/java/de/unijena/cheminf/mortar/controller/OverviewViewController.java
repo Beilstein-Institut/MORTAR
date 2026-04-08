@@ -51,6 +51,7 @@ import javafx.event.EventHandler;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
@@ -727,6 +728,11 @@ public class OverviewViewController implements IViewToolController {
      *     encoding and disk I/O do not block the JavaFX event thread for large grid snapshots.
      *     Success and error alerts are shown back on the FX thread via the task's
      *     {@code onSucceeded}/{@code onFailed} callbacks, which JavaFX dispatches on the application thread.
+     *     The screenshot button and the stage reference are captured into local {@code final} variables
+     *     before the task is started, so the callbacks remain safe even if the user closes the Overview
+     *     window while the write is still running (which would null {@code this.overviewView} and
+     *     {@code this.overviewViewStage} via {@code clearGUICachesAtClosing()}).  Each callback checks
+     *     that the stage is still showing before it touches any UI element.
      * </p>
      */
     private void takeScreenshotOfStructureGridPane() {
@@ -764,40 +770,130 @@ public class OverviewViewController implements IViewToolController {
             // user canceled the dialog
             return;
         }
-        if (!tmpFile.getName().endsWith(Exporter.FileExtension.PNG.toString())) {
+        if (!tmpFile.getName().toLowerCase(Locale.ROOT).endsWith(Exporter.FileExtension.PNG.toString().toLowerCase(Locale.ROOT))) {
             tmpFile = new File(tmpFile.getAbsolutePath() + Exporter.FileExtension.PNG);
         }
         this.settingsContainer.setRecentDirectoryPathSetting(tmpFile.getParent() + File.separator);
+        // Perform the potentially slow PNG encoding and disk write off the FX thread:
         // Snapshot must be taken on the FX thread; the resulting WritableImage is then passed to the background task
         WritableImage tmpSnapshot = this.overviewView.getStructureGridPane().snapshot(null, null);
         // Disable the button while the write is in progress to prevent duplicate saves
         this.overviewView.getScreenshotButton().setDisable(true);
-        // Perform the potentially slow PNG encoding and disk write off the FX thread
+        // Capture UI references into local finals before handing off to the background task.
+        // clearGUICachesAtClosing() nulls this.overviewView and this.overviewViewStage when the
+        // window is closed, so the onSucceeded/onFailed callbacks must not dereference those
+        // fields after the task completes – they use the captured locals instead.
+        final Button tmpFinalScreenshotButton = this.overviewView.getScreenshotButton();
+        final Stage tmpFinalCapturedStage = this.overviewViewStage;
         final File tmpFinalFile = tmpFile;
+        Thread tmpWriteThread = this.createSnapShotWriteThread(
+                tmpFinalFile,
+                tmpSnapshot,
+                tmpFinalScreenshotButton,
+                tmpFinalCapturedStage);
+        tmpWriteThread.start();
+    }
+    //
+    /**
+     * Builds and returns a configured, <em>unstarted</em> daemon {@link Thread} that encodes the given
+     * JavaFX {@link WritableImage} as a PNG file and writes it to disk.
+     *
+     * <p>
+     *     The work is wrapped in a {@link Task}{@code <Void>} whose {@code call()} method invokes
+     *     {@link javax.imageio.ImageIO#write} off the JavaFX application thread, keeping the UI
+     *     responsive during potentially slow encoding and I/O operations on large grid snapshots.
+     * </p>
+     *
+     * <h4>Lifecycle of captured UI references</h4>
+     * <p>
+     *     Because {@link #clearGUICachesAtClosing()} nulls {@code this.overviewView} and
+     *     {@code this.overviewViewStage} when the Overview window is closed, the task callbacks
+     *     <em>must not</em> access those instance fields after the task completes.
+     *     To prevent a {@link NullPointerException}, the caller
+     *     ({@link #takeScreenshotOfStructureGridPane()}) captures the screenshot
+     *     {@link javafx.scene.control.Button} and the current stage into {@code final} local
+     *     variables <em>before</em> starting the thread, then passes them here as
+     *     {@code aScreenshotButton} and {@code aCapturedStage}.  These references remain valid
+     *     for the entire lifetime of the task regardless of whether the window is subsequently
+     *     closed.
+     * </p>
+     *
+     * <h4>Callback behaviour</h4>
+     * <ul>
+     *   <li><b>onSucceeded</b> – dispatched on the JavaFX application thread by the framework.
+     *       Re-enables the screenshot button and shows an informational
+     *       {@link javafx.scene.control.Alert} with the saved file path,
+     *       but only if {@code aCapturedStage} is still showing.</li>
+     *   <li><b>onFailed</b> – dispatched on the JavaFX application thread by the framework.
+     *       Always logs the failure at {@link java.util.logging.Level#SEVERE}.
+     *       Re-enables the screenshot button and shows an exception alert
+     *       only if {@code aCapturedStage} is still showing, so no UI is touched
+     *       after the window has been closed.</li>
+     * </ul>
+     *
+     * <p>
+     *     The returned thread is configured as a daemon thread (so it does not prevent JVM
+     *     shutdown) with the name {@code "OverviewView-ScreenshotWrite"}.
+     *     The caller is responsible for calling {@link Thread#start()} on the returned thread.
+     * </p>
+     *
+     * @param aDestinationPNGFile     the destination {@link File} to write the PNG image to;
+     *                                must not be {@code null} and its parent directory must be writable
+     * @param aWriteableImageSnapshot the {@link WritableImage} snapshot of the structure grid pane
+     *                                to encode; must have been captured on the JavaFX application
+     *                                thread before this method is called
+     * @param aScreenshotButton       the screenshot {@link javafx.scene.control.Button} to re-enable
+     *                                in the callbacks; captured by the caller before
+     *                                {@link #clearGUICachesAtClosing()} could null
+     *                                {@code this.overviewView}
+     * @param aCapturedStage          the {@link Stage} of the overview window at the time the
+     *                                screenshot was triggered; captured by the caller before
+     *                                {@link #clearGUICachesAtClosing()} could null
+     *                                {@code this.overviewViewStage}; the callbacks check
+     *                                {@link Stage#isShowing()} on this reference before touching
+     *                                any UI element
+     * @return a configured, unstarted daemon {@link Thread} whose {@link Thread#start()} will
+     *         trigger the background PNG write
+     */
+    private Thread createSnapShotWriteThread(
+            File aDestinationPNGFile,
+            WritableImage aWriteableImageSnapshot,
+            Button aScreenshotButton,
+            Stage aCapturedStage
+    ) {
         Task<Void> tmpWriteTask = new Task<>() {
             @Override
             protected Void call() throws IOException {
-                ImageIO.write(SwingFXUtils.fromFXImage(tmpSnapshot, null), "png", tmpFinalFile);
+                ImageIO.write(SwingFXUtils.fromFXImage(aWriteableImageSnapshot, null), "png", aDestinationPNGFile);
                 return null;
             }
         };
         // setOnSucceeded / setOnFailed are dispatched back on the JavaFX application thread by the framework
         tmpWriteTask.setOnSucceeded(workerStateEvent -> {
-            this.overviewView.getScreenshotButton().setDisable(false);
+            // Guard: the overview window may have been closed while the write was running
+            if (aCapturedStage != null && aCapturedStage.isShowing()) {
+                aScreenshotButton.setDisable(false);
+            }
+            // this can run on the main stage if the overview window is closed
             //note: we cannot report this via the status bar because the MainViewController alone can update it
             GuiUtil.guiMessageAlert(
                     Alert.AlertType.INFORMATION,
                     Message.get("OverviewView.screenshotButton.success.title"),
                     Message.get("OverviewView.screenshotButton.success.header"),
-                    tmpFinalFile.getAbsolutePath()
+                    aDestinationPNGFile.getAbsolutePath()
             );
         });
         tmpWriteTask.setOnFailed(workerStateEvent -> {
-            this.overviewView.getScreenshotButton().setDisable(false);
+            // Always log the failure, regardless of whether the window is still open
             Throwable tmpCause = tmpWriteTask.getException();
             OverviewViewController.LOGGER.log(Level.SEVERE, tmpCause.toString(), tmpCause);
+            // Guard: only touch UI elements if the overview window is still showing
+            if (aCapturedStage != null && aCapturedStage.isShowing()) {
+                aScreenshotButton.setDisable(false);
+            }
             Exception tmpException = (tmpCause instanceof Exception anException)
                     ? anException : new RuntimeException(tmpCause);
+            // this can run on the main stage if the overview window is closed
             GuiUtil.guiExceptionAlert(
                     Message.get("OverviewView.screenshotButton.error.title"),
                     Message.get("OverviewView.screenshotButton.error.header"),
@@ -807,7 +903,7 @@ public class OverviewViewController implements IViewToolController {
         });
         Thread tmpWriteThread = new Thread(tmpWriteTask, "OverviewView-ScreenshotWrite");
         tmpWriteThread.setDaemon(true);
-        tmpWriteThread.start();
+        return tmpWriteThread;
     }
     //
     /**
