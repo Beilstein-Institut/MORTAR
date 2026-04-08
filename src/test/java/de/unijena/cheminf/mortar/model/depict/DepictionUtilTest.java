@@ -28,6 +28,8 @@ package de.unijena.cheminf.mortar.model.depict;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Locale;
@@ -127,6 +129,55 @@ class DepictionUtilTest {
             Assertions.assertNotEquals(
                     tmpPlain, tmpCompressed,
                     "Value " + tmpValue + " should be reformatted for a 2-pixel-wide image");
+        }
+    }
+    //
+    /**
+     * Tests that {@link DepictionUtil#isTextNarrowerThanImage(double, String, FontMetrics)}
+     * produces the same result as the no-{@link FontMetrics} overload for a representative set of
+     * image widths and texts.  A shared {@link FontMetrics} is built once from a short-lived
+     * {@link Graphics2D} (exactly as production code does in
+     * {@link de.unijena.cheminf.mortar.gui.views.ItemizationDataTableView}) and reused across all
+     * assertions.
+     */
+    @Test
+    void testIsTextNarrowerThanImageWithCachedFontMetrics() {
+        Graphics2D tmpGraphics2D = DepictionUtil.getGraphicsInstanceWithStandardFont(1, 1);
+        FontMetrics tmpFontMetrics = tmpGraphics2D.getFontMetrics();
+        tmpGraphics2D.dispose();
+
+        double[] tmpWidths = {1.0, 50.0, 200.0, 1000.0};
+        String[] tmpTexts = {"1", "42", "1234", "999999"};
+        for (double tmpWidth : tmpWidths) {
+            for (String tmpText : tmpTexts) {
+                boolean tmpExpected = DepictionUtil.isTextNarrowerThanImage(tmpWidth, tmpText);
+                boolean tmpActual = DepictionUtil.isTextNarrowerThanImage(tmpWidth, tmpText, tmpFontMetrics);
+                Assertions.assertEquals(tmpExpected, tmpActual,
+                        "isTextNarrowerThanImage mismatch for width=" + tmpWidth + ", text=\"" + tmpText + "\"");
+            }
+        }
+    }
+    //
+    /**
+     * Tests that {@link DepictionUtil#fitIntegerDisplayToImageWidth(double, int, FontMetrics)}
+     * produces the same result as the no-{@link FontMetrics} overload for a representative set of
+     * image widths and integer values.  A shared {@link FontMetrics} is built once from a short-lived
+     * {@link Graphics2D} and reused across all assertions.
+     */
+    @Test
+    void testFitIntegerDisplayToImageWidthWithCachedFontMetrics() {
+        Graphics2D tmpGraphics2D = DepictionUtil.getGraphicsInstanceWithStandardFont(1, 1);
+        FontMetrics tmpFontMetrics = tmpGraphics2D.getFontMetrics();
+        tmpGraphics2D.dispose();
+
+        double tmpVeryNarrowImage = 2.0;
+        int[] tmpValues = {1_234_567_890, 9_876_543, Integer.MAX_VALUE, 100_000};
+        for (int tmpValue : tmpValues) {
+            String tmpExpected = DepictionUtil.fitIntegerDisplayToImageWidth(tmpVeryNarrowImage, tmpValue);
+            String tmpActual = DepictionUtil.fitIntegerDisplayToImageWidth(tmpVeryNarrowImage, tmpValue, tmpFontMetrics);
+            Assertions.assertEquals(tmpExpected, tmpActual,
+                    "fitIntegerDisplayToImageWidth mismatch for width=" + tmpVeryNarrowImage
+                            + ", value=" + tmpValue);
         }
     }
     //</editor-fold>

@@ -48,6 +48,8 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
 import java.util.List;
 
 /**
@@ -96,6 +98,13 @@ public class ItemizationDataTableView extends TableView implements IDataTableVie
      * Configuration class to read resource file paths from.
      */
     private final IConfiguration configuration;
+    /**
+     * Cached {@link FontMetrics} instance (created once in the constructor using
+     * {@link DepictionUtil#getGraphicsInstanceWithStandardFont(int, int)}) that is reused by the
+     * fragment-column cell-value factories to avoid allocating a new {@link java.awt.image.BufferedImage}
+     * and {@link Graphics2D} on every cell render.
+     */
+    private final FontMetrics cachedFontMetrics;
     //</editor-fold>
     //
     /**
@@ -107,6 +116,11 @@ public class ItemizationDataTableView extends TableView implements IDataTableVie
     public ItemizationDataTableView(String aFragmentationName, IConfiguration aConfiguration) {
         super();
         this.configuration = aConfiguration;
+        // Build FontMetrics once; the backing Graphics2D is disposed immediately after extraction.
+        // The FontMetrics object itself is self-contained and can be reused across all cell renders.
+        Graphics2D tmpGraphics2D = DepictionUtil.getGraphicsInstanceWithStandardFont(1, 1);
+        this.cachedFontMetrics = tmpGraphics2D.getFontMetrics();
+        tmpGraphics2D.dispose();
         this.setEditable(false);
         this.fragmentationName = aFragmentationName;
         this.getSelectionModel().setCellSelectionEnabled(true);
@@ -226,10 +240,11 @@ public class ItemizationDataTableView extends TableView implements IDataTableVie
                 int tmpFrequency = cellData.getValue().getFragmentFrequencyOfSpecificFragmentation(this.fragmentationName).get(tmpFragment.getUniqueSmiles());
                 String tmpFrequencyString;
                 // just a precaution; it is highly unlikely that we get that many fragments of the same type for one(!) molecule
-                if (DepictionUtil.isTextNarrowerThanImage(tmpFragment.getStructureImageWidth(), String.valueOf(tmpFrequency))) {
+                // cachedFontMetrics is reused here to avoid allocating a BufferedImage/Graphics2D per cell render
+                if (DepictionUtil.isTextNarrowerThanImage(tmpFragment.getStructureImageWidth(), String.valueOf(tmpFrequency), this.cachedFontMetrics)) {
                     tmpFrequencyString = String.valueOf(tmpFrequency);
                 } else {
-                    tmpFrequencyString = DepictionUtil.fitIntegerDisplayToImageWidth(tmpFragment.getStructureImageWidth(), tmpFrequency);
+                    tmpFrequencyString = DepictionUtil.fitIntegerDisplayToImageWidth(tmpFragment.getStructureImageWidth(), tmpFrequency, this.cachedFontMetrics);
                 }
                 return tmpFragment.getStructureWithText(tmpFrequencyString);
             }));

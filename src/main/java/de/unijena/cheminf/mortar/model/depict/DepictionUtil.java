@@ -379,6 +379,30 @@ public class DepictionUtil {
     //
     /**
      * Checks whether the given text would be narrower than the image if both are used with depictImageWithText().
+     * Uses a pre-created {@link FontMetrics} instance to avoid allocating a {@link BufferedImage}/{@link Graphics2D}
+     * on every call. Prefer this overload when the method is invoked repeatedly (e.g. inside a table cell factory)
+     * and you can share a single {@link FontMetrics} across all calls.
+     * Obtain a suitable instance via
+     * {@link #getGraphicsInstanceWithStandardFont(int, int)} followed by {@link Graphics2D#getFontMetrics()}.
+     *
+     * @param anImageWidth the width of the image that is intended to be generated
+     * @param aText the text that is supposed to be included in the image
+     * @param aFontMetrics a {@link FontMetrics} instance configured with the standard MORTAR text font;
+     *                     must not be {@code null}
+     * @return true if the text would be narrower than the image; false otherwise
+     */
+    public static boolean isTextNarrowerThanImage(double anImageWidth, String aText, FontMetrics aFontMetrics) {
+        int tmpTextWidth = aFontMetrics.stringWidth(aText);
+        //not using <= here because a text that has no padding to the image sides looks crammed
+        return tmpTextWidth < anImageWidth;
+    }
+    //
+    /**
+     * Checks whether the given text would be narrower than the image if both are used with depictImageWithText().
+     * Allocates a temporary {@link BufferedImage} and {@link Graphics2D} internally.
+     * When this method is called repeatedly (e.g. in a table cell factory), consider using
+     * {@link #isTextNarrowerThanImage(double, String, FontMetrics)} with a shared {@link FontMetrics} instance
+     * to avoid per-call allocations.
      *
      * @param anImageWidth the width of the image that is intended to be generated
      * @param aText the text that is supposed to be included in the image
@@ -389,10 +413,7 @@ public class DepictionUtil {
         try {
             //the image is only created to obtain the Graphics2D instance; its width does not matter
             tmpGraphics2d = DepictionUtil.getGraphicsInstanceWithStandardFont(1, 1);
-            FontMetrics tmpFontMetrics = tmpGraphics2d.getFontMetrics();
-            int tmpTextWidth = tmpFontMetrics.stringWidth(aText);
-            //not using  <= here because a text that has no padding to the images sides looks crammed
-            return tmpTextWidth < anImageWidth;
+            return DepictionUtil.isTextNarrowerThanImage(anImageWidth, aText, tmpGraphics2d.getFontMetrics());
         } finally {
             if (tmpGraphics2d != null) {
                 tmpGraphics2d.dispose();
@@ -405,6 +426,44 @@ public class DepictionUtil {
      * than the given image width (using the default text font). If all formats are too wide, scientific notation
      * with no decimals will be used as a last resort. Note that no initial check is performed whether the given value
      * in standard String notation is actually wider than the given image width. This must be done by the calling code!
+     * Uses a pre-created {@link FontMetrics} instance to avoid allocating a {@link BufferedImage}/{@link Graphics2D}
+     * on every call. Prefer this overload when the method is invoked repeatedly (e.g. inside a table cell factory)
+     * and you can share a single {@link FontMetrics} across all calls.
+     * Obtain a suitable instance via
+     * {@link #getGraphicsInstanceWithStandardFont(int, int)} followed by {@link Graphics2D#getFontMetrics()}.
+     *
+     * @param anImageWidth the width of the image that is intended to be generated
+     * @param aValue the value that is supposed to be included in the image
+     * @param aFontMetrics a {@link FontMetrics} instance configured with the standard MORTAR text font;
+     *                     must not be {@code null}
+     * @return a String representation of the given value that is narrower than the given image width when using the
+     * default text font
+     */
+    public static String fitIntegerDisplayToImageWidth(double anImageWidth, int aValue, FontMetrics aFontMetrics) {
+        String tmpResult = String.valueOf(aValue);
+        Locale tmpDefaultLocale = Locale.getDefault();
+        DecimalFormatSymbols tmpSymbols = new DecimalFormatSymbols(tmpDefaultLocale);
+        for (IntegerFormatPattern tmpFormatPattern : IntegerFormatPattern.values()) {
+            DecimalFormat tmpDecimalFormat = new DecimalFormat(tmpFormatPattern.getPattern(), tmpSymbols);
+            tmpResult = tmpDecimalFormat.format(aValue);
+            int tmpTextWidth = aFontMetrics.stringWidth(tmpResult);
+            if (tmpTextWidth < anImageWidth) {
+                return tmpResult;
+            }
+        }
+        // Last resort: return the formatted string produced last, since it is the shortest one possible
+        return tmpResult;
+    }
+    //
+    /**
+     * Formats the given integer value using progressively shorter decimal formats until the resulting text is narrower
+     * than the given image width (using the default text font). If all formats are too wide, scientific notation
+     * with no decimals will be used as a last resort. Note that no initial check is performed whether the given value
+     * in standard String notation is actually wider than the given image width. This must be done by the calling code!
+     * Allocates a temporary {@link BufferedImage} and {@link Graphics2D} internally.
+     * When this method is called repeatedly (e.g. in a table cell factory), consider using
+     * {@link #fitIntegerDisplayToImageWidth(double, int, FontMetrics)} with a shared {@link FontMetrics} instance
+     * to avoid per-call allocations.
      *
      * @param anImageWidth the width of the image that is intended to be generated
      * @param aValue the value that is supposed to be included in the image
@@ -412,25 +471,11 @@ public class DepictionUtil {
      * default text font
      */
     public static String fitIntegerDisplayToImageWidth(double anImageWidth, int aValue) {
-        String tmpResult = String.valueOf(aValue);
-        Locale tmpDefaultLocale = Locale.getDefault();
-        DecimalFormatSymbols tmpSymbols = new DecimalFormatSymbols(tmpDefaultLocale);
         Graphics2D tmpGraphics2d = null;
         try {
             //the image is only created to obtain the Graphics2D instance; its width does not matter
             tmpGraphics2d = DepictionUtil.getGraphicsInstanceWithStandardFont(1, 1);
-            FontMetrics tmpFontMetrics = tmpGraphics2d.getFontMetrics();
-            for (IntegerFormatPattern tmpFormatPattern : IntegerFormatPattern.values()) {
-                DecimalFormat tmpDecimalFormat = new DecimalFormat(tmpFormatPattern.getPattern(), tmpSymbols);
-                tmpResult = tmpDecimalFormat.format(aValue);
-                int tmpTextWidth = tmpFontMetrics.stringWidth(tmpResult);
-                //not using isTextNarrowerThanImage() here to not create new graphics every iteration
-                if (tmpTextWidth < anImageWidth) {
-                    return tmpResult;
-                }
-            }
-            // Last resort: return the formatted string produced last, since it is the shortest one possible
-            return tmpResult;
+            return DepictionUtil.fitIntegerDisplayToImageWidth(anImageWidth, aValue, tmpGraphics2d.getFontMetrics());
         } finally {
             if (tmpGraphics2d != null) {
                 tmpGraphics2d.dispose();
