@@ -378,21 +378,21 @@ public class DepictionUtil {
     }
     //
     /**
-     * Checks whether the given text would be wider than the image if both are used with depictImageWithText().
+     * Checks whether the given text would be narrower than the image if both are used with depictImageWithText().
      *
      * @param anImageWidth the width of the image that is intended to be generated
      * @param aText the text that is supposed to be included in the image
-     * @return true if the text would be wider than the image; false otherwise
+     * @return true if the text would be narrower than the image; false otherwise
      */
-    public static boolean isTextWiderThanImage(double anImageWidth, String aText) {
+    public static boolean isTextNarrowerThanImage(double anImageWidth, String aText) {
         Graphics2D tmpGraphics2d = null;
         try {
             //the image is only created to obtain the Graphics2D instance; its width does not matter
             tmpGraphics2d = DepictionUtil.getGraphicsInstanceWithStandardFont(1, 1);
             FontMetrics tmpFontMetrics = tmpGraphics2d.getFontMetrics();
             int tmpTextWidth = tmpFontMetrics.stringWidth(aText);
-            //not using  >= here because a text that has no padding to the images sides looks crammed
-            return tmpTextWidth > anImageWidth;
+            //not using  <= here because a text that has no padding to the images sides looks crammed
+            return tmpTextWidth < anImageWidth;
         } finally {
             if (tmpGraphics2d != null) {
                 tmpGraphics2d.dispose();
@@ -401,14 +401,14 @@ public class DepictionUtil {
     }
     //
     /**
-     * Formats the given integer value using progressively shorter decimal formats until the resulting text is not
-     * wider than the given image width anymore (using the default text font). If all formats are too wide, scientific notation
+     * Formats the given integer value using progressively shorter decimal formats until the resulting text is narrower
+     * than the given image width (using the default text font). If all formats are too wide, scientific notation
      * with no decimals will be used as a last resort. Note that no initial check is performed whether the given value
      * in standard String notation is actually wider than the given image width. This must be done by the calling code!
      *
      * @param anImageWidth the width of the image that is intended to be generated
      * @param aValue the value that is supposed to be included in the image
-     * @return a String representation of the given value that is not wider than the given image width when using the
+     * @return a String representation of the given value that is narrower than the given image width when using the
      * default text font
      */
     public static String fitIntegerDisplayToImageWidth(double anImageWidth, int aValue) {
@@ -424,7 +424,7 @@ public class DepictionUtil {
                 DecimalFormat tmpDecimalFormat = new DecimalFormat(tmpFormatPattern.getPattern(), tmpSymbols);
                 tmpResult = tmpDecimalFormat.format(aValue);
                 int tmpTextWidth = tmpFontMetrics.stringWidth(tmpResult);
-                //not using isTextWiderThanImage() here to not create new graphics every iteration
+                //not using isTextNarrowerThanImage() here to not create new graphics every iteration
                 if (tmpTextWidth < anImageWidth) {
                     return tmpResult;
                 }

@@ -516,6 +516,7 @@ public class GuiUtil {
                         } else {
                             tmpAtomContainer = ((MoleculeDataModel) aTableView.getItems().get(tmpRowIndex)).getAtomContainer();
                         }
+                        //note: making the background transparent leads to problems on Windows, where the background then appears black
                         Image tmpImage = DepictionUtil.depictImage(
                                 tmpAtomContainer,
                                 1.0,

@@ -993,6 +993,7 @@ public class HistogramViewController implements IViewToolController {
             Clipboard.getSystemClipboard().setContent(tmpSmilesClipboardContent);
         });
         tmpCopyStructureMenuItem.setOnAction(event -> {
+            //note: making the background transparent leads to problems on Windows, where the background then appears black
             Image tmpCopyImageOnBar = DepictionUtil.depictImage(
                     this.atomContainerForDisplayCache,
                     12.0,
