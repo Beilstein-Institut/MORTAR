@@ -134,21 +134,25 @@ public class Exporter {
      */
     public enum FileExtension {
         /**
-         * Enum for csv extension
+         * Enum for csv extension.
          */
         CSV(".csv"),
         /**
-         * Enum for pdf extension
+         * Enum for pdf extension.
          */
         PDF(".pdf"),
         /**
-         * Enum for sdf extension
+         * Enum for sdf extension.
          */
         SDF(".sdf"),
         /**
-         * Enum for pdb extension
+         * Enum for pdb extension.
          */
         PDB(".pdb"),
+        /**
+         * Enum for png extension.
+         */
+        PNG(".png"),
         ;
         //
         /**

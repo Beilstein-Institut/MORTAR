@@ -34,8 +34,10 @@ import de.unijena.cheminf.mortar.message.Message;
 import de.unijena.cheminf.mortar.model.data.FragmentDataModel;
 import de.unijena.cheminf.mortar.model.data.MoleculeDataModel;
 import de.unijena.cheminf.mortar.model.depict.DepictionUtil;
+import de.unijena.cheminf.mortar.model.io.Exporter;
 import de.unijena.cheminf.mortar.model.settings.SettingsContainer;
 import de.unijena.cheminf.mortar.model.util.BasicDefinitions;
+import de.unijena.cheminf.mortar.model.util.FileUtil;
 
 import javafx.application.Platform;
 import javafx.beans.property.Property;
@@ -728,18 +730,12 @@ public class OverviewViewController implements IViewToolController {
      * </p>
      */
     private void takeScreenshotOfStructureGridPane() {
-        FileChooser tmpFileChooser = new FileChooser();
-        tmpFileChooser.setTitle(Message.get("OverviewView.screenshotButton.fileChooser.title"));
-        tmpFileChooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("PNG", "*.png")
-        );
         File tmpRecentDirectory = new File(this.settingsContainer.getRecentDirectoryPathSetting());
         if (!tmpRecentDirectory.isDirectory()) {
             tmpRecentDirectory = new File(SettingsContainer.RECENT_DIRECTORY_PATH_SETTING_DEFAULT);
             this.settingsContainer.setRecentDirectoryPathSetting(SettingsContainer.RECENT_DIRECTORY_PATH_SETTING_DEFAULT);
             OverviewViewController.LOGGER.log(Level.INFO, "Recent directory could not be read, resetting to default.");
         }
-        tmpFileChooser.setInitialDirectory(tmpRecentDirectory);
         //get the title of the overview without the number of molecules for the initial file name
         String tmpBaseName = this.overviewViewTitle;
         int tmpLastSeparatorIndex = tmpBaseName.lastIndexOf(" - ");
@@ -750,11 +746,25 @@ public class OverviewViewController implements IViewToolController {
         if (tmpBaseName.isEmpty()) {
             tmpBaseName = "Overview_Screenshot";
         }
-        tmpFileChooser.setInitialFileName(tmpBaseName + ".png");
+        FileUtil.replaceIllegalFileNameCharacters(tmpBaseName, "_");
+        String tmpNonExistingFilePath = FileUtil.getNonExistingFilePath(
+                tmpRecentDirectory + File.separator + tmpBaseName,
+                Exporter.FileExtension.PNG.toString());
+        FileChooser tmpFileChooser = new FileChooser();
+        tmpFileChooser.setTitle(Message.get("OverviewView.screenshotButton.fileChooser.title"));
+        tmpFileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("PNG", "*" + Exporter.FileExtension.PNG)
+        );
+        tmpFileChooser.setInitialDirectory(tmpRecentDirectory);
+        tmpFileChooser.setInitialFileName(tmpNonExistingFilePath.substring(
+                tmpNonExistingFilePath.lastIndexOf(File.separator) + 1));
         File tmpFile = tmpFileChooser.showSaveDialog(this.overviewViewStage);
         if (tmpFile == null) {
             // user canceled the dialog
             return;
+        }
+        if (!tmpFile.getName().endsWith(Exporter.FileExtension.PNG.toString())) {
+            tmpFile = new File(tmpFile.getAbsolutePath() + Exporter.FileExtension.PNG);
         }
         this.settingsContainer.setRecentDirectoryPathSetting(tmpFile.getParent() + File.separator);
         // Snapshot must be taken on the FX thread; the resulting WritableImage is then passed to the background task
@@ -762,10 +772,11 @@ public class OverviewViewController implements IViewToolController {
         // Disable the button while the write is in progress to prevent duplicate saves
         this.overviewView.getScreenshotButton().setDisable(true);
         // Perform the potentially slow PNG encoding and disk write off the FX thread
+        final File tmpFinalFile = tmpFile;
         Task<Void> tmpWriteTask = new Task<>() {
             @Override
             protected Void call() throws IOException {
-                ImageIO.write(SwingFXUtils.fromFXImage(tmpSnapshot, null), "png", tmpFile);
+                ImageIO.write(SwingFXUtils.fromFXImage(tmpSnapshot, null), "png", tmpFinalFile);
                 return null;
             }
         };
@@ -777,7 +788,7 @@ public class OverviewViewController implements IViewToolController {
                     Alert.AlertType.INFORMATION,
                     Message.get("OverviewView.screenshotButton.success.title"),
                     Message.get("OverviewView.screenshotButton.success.header"),
-                    tmpFile.getAbsolutePath()
+                    tmpFinalFile.getAbsolutePath()
             );
         });
         tmpWriteTask.setOnFailed(workerStateEvent -> {

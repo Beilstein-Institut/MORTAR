@@ -290,7 +290,7 @@ public class DepictionUtil {
         if (anImageWidth <= 0 || anImageHeight <= 0) {
             throw new IllegalArgumentException("image width and height need to be positive and larger than 0!");
         }
-        BufferedImage tmpBufferedImage = new BufferedImage(anImageWidth, anImageHeight, BufferedImage.TYPE_INT_RGB);
+        BufferedImage tmpBufferedImage = new BufferedImage(anImageWidth, anImageHeight, BufferedImage.TYPE_INT_ARGB);
         Graphics2D tmpGraphics2d = tmpBufferedImage.createGraphics();
         DepictionUtil.configureGraphics2D(tmpGraphics2d);
         Font tmpFont = new Font(
