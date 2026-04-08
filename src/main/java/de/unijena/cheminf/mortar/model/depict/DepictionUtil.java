@@ -533,6 +533,14 @@ public class DepictionUtil {
             boolean aFillToFit,
             boolean anIsBackgroundWhite
     ) {
+        if (aHeight < BasicDefinitions.DEFAULT_IMAGE_TEXT_LABEL_HEIGHT) {
+            DepictionUtil.LOGGER.log(Level.WARNING,
+                    "Given image height is smaller than the required text label height");
+            return DepictionUtil.depictErrorImage(
+                    "Image height < text label height!",
+                    (int) BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,
+                    (int) BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
+        }
         try {
             BufferedImage tmpMolBufferedImage = DepictionUtil.depictBufferedImage(
                     anAtomContainer,

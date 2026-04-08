@@ -1000,7 +1000,10 @@ public class OverviewViewController implements IViewToolController {
                                             tmpFrequencyLabel = String.valueOf(tmpFragment.getMoleculeFrequency());
                                         }
                                         if (tmpImageWidth <= tmpFontMetrics.stringWidth(tmpFrequencyLabel)) {
-                                            tmpFrequencyLabel = DepictionUtil.fitIntegerDisplayToImageWidth(tmpImageWidth, tmpFragment.getMoleculeFrequency());
+                                            tmpFrequencyLabel = DepictionUtil.fitIntegerDisplayToImageWidth(
+                                                    tmpImageWidth,
+                                                    tmpFragment.getMoleculeFrequency(),
+                                                    tmpFontMetrics);
                                         }
                                         tmpFinalContentNode = new ImageView(
                                                 DepictionUtil.depictImageWithText(
