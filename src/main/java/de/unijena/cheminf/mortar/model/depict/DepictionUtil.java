@@ -313,7 +313,7 @@ public class DepictionUtil {
     /**
      * Creates and returns an image of the given error message.
      *
-     * @param aMessage String; the error message tp depict
+     * @param aMessage String; the error message to depict
      * @param aWidth int for image width
      * @param aHeight int for image height
      * @return Image of given String

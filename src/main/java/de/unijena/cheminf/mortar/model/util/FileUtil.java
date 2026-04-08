@@ -34,6 +34,7 @@ import java.nio.file.Files;
 import java.time.DateTimeException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -469,7 +470,9 @@ public final class FileUtil {
      * @throws SecurityException if the OS name is unknown
      */
     private static OperatingSystem detectCurrentOperatingSystem() throws SecurityException {
-        String tmpOS = System.getProperty("os.name").toUpperCase();
+        // In locales like Turkish, the case conversion for "i" can change and break the subsequent checks,
+        // leading to false "unknown OS" errors; therefore, the English locale is used here
+        String tmpOS = System.getProperty("os.name").toUpperCase(Locale.ENGLISH);
         if (tmpOS.contains("WIN")) {
             return OperatingSystem.WINDOWS;
         }

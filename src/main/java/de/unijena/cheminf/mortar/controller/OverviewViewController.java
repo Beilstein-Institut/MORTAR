@@ -1026,7 +1026,6 @@ public class OverviewViewController implements IViewToolController {
                             tmpIterator++;
                         } //end of columns iteration
                     } // end of rows iteration
-                    tmpGraphics2D.dispose();
                 } finally {
                     if (tmpGraphics2D != null) {
                         tmpGraphics2D.dispose();
