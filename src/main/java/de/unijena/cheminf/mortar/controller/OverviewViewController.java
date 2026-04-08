@@ -745,8 +745,9 @@ public class OverviewViewController implements IViewToolController {
         tmpBaseName = tmpBaseName.replaceAll("\\s+", "").trim();
         if (tmpBaseName.isEmpty()) {
             tmpBaseName = "Overview_Screenshot";
+        } else {
+            tmpBaseName = FileUtil.replaceIllegalFileNameCharacters(tmpBaseName, "_");
         }
-        FileUtil.replaceIllegalFileNameCharacters(tmpBaseName, "_");
         String tmpNonExistingFilePath = FileUtil.getNonExistingFilePath(
                 tmpRecentDirectory + File.separator + tmpBaseName,
                 Exporter.FileExtension.PNG.toString());

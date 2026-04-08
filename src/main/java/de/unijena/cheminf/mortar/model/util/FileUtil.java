@@ -464,7 +464,6 @@ public final class FileUtil {
     //<editor-fold defaultstate="collapsed" desc="Private static methods">
     /**
      * Detects the current operating system and returns the matching {@link OperatingSystem} enum constant.
-     * Defaults to {@link OperatingSystem#LINUX} for any unrecognized OS string.
      *
      * @return the {@link OperatingSystem} constant for the current platform
      * @throws SecurityException if the OS name is unknown
