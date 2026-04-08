@@ -223,9 +223,6 @@ public class ItemizationDataTableView extends TableView implements IDataTableVie
                     return null;
                 }
                 FragmentDataModel tmpFragment = cellData.getValue().getFragmentsOfSpecificFragmentation(this.fragmentationName).get(tmpIndex);
-                if (!cellData.getValue().hasMoleculeUndergoneSpecificFragmentation(this.fragmentationName)) {
-                    return null;
-                }
                 int tmpFrequency = cellData.getValue().getFragmentFrequencyOfSpecificFragmentation(this.fragmentationName).get(tmpFragment.getUniqueSmiles());
                 // just a precaution; it is highly unlikely that we get that many fragments of the same type for one(!) molecule
                 String tmpFrequencyString;

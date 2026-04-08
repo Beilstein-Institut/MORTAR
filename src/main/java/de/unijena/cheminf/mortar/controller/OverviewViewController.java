@@ -854,7 +854,7 @@ public class OverviewViewController implements IViewToolController {
                 DecimalFormat tmpDecimalFormat = new DecimalFormat(OverviewViewController.FRAGMENT_FREQUENCIES_DECIMAL_FORMAT,
                         new DecimalFormatSymbols(Locale.getDefault()));
                 //Graphics and font metrics instances to be re-used per cell for checking whether a fragment frequency label fits in the image
-                Graphics2D tmpGraphics2D = DepictionUtil.getGraphicsInstanceWithStandardFontForTestingPurposes(1, 1);
+                Graphics2D tmpGraphics2D = DepictionUtil.getGraphicsInstanceWithStandardFont(1, 1);
                 FontMetrics tmpFontMetrics = tmpGraphics2D.getFontMetrics();
                 //main loop for generation of the page content
                 generationOfStructureImagesLoop:

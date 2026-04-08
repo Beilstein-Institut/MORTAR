@@ -129,7 +129,9 @@ public final class BasicDefinitions {
      */
     public static final double DEFAULT_IMAGE_HEIGHT_DEFAULT = 250.0;
     /**
-     * Default height of a text label in images.
+     * Default height of the space that should be reserved for a text label in images,
+     * using the default font defined in private constants in
+     * {@link de.unijena.cheminf.mortar.model.depict.DepictionUtil}.
      */
     public static final int DEFAULT_IMAGE_TEXT_LABEL_HEIGHT = 25;
     /**

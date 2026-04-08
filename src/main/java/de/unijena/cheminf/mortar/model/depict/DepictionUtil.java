@@ -244,6 +244,13 @@ public class DepictionUtil {
      */
     public static Image depictErrorImage(String aMessage, int aWidth, int aHeight) {
         String tmpMessage = Objects.requireNonNullElse(aMessage, "Error");
+        if (tmpMessage.isBlank()) {
+            tmpMessage = "Error";
+        }
+        if (aWidth <= 0 || aHeight <= 0) {
+            aWidth = (int) BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT;
+            aHeight = (int) BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT;
+        }
         BufferedImage tmpBufferedImage = new BufferedImage(aWidth, aHeight, BufferedImage.TYPE_INT_ARGB);
         Graphics2D tmpGraphic = tmpBufferedImage.createGraphics();
         DepictionUtil.configureGraphics2D(tmpGraphic);
@@ -255,9 +262,8 @@ public class DepictionUtil {
         FontMetrics tmpFontMetrics = tmpGraphic.getFontMetrics();
         int tmpTextWidth = tmpFontMetrics.stringWidth(tmpMessage);
         int tmpTextPositionX = (aWidth - tmpTextWidth) / 2;
-        int tmpTextPositionY = (aHeight - tmpFontMetrics.getAscent()) / 2;
+        int tmpTextPositionY = ((aHeight - tmpFontMetrics.getHeight()) / 2) + tmpFontMetrics.getAscent();
         tmpGraphic.drawString(tmpMessage, tmpTextPositionX, tmpTextPositionY);
-        tmpGraphic.drawImage(tmpBufferedImage, 0, 0, null);
         tmpGraphic.dispose();
         return SwingFXUtils.toFXImage(tmpBufferedImage, null);
     }
@@ -265,7 +271,8 @@ public class DepictionUtil {
     /**
      * Creates and returns a {@link Graphics2D} instance backed by a {@link BufferedImage} of the given dimensions,
      * configured with the MORTAR standard rendering hints (see {@link #configureGraphics2D(Graphics2D)}) and the
-     * standard text font ({@value #FONT_NAME_FOR_IMAGE_WITH_TEXT}, {@value #FONT_STYLE_FOR_IMAGE_WITH_TEXT}, {@value #FONT_SIZE_FOR_IMAGE_WITH_TEXT} pt).
+     * standard text font ({@value #FONT_NAME_FOR_IMAGE_WITH_TEXT}, {@value #FONT_STYLE_FOR_IMAGE_WITH_TEXT},
+     * {@value #FONT_SIZE_FOR_IMAGE_WITH_TEXT} pt).
      * <p>
      * This method is intended for use in scenarios where many images with fitted text labels need to be created, so the
      * Graphics2D and FontMetrics instances can be reused.
@@ -279,7 +286,7 @@ public class DepictionUtil {
      * @param anImageHeight height in pixels of the backing image; must be &gt; 0
      * @return a fully configured {@link Graphics2D} with the standard MORTAR text font set
      */
-    public static Graphics2D getGraphicsInstanceWithStandardFontForTestingPurposes(int anImageWidth, int anImageHeight) {
+    public static Graphics2D getGraphicsInstanceWithStandardFont(int anImageWidth, int anImageHeight) {
         if (anImageWidth <= 0 || anImageHeight <= 0) {
             throw new IllegalArgumentException("image width and height need to be positive and larger than 0!");
         }
@@ -305,7 +312,7 @@ public class DepictionUtil {
         Graphics2D tmpGraphics2d = null;
         try {
             //the image is only created to obtain the Graphics2D instance; its width does not matter
-            tmpGraphics2d = DepictionUtil.getGraphicsInstanceWithStandardFontForTestingPurposes(1, 1);
+            tmpGraphics2d = DepictionUtil.getGraphicsInstanceWithStandardFont(1, 1);
             FontMetrics tmpFontMetrics = tmpGraphics2d.getFontMetrics();
             int tmpTextWidth = tmpFontMetrics.stringWidth(aText);
             //not using  >= here because a text that has no padding to the images sides looks crammed
@@ -334,7 +341,7 @@ public class DepictionUtil {
         Graphics2D tmpGraphics2d = null;
         try {
             //the image is only created to obtain the Graphics2D instance; its width does not matter
-            tmpGraphics2d = DepictionUtil.getGraphicsInstanceWithStandardFontForTestingPurposes(1, 1);
+            tmpGraphics2d = DepictionUtil.getGraphicsInstanceWithStandardFont(1, 1);
             FontMetrics tmpFontMetrics = tmpGraphics2d.getFontMetrics();
             for (IntegerFormatPattern tmpFormatPattern : IntegerFormatPattern.values()) {
                 DecimalFormat tmpDecimalFormat = new DecimalFormat(tmpFormatPattern.getPattern(), tmpSymbols);
@@ -423,8 +430,7 @@ public class DepictionUtil {
             tmpGraphics2d.drawString(
                     aText,
                     (tmpBufferedImage.getWidth() / 2) - tmpTextWidth / 2,
-                    // - 7 magic number to align text, i.e. add a spacing between the bottom of the image and the text
-                    tmpBufferedImage.getHeight() - 7);
+                    tmpBufferedImage.getHeight() - tmpFontMetric.getDescent());
             tmpGraphics2d.dispose();
             return SwingFXUtils.toFXImage(tmpBufferedImage, null);
         } catch (CDKException anException) {
