@@ -442,7 +442,7 @@ public final class FileUtil {
      */
     public static void openFilePathInExplorer(String aPath) throws SecurityException {
         if (Objects.isNull(aPath) || aPath.isBlank()) {
-            throw new IllegalArgumentException("Given file path is null or empty.");
+            throw new IllegalArgumentException("Given file path is null, empty, or blank.");
         }
         OperatingSystem tmpOS = FileUtil.detectCurrentOperatingSystem();
         try {

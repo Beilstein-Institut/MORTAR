@@ -786,7 +786,7 @@ public class OverviewViewController implements IViewToolController {
         final Button tmpFinalScreenshotButton = this.overviewView.getScreenshotButton();
         final Stage tmpFinalCapturedStage = this.overviewViewStage;
         final File tmpFinalFile = tmpFile;
-        Thread tmpWriteThread = this.createSnapShotWriteThread(
+        Thread tmpWriteThread = this.createSnapshotWriteThread(
                 tmpFinalFile,
                 tmpSnapshot,
                 tmpFinalScreenshotButton,
@@ -813,7 +813,7 @@ public class OverviewViewController implements IViewToolController {
      *     ({@link #takeScreenshotOfStructureGridPane()}) captures the screenshot
      *     {@link javafx.scene.control.Button} and the current stage into {@code final} local
      *     variables <em>before</em> starting the thread, then passes them here as
-     *     {@code aScreenshotButton} and {@code aCapturedStage}.  These references remain valid
+     *     {@code aScreenshotButton} and {@code aCapturedStage}. These references remain valid
      *     for the entire lifetime of the task regardless of whether the window is subsequently
      *     closed.
      * </p>
@@ -821,14 +821,14 @@ public class OverviewViewController implements IViewToolController {
      * <h4>Callback behaviour</h4>
      * <ul>
      *   <li><b>onSucceeded</b> – dispatched on the JavaFX application thread by the framework.
-     *       Re-enables the screenshot button and shows an informational
-     *       {@link javafx.scene.control.Alert} with the saved file path,
-     *       but only if {@code aCapturedStage} is still showing.</li>
+     *       Re-enables the screenshot button, but only if {@code aCapturedStage} is still showing.
+     *       Always logs the success and shows an informational
+     *       {@link javafx.scene.control.Alert} with the saved file path</li>
      *   <li><b>onFailed</b> – dispatched on the JavaFX application thread by the framework.
      *       Always logs the failure at {@link java.util.logging.Level#SEVERE}.
-     *       Re-enables the screenshot button and shows an exception alert
-     *       only if {@code aCapturedStage} is still showing, so no UI is touched
-     *       after the window has been closed.</li>
+     *       Re-enables the screenshot button only if {@code aCapturedStage} is still showing, so no UI is touched
+     *       after the window has been closed. Always shows an exception alert.
+     *       </li>
      * </ul>
      *
      * <p>
@@ -839,7 +839,7 @@ public class OverviewViewController implements IViewToolController {
      *
      * @param aDestinationPNGFile     the destination {@link File} to write the PNG image to;
      *                                must not be {@code null} and its parent directory must be writable
-     * @param aWriteableImageSnapshot the {@link WritableImage} snapshot of the structure grid pane
+     * @param aWritableImageSnapshot the {@link WritableImage} snapshot of the structure grid pane
      *                                to encode; must have been captured on the JavaFX application
      *                                thread before this method is called
      * @param aScreenshotButton       the screenshot {@link javafx.scene.control.Button} to re-enable
@@ -855,16 +855,16 @@ public class OverviewViewController implements IViewToolController {
      * @return a configured, unstarted daemon {@link Thread} whose {@link Thread#start()} will
      *         trigger the background PNG write
      */
-    private Thread createSnapShotWriteThread(
+    private Thread createSnapshotWriteThread(
             File aDestinationPNGFile,
-            WritableImage aWriteableImageSnapshot,
+            WritableImage aWritableImageSnapshot,
             Button aScreenshotButton,
             Stage aCapturedStage
     ) {
         Task<Void> tmpWriteTask = new Task<>() {
             @Override
             protected Void call() throws IOException {
-                ImageIO.write(SwingFXUtils.fromFXImage(aWriteableImageSnapshot, null), "png", aDestinationPNGFile);
+                ImageIO.write(SwingFXUtils.fromFXImage(aWritableImageSnapshot, null), "png", aDestinationPNGFile);
                 return null;
             }
         };
