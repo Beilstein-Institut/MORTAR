@@ -50,6 +50,21 @@ import java.util.regex.Pattern;
  * @version 1.0.0.0
  */
 public final class FileUtil {
+    //<editor-fold defaultstate="collapsed" desc="Private enum OperatingSystem">
+    /**
+     * Represents the three major operating systems used internally for app directory path determination
+     * and file name validation and sanitization.
+     */
+    private enum OperatingSystem {
+        /** Microsoft Windows. */
+        WINDOWS,
+        /** Apple macOS. */
+        MAC_OS,
+        /** Linux and other Unix-like systems (AIX, etc.). */
+        LINUX
+    }
+    //</editor-fold>
+    //
     //<editor-fold desc="Private static class variables" defaultstate="collapsed">
     /**
      * Cache String for app dir path.
@@ -105,20 +120,6 @@ public final class FileUtil {
      * Introduced because javadoc build complained about classes without declared default constructor.
      */
     private FileUtil() {
-    }
-    //</editor-fold>
-    //
-    //<editor-fold defaultstate="collapsed" desc="Private enum OperatingSystem">
-    /**
-     * Represents the three major operating systems used internally for file name validation and sanitization.
-     */
-    private enum OperatingSystem {
-        /** Microsoft Windows. */
-        WINDOWS,
-        /** Apple macOS. */
-        MAC_OS,
-        /** Linux and other Unix-like systems (AIX, etc.). */
-        LINUX
     }
     //</editor-fold>
     //

@@ -299,11 +299,11 @@ public class Exporter {
         Objects.requireNonNull(aParentStage, "aParentStage must not be null");
         File tmpFile;
         String tmpFileName;
-        String tmpFragmentationName = aFragmentationName.replaceAll("\\s+", "_");
+        String tmpFragmentationName = aFragmentationName.replaceAll("\\s+", "_").trim();
         tmpFile = switch (anExportType) {
             case ExportTypes.FRAGMENT_CSV_FILE -> {
                 tmpFileName = "Fragments_" + tmpFragmentationName;
-                tmpFile = this.chooseFile(aParentStage, "CSV", "*" + FileExtension.CSV, tmpFileName);
+                tmpFile = this.chooseFile(aParentStage, "CSV", FileExtension.CSV.toString(), tmpFileName);
                 if (tmpFile != null && !tmpFile.getName().toLowerCase(Locale.ROOT).endsWith(FileExtension.CSV.extension.toLowerCase(Locale.ROOT))) {
                     tmpFile = new File(tmpFile.getAbsolutePath() + FileExtension.CSV);
                 }
@@ -313,7 +313,7 @@ public class Exporter {
                     this.chooseDirectory(aParentStage);
             case ExportTypes.FRAGMENT_PDF_FILE -> {
                 tmpFileName = "Fragments_" + tmpFragmentationName;
-                tmpFile = this.chooseFile(aParentStage, "PDF", "*" + FileExtension.PDF, tmpFileName);
+                tmpFile = this.chooseFile(aParentStage, "PDF", FileExtension.PDF.toString(), tmpFileName);
                 if (tmpFile != null && !tmpFile.getName().toLowerCase(Locale.ROOT).endsWith(FileExtension.PDF.extension.toLowerCase(Locale.ROOT))) {
                     tmpFile = new File(tmpFile.getAbsolutePath() + FileExtension.PDF);
                 }
@@ -321,7 +321,7 @@ public class Exporter {
             }
             case ExportTypes.FRAGMENT_SINGLE_SD_FILE -> {
                 tmpFileName = "Fragments_Export_" + tmpFragmentationName;
-                tmpFile = this.chooseFile(aParentStage, "SD-File", "*" + FileExtension.SDF, tmpFileName);
+                tmpFile = this.chooseFile(aParentStage, "SD-File", FileExtension.SDF.toString(), tmpFileName);
                 if (tmpFile != null && !tmpFile.getName().toLowerCase(Locale.ROOT).endsWith(FileExtension.SDF.extension.toLowerCase(Locale.ROOT))) {
                     tmpFile = new File(tmpFile.getAbsolutePath() + FileExtension.SDF);
                 }
@@ -329,7 +329,7 @@ public class Exporter {
             }
             case ExportTypes.ITEM_CSV_FILE -> {
                 tmpFileName = "Items_" + tmpFragmentationName;
-                tmpFile = this.chooseFile(aParentStage, "CSV", "*" + FileExtension.CSV, tmpFileName);
+                tmpFile = this.chooseFile(aParentStage, "CSV", FileExtension.CSV.toString(), tmpFileName);
                 if (tmpFile != null && !tmpFile.getName().toLowerCase(Locale.ROOT).endsWith(FileExtension.CSV.extension.toLowerCase(Locale.ROOT))) {
                     tmpFile = new File(tmpFile.getAbsolutePath() + FileExtension.CSV);
                 }
@@ -337,7 +337,7 @@ public class Exporter {
             }
             case ExportTypes.ITEM_PDF_FILE -> {
                 tmpFileName = "Items_" + tmpFragmentationName;
-                tmpFile = this.chooseFile(aParentStage, "PDF", "*" + FileExtension.PDF, tmpFileName);
+                tmpFile = this.chooseFile(aParentStage, "PDF", FileExtension.PDF.toString(), tmpFileName);
                 if (tmpFile != null && !tmpFile.getName().toLowerCase(Locale.ROOT).endsWith(FileExtension.PDF.extension.toLowerCase(Locale.ROOT))) {
                     tmpFile = new File(tmpFile.getAbsolutePath() + FileExtension.PDF);
                 }
@@ -1163,20 +1163,25 @@ public class Exporter {
      * Opens a FileChooser to be able to save a file. Returns null if the user cancelled the dialog.
      *
      * @param aParentStage Stage where the FileChooser should be shown
-     * @param aDescription file type description to be used in the dialog (not the file extension)
-     * @param anExtension  file extension for extension filter of the file chooser dialog
-     * @param aFileName    initial file name to suggest to the user in the dialog
+     * @param aDescription file type description to be used in the dialog (not the file extension), e.g. "CSV"
+     * @param anExtension  file extension for extension filter of the file chooser dialog, e.g. ".csv"
+     * @param aFileName    initial file name to suggest to the user in the dialog, without(!)
+     *                     the file extension already appended, e.g. "Fragments_Export"; illegal OS file name
+     *                     characters will be replaced and a nr. appended if the file already exists
      * @return the selected file or null if no file has been selected
      * @throws NullPointerException if the given stage is null
-     * @author Betül Sevindik
+     * @author Betül Sevindik, Jonas Schaub
      */
     private File chooseFile(Stage aParentStage, String aDescription, String anExtension, String aFileName) throws NullPointerException {
         Objects.requireNonNull(aParentStage, "aParentStage (instance of Stage) is null");
         FileChooser tmpFileChooser = new FileChooser();
         tmpFileChooser.setTitle((Message.get("Exporter.fileChooser.title")));
-        FileChooser.ExtensionFilter tmpExtensionFilter2 = new FileChooser.ExtensionFilter(aDescription, anExtension);
-        tmpFileChooser.getExtensionFilters().addAll(tmpExtensionFilter2);
-        tmpFileChooser.setInitialFileName(aFileName);
+        FileChooser.ExtensionFilter tmpExtensionFilter = new FileChooser.ExtensionFilter(aDescription, "*" + anExtension);
+        tmpFileChooser.getExtensionFilters().addAll(tmpExtensionFilter);
+        String tmpInitialFileName = aFileName;
+        if (FileUtil.containsIllegalFileNameCharacters(tmpInitialFileName)) {
+            tmpInitialFileName = FileUtil.replaceIllegalFileNameCharacters(tmpInitialFileName, "_");
+        }
         File tmpRecentDirectory = new File(this.settingsContainer.getRecentDirectoryPathSetting());
         if (!tmpRecentDirectory.isDirectory()) {
             tmpRecentDirectory = new File(SettingsContainer.RECENT_DIRECTORY_PATH_SETTING_DEFAULT);
@@ -1184,6 +1189,12 @@ public class Exporter {
             Exporter.LOGGER.log(Level.INFO, "Recent directory could not be read, resetting to default.");
         }
         tmpFileChooser.setInitialDirectory(tmpRecentDirectory);
+        String tmpNonExistingFilePath = FileUtil.getNonExistingFilePath(
+                tmpRecentDirectory + File.separator + tmpInitialFileName,
+                anExtension);
+        //note: we are relying on the system file chooser to append the file extension
+        tmpFileChooser.setInitialFileName(tmpNonExistingFilePath.substring(
+                tmpNonExistingFilePath.lastIndexOf(File.separator) + 1));
         File tmpFile = tmpFileChooser.showSaveDialog(aParentStage);
         if (tmpFile != null) {
             this.settingsContainer.setRecentDirectoryPathSetting(tmpFile.getParent() + File.separator);

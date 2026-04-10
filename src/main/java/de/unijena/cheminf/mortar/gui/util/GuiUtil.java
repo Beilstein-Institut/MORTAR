@@ -485,6 +485,7 @@ public class GuiUtil {
                 tmpCell = aTableView.getColumns().get(tmpColIndex).getCellData(tmpRowIndex);
             }
             if (tmpCell == null) {
+                GuiUtil.LOGGER.log(Level.WARNING, "Selected cell in table view is empty and could not be copied to clipboard.");
                 return;
             } else {
                 ClipboardContent tmpClipboardContent = new ClipboardContent();
@@ -526,9 +527,11 @@ public class GuiUtil {
                                 true);
                         tmpClipboardContent.putImage(tmpImage);
                     } catch (CDKException | ClassCastException tmpException) {
+                        //copies the exact image instance already on display in the cell to clipboard, instead of generating a bigger depiction
                         tmpClipboardContent.putImage(((ImageView) tmpCell).getImage());
                     }
                 } else {
+                    GuiUtil.LOGGER.log(Level.WARNING, "Unknown data type in table view cell ({0}) could not be copied to clipboard.", tmpCell.getClass());
                     return;
                 }
                 Clipboard.getSystemClipboard().setContent(tmpClipboardContent);

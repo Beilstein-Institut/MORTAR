@@ -238,12 +238,10 @@ public class ItemizationDataTableView extends TableView implements IDataTableVie
                 }
                 FragmentDataModel tmpFragment = cellData.getValue().getFragmentsOfSpecificFragmentation(this.fragmentationName).get(tmpIndex);
                 int tmpFrequency = cellData.getValue().getFragmentFrequencyOfSpecificFragmentation(this.fragmentationName).get(tmpFragment.getUniqueSmiles());
-                String tmpFrequencyString;
+                String tmpFrequencyString = String.valueOf(tmpFrequency);
                 // just a precaution; it is highly unlikely that we get that many fragments of the same type for one(!) molecule
                 // cachedFontMetrics is reused here to avoid allocating a BufferedImage/Graphics2D per cell render
-                if (DepictionUtil.isTextNarrowerThanImage(tmpFragment.getStructureImageWidth(), String.valueOf(tmpFrequency), this.cachedFontMetrics)) {
-                    tmpFrequencyString = String.valueOf(tmpFrequency);
-                } else {
+                if (!DepictionUtil.isTextNarrowerThanImage(tmpFragment.getStructureImageWidth(), tmpFrequencyString, this.cachedFontMetrics)) {
                     tmpFrequencyString = DepictionUtil.fitIntegerDisplayToImageWidth(tmpFragment.getStructureImageWidth(), tmpFrequency, this.cachedFontMetrics);
                 }
                 return tmpFragment.getStructureWithText(tmpFrequencyString);
