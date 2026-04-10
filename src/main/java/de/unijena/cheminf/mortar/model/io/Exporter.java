@@ -1192,7 +1192,6 @@ public class Exporter {
         String tmpNonExistingFilePath = FileUtil.getNonExistingFilePath(
                 tmpRecentDirectory + File.separator + tmpInitialFileName,
                 anExtension);
-        //note: we are relying on the system file chooser to append the file extension
         tmpFileChooser.setInitialFileName(tmpNonExistingFilePath.substring(
                 tmpNonExistingFilePath.lastIndexOf(File.separator) + 1));
         File tmpFile = tmpFileChooser.showSaveDialog(aParentStage);
