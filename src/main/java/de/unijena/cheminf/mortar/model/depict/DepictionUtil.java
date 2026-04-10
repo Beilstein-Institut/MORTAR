@@ -305,8 +305,8 @@ public class DepictionUtil {
             DepictionUtil.LOGGER.log(Level.SEVERE, anException.toString(), anException);
             return DepictionUtil.depictErrorImage(
                     anException.getMessage(),
-                    (int) BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,
-                    (int) BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
+                    aWidth > 0 ? (int) aWidth : (int) BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,
+                    aHeight > 0 ? (int) aHeight : (int) BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
         }
     }
     //
@@ -538,8 +538,8 @@ public class DepictionUtil {
                     "Given image height is smaller than the required text label height");
             return DepictionUtil.depictErrorImage(
                     "Image height < text label height!",
-                    (int) BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,
-                    (int) BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
+                    aWidth > 0 ? (int) aWidth : (int) BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,
+                    aHeight > 0 ? (int) aHeight : (int) BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
         }
         try {
             BufferedImage tmpMolBufferedImage = DepictionUtil.depictBufferedImage(
@@ -576,8 +576,8 @@ public class DepictionUtil {
             DepictionUtil.LOGGER.log(Level.SEVERE, anException.toString(), anException);
             return DepictionUtil.depictErrorImage(
                     anException.getMessage(),
-                    (int) BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,
-                    (int) BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
+                    aWidth > 0 ? (int) aWidth : (int) BasicDefinitions.DEFAULT_IMAGE_WIDTH_DEFAULT,
+                    aHeight > 0 ? (int) aHeight : (int) BasicDefinitions.DEFAULT_IMAGE_HEIGHT_DEFAULT);
         }
     }
     //</editor-fold>
