@@ -775,11 +775,11 @@ public class OverviewViewController implements IViewToolController {
             tmpFile = new File(tmpFile.getAbsolutePath() + Exporter.FileExtension.PNG);
         }
         this.settingsContainer.setRecentDirectoryPathSetting(tmpFile.getParent() + File.separator);
+        // Disable the button while the write is in progress to prevent duplicate saves
+        this.overviewView.getScreenshotButton().setDisable(true);
         // Perform the potentially slow PNG encoding and disk write off the FX thread:
         // Snapshot must be taken on the FX thread; the resulting WritableImage is then passed to the background task
         WritableImage tmpSnapshot = this.overviewView.getStructureGridPane().snapshot(null, null);
-        // Disable the button while the write is in progress to prevent duplicate saves
-        this.overviewView.getScreenshotButton().setDisable(true);
         // Capture UI references into local finals before handing off to the background task.
         // clearGUICachesAtClosing() nulls this.overviewView and this.overviewViewStage when the
         // window is closed, so the onSucceeded/onFailed callbacks must not dereference those
