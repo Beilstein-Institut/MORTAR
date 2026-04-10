@@ -971,7 +971,7 @@ public class HistogramViewController implements IViewToolController {
                     //Note: the used depiction method returns an error image if image creation fails, so nothing else to do here
                 }
             }
-            Image tmpImage = DepictionUtil.depictImageWithZoomAndFillToFitAndWhiteBackground(
+            Image tmpImage = DepictionUtil.depictImage(
                     this.atomContainerForDisplayCache,
                     this.imageZoomFactor,
                     this.imageWidth,
@@ -993,16 +993,17 @@ public class HistogramViewController implements IViewToolController {
             Clipboard.getSystemClipboard().setContent(tmpSmilesClipboardContent);
         });
         tmpCopyStructureMenuItem.setOnAction(event -> {
-            ClipboardContent tmpStructureClipboardContent = new ClipboardContent();
-            Image tmpCopyImageOnBar = DepictionUtil.depictImageWithZoomAndFillToFitAndWhiteBackground(
+            //note: making the background transparent leads to problems on Windows, where the background then appears black
+            Image tmpCopyImageOnBar = DepictionUtil.depictImage(
                     this.atomContainerForDisplayCache,
                     12.0,
                     GuiDefinitions.GUI_COPY_IMAGE_IMAGE_WIDTH,
                     GuiDefinitions.GUI_COPY_IMAGE_IMAGE_HEIGHT,
                     true,
                     true);
-            tmpStructureClipboardContent.putImage(tmpCopyImageOnBar);
-            Clipboard.getSystemClipboard().setContent(tmpStructureClipboardContent);
+            ClipboardContent tmpImageClipboardContent = new ClipboardContent();
+            tmpImageClipboardContent.putImage(tmpCopyImageOnBar);
+            Clipboard.getSystemClipboard().setContent(tmpImageClipboardContent);
         });
         tmpNodePane.addEventHandler(MouseEvent.MOUSE_EXITED, event -> {
             tmpNodePane.setStyle("-fx-bar-fill: " + HistogramViewController.HISTOGRAM_BARS_COLOR_HEX_VALUE);

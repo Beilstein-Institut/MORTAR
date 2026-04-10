@@ -30,6 +30,7 @@ import de.unijena.cheminf.mortar.gui.util.GuiUtil;
 import de.unijena.cheminf.mortar.message.Message;
 import de.unijena.cheminf.mortar.model.data.FragmentDataModel;
 import de.unijena.cheminf.mortar.model.data.MoleculeDataModel;
+import de.unijena.cheminf.mortar.model.settings.SettingsContainer;
 import de.unijena.cheminf.mortar.model.util.BasicDefinitions;
 import de.unijena.cheminf.mortar.model.util.FileUtil;
 import de.unijena.cheminf.mortar.preference.PreferenceContainer;
@@ -82,10 +83,6 @@ public class ViewToolsManager {
      * OverviewViewController instance.
      */
     private final OverviewViewController overviewViewController;
-    /**
-     * Configuration class to read resource file paths from.
-     */
-    private final IConfiguration configuration;
     //</editor-fold>
     //
     //<editor-fold desc="constructor" defaultstate="collapsed">
@@ -94,13 +91,13 @@ public class ViewToolsManager {
      * Opens a GUI exception alert if they are not.
      *
      * @param aConfiguration configuration instance to read resource file paths from
+     * @param aSettingsContainer settings container to read settings from
      */
-    public ViewToolsManager(IConfiguration aConfiguration) {
-        this.configuration = aConfiguration;
+    public ViewToolsManager(IConfiguration aConfiguration, SettingsContainer aSettingsContainer) {
         this.viewToolsArray = new IViewToolController[2];
-        this.histogramViewController = new HistogramViewController(this.configuration);
+        this.histogramViewController = new HistogramViewController(aConfiguration);
         this.viewToolsArray[0] = this.histogramViewController;
-        this.overviewViewController = new OverviewViewController(this.configuration);
+        this.overviewViewController = new OverviewViewController(aConfiguration, aSettingsContainer);
         this.viewToolsArray[1] = this.overviewViewController;
         try {
             this.checkViewTools();
