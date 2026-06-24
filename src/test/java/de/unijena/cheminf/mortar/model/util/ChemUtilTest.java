@@ -25,8 +25,11 @@
 
 package de.unijena.cheminf.mortar.model.util;
 
+import de.unijena.cheminf.mortar.model.data.MoleculeDataModel;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.io.MDLV2000Reader;
 import org.openscience.cdk.silent.SilentChemObjectBuilder;
@@ -202,6 +205,117 @@ class ChemUtilTest {
                 failMsg.append(tmpLine).append('\n');
             }
             Assertions.fail(failMsg.toString());
+        }
+    }
+    //
+    /**
+     * Tests that ChemUtil.generateMolecularFormula() returns the correct molecular formula for a parsed molecule.
+     * Golden value is acceptable here because CDK is pinned to the 2.12 release; if CDK is bumped the expected
+     * formula string may need to be refreshed.
+     */
+    @Test
+    public void testGenerateMolecularFormula() throws Exception {
+        IAtomContainer tmpMolecule = ChemUtil.parseSmilesToAtomContainer("c1ccccc1");
+        String tmpFormula = ChemUtil.generateMolecularFormula(tmpMolecule);
+        Assertions.assertEquals("C6H6", tmpFormula);
+    }
+    //
+    /**
+     * Tests ChemUtil.has2DCoordinates(): false before 2D coordinates are generated, true afterwards.
+     */
+    @Test
+    public void testHas2DCoordinates() throws Exception {
+        IAtomContainer tmpAtomContainer = ChemUtil.parseSmilesToAtomContainer("c1ccccc1");
+        MoleculeDataModel tmpMolecule = new MoleculeDataModel(tmpAtomContainer, false);
+        Assertions.assertFalse(ChemUtil.has2DCoordinates(tmpMolecule));
+        ChemUtil.generate2DCoordinates(tmpMolecule.getAtomContainer());
+        Assertions.assertTrue(ChemUtil.has2DCoordinates(tmpMolecule));
+    }
+    //
+    /**
+     * Tests ChemUtil.has3DCoordinates(): false before 3D coordinates are generated, true afterwards.
+     */
+    @Test
+    public void testHas3DCoordinates() throws Exception {
+        IAtomContainer tmpAtomContainer = ChemUtil.parseSmilesToAtomContainer("c1ccccc1");
+        MoleculeDataModel tmpMolecule = new MoleculeDataModel(tmpAtomContainer, false);
+        Assertions.assertFalse(ChemUtil.has3DCoordinates(tmpMolecule));
+        ChemUtil.generateZero3DCoordinates(tmpMolecule.getAtomContainer());
+        Assertions.assertTrue(ChemUtil.has3DCoordinates(tmpMolecule));
+    }
+    //
+    /**
+     * Tests all branches of ChemUtil.checkMoleculeListForCoordinates(): null list, empty list, a list with a molecule
+     * that has coordinates, and a list with a molecule that has none.
+     */
+    @Test
+    public void testCheckMoleculeListForCoordinates() throws Exception {
+        Assertions.assertFalse(ChemUtil.checkMoleculeListForCoordinates(null));
+        Assertions.assertFalse(ChemUtil.checkMoleculeListForCoordinates(new ArrayList<>(0)));
+        IAtomContainer tmpAtomContainerWithoutCoords = ChemUtil.parseSmilesToAtomContainer("c1ccccc1");
+        MoleculeDataModel tmpMoleculeWithoutCoords = new MoleculeDataModel(tmpAtomContainerWithoutCoords, false);
+        List<MoleculeDataModel> tmpListWithoutCoords = new ArrayList<>(1);
+        tmpListWithoutCoords.add(tmpMoleculeWithoutCoords);
+        Assertions.assertFalse(ChemUtil.checkMoleculeListForCoordinates(tmpListWithoutCoords));
+        IAtomContainer tmpAtomContainerWithCoords = ChemUtil.parseSmilesToAtomContainer("c1ccccc1");
+        MoleculeDataModel tmpMoleculeWithCoords = new MoleculeDataModel(tmpAtomContainerWithCoords, false);
+        ChemUtil.generate2DCoordinates(tmpMoleculeWithCoords.getAtomContainer());
+        List<MoleculeDataModel> tmpListWithCoords = new ArrayList<>(1);
+        tmpListWithCoords.add(tmpMoleculeWithCoords);
+        Assertions.assertTrue(ChemUtil.checkMoleculeListForCoordinates(tmpListWithCoords));
+    }
+    //
+    /**
+     * Tests ChemUtil.generate2DCoordinates(): null molecule throws NullPointerException, empty container returns without
+     * throwing, and a real molecule gains 2D coordinates on its atoms.
+     */
+    @Test
+    public void testGenerate2DCoordinates() throws Exception {
+        Assertions.assertThrows(NullPointerException.class, () -> ChemUtil.generate2DCoordinates(null));
+        IAtomContainer tmpEmptyContainer = SilentChemObjectBuilder.getInstance().newAtomContainer();
+        Assertions.assertDoesNotThrow(() -> ChemUtil.generate2DCoordinates(tmpEmptyContainer));
+        IAtomContainer tmpMolecule = ChemUtil.parseSmilesToAtomContainer("c1ccccc1");
+        ChemUtil.generate2DCoordinates(tmpMolecule);
+        for (IAtom tmpAtom : tmpMolecule.atoms()) {
+            Assertions.assertNotNull(tmpAtom.getPoint2d());
+        }
+    }
+    //
+    /**
+     * Tests ChemUtil.generatePseudo3Dfrom2DCoordinates(): after 2D coordinates exist the generated 3D points have z=0;
+     * a molecule without 2D coordinates throws IllegalArgumentException; a null molecule throws NullPointerException.
+     */
+    @Test
+    public void testGeneratePseudo3Dfrom2DCoordinates() throws Exception {
+        Assertions.assertThrows(NullPointerException.class, () -> ChemUtil.generatePseudo3Dfrom2DCoordinates(null));
+        IAtomContainer tmpMoleculeWithout2D = ChemUtil.parseSmilesToAtomContainer("c1ccccc1");
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> ChemUtil.generatePseudo3Dfrom2DCoordinates(tmpMoleculeWithout2D));
+        IAtomContainer tmpMolecule = ChemUtil.parseSmilesToAtomContainer("c1ccccc1");
+        ChemUtil.generate2DCoordinates(tmpMolecule);
+        ChemUtil.generatePseudo3Dfrom2DCoordinates(tmpMolecule);
+        for (IAtom tmpAtom : tmpMolecule.atoms()) {
+            Assertions.assertNotNull(tmpAtom.getPoint3d());
+            Assertions.assertEquals(0.0, tmpAtom.getPoint3d().z);
+        }
+    }
+    //
+    /**
+     * Tests ChemUtil.generateZero3DCoordinates(): null molecule throws NullPointerException, empty container returns
+     * without throwing, and every atom of a real molecule gets the (0,0,0) coordinate.
+     */
+    @Test
+    public void testGenerateZero3DCoordinates() throws Exception {
+        Assertions.assertThrows(NullPointerException.class, () -> ChemUtil.generateZero3DCoordinates(null));
+        IAtomContainer tmpEmptyContainer = SilentChemObjectBuilder.getInstance().newAtomContainer();
+        Assertions.assertDoesNotThrow(() -> ChemUtil.generateZero3DCoordinates(tmpEmptyContainer));
+        IAtomContainer tmpMolecule = ChemUtil.parseSmilesToAtomContainer("c1ccccc1");
+        ChemUtil.generateZero3DCoordinates(tmpMolecule);
+        for (IAtom tmpAtom : tmpMolecule.atoms()) {
+            Assertions.assertNotNull(tmpAtom.getPoint3d());
+            Assertions.assertEquals(0.0, tmpAtom.getPoint3d().x);
+            Assertions.assertEquals(0.0, tmpAtom.getPoint3d().y);
+            Assertions.assertEquals(0.0, tmpAtom.getPoint3d().z);
         }
     }
 }
