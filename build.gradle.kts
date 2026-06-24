@@ -6,6 +6,7 @@ plugins {
     id("application")
     alias(libs.plugins.javafxplugin)
     alias(libs.plugins.spotless)
+    id("jacoco")
     id("mortar.deploy.linux")
     id("mortar.deploy.mac")
     id("mortar.deploy.win")
@@ -82,6 +83,10 @@ javafx {
     modules = listOf("javafx.base","javafx.graphics", "javafx.controls", "javafx.swing")
 }
 
+jacoco {
+    toolVersion = libs.versions.jacoco.get()
+}
+
 tasks.test {
     useJUnitPlatform()
     testLogging {
@@ -91,6 +96,30 @@ tasks.test {
             org.gradle.api.tasks.testing.logging.TestLogEvent.FAILED
         )
     }
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        html.required.set(true)
+        xml.required.set(true)
+        csv.required.set(false)
+    }
+    classDirectories.setFrom(
+        files(
+            sourceSets.main.get().output.classesDirs.files.map { tmpDir ->
+                fileTree(tmpDir) {
+                    exclude(
+                        "**/de/unijena/cheminf/mortar/gui/**",
+                        "**/de/unijena/cheminf/mortar/controller/**",
+                        "**/de/unijena/cheminf/mortar/main/**",
+                        "**/de/unijena/cheminf/mortar/message/**"
+                    )
+                }
+            }
+        )
+    )
 }
 
 //<editor-fold desc="FatJar tasks">

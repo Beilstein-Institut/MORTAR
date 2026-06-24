@@ -5,6 +5,7 @@ cdk-version = "2.12-SNAPSHOT"
 cdkScaffold-version = "2.8"
 javafx-version = "21.0.1"
 openpdf-version = "2.0.3"
+jacoco = "0.8.15"
 
 # plugins
 javafxplugin-version = "0.1.0"
