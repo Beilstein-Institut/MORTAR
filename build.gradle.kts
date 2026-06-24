@@ -89,6 +89,7 @@ jacoco {
 
 tasks.test {
     useJUnitPlatform()
+    systemProperty("java.awt.headless", "true")
     testLogging {
         events = setOf(
             org.gradle.api.tasks.testing.logging.TestLogEvent.PASSED,
