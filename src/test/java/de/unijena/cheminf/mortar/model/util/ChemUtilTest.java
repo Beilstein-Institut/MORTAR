@@ -40,6 +40,7 @@ import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 
 import java.io.File;
 import java.io.FileReader;
+import java.lang.reflect.Constructor;
 import java.net.URL;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -317,5 +318,159 @@ class ChemUtilTest {
             Assertions.assertEquals(0.0, tmpAtom.getPoint3d().y);
             Assertions.assertEquals(0.0, tmpAtom.getPoint3d().z);
         }
+    }
+    //
+    /**
+     * Tests the isAromaticityEncoded=false path of ChemUtil.createUniqueSmiles(): the returned unique SMILES is
+     * non-null and round-trips back to the same unique SMILES when parsed again. Golden round-trip is acceptable
+     * because CDK is pinned to the 2.12 release; the expected value may need a refresh if CDK is bumped.
+     */
+    @Test
+    public void testCreateUniqueSmilesWithoutAromaticityEncoding() throws Exception {
+        IAtomContainer tmpMolecule = ChemUtil.parseSmilesToAtomContainer("c1ccccc1", false, false);
+        String tmpUniqueSmiles = ChemUtil.createUniqueSmiles(tmpMolecule, false, false);
+        Assertions.assertNotNull(tmpUniqueSmiles);
+        IAtomContainer tmpReparsed = ChemUtil.parseSmilesToAtomContainer(tmpUniqueSmiles, false, false);
+        Assertions.assertEquals(tmpUniqueSmiles, ChemUtil.createUniqueSmiles(tmpReparsed, false, false));
+    }
+    //
+    /**
+     * Tests the CDKException -> fix-aromatic-nitrogen fallback path of ChemUtil.createUniqueSmiles(): a molecule
+     * parsed from an aromatic SMILES that is missing an explicit hydrogen on an aromatic nitrogen cannot be
+     * kekulized directly, so createUniqueSmiles must take the fix-aromatic-N branch and still return a non-null
+     * unique SMILES.
+     */
+    @Test
+    public void testCreateUniqueSmilesAromaticNitrogenFallback() throws Exception {
+        //CHEBI:929 - one aromatic n is missing its explicit hydrogen, forcing the fix-aromatic-N fallback branch
+        String tmpSmilesCode = "Nc1nc(N[C@@H]2O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]2O)c(N)c(=O)n1";
+        SmilesParser tmpSmiPar = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        tmpSmiPar.kekulise(false);
+        IAtomContainer tmpMolecule = tmpSmiPar.parseSmiles(tmpSmilesCode);
+        //isAromaticityEncoded=false forces a kekulizing flavor, so the first generation fails and the fix-aromatic-N branch is taken
+        String tmpUniqueSmiles = ChemUtil.createUniqueSmiles(tmpMolecule, false, false);
+        Assertions.assertNotNull(tmpUniqueSmiles);
+    }
+    //
+    /**
+     * Tests ChemUtil.saturateWithHydrogen() guard branches: a null molecule throws NullPointerException and an empty
+     * atom container returns without throwing. Also checks that a real molecule is saturated without error.
+     */
+    @Test
+    public void testSaturateWithHydrogen() throws Exception {
+        Assertions.assertThrows(NullPointerException.class, () -> ChemUtil.saturateWithHydrogen(null));
+        IAtomContainer tmpEmptyContainer = SilentChemObjectBuilder.getInstance().newAtomContainer();
+        Assertions.assertDoesNotThrow(() -> ChemUtil.saturateWithHydrogen(tmpEmptyContainer));
+        IAtomContainer tmpMolecule = ChemUtil.parseSmilesToAtomContainer("c1ccccc1");
+        Assertions.assertDoesNotThrow(() -> ChemUtil.saturateWithHydrogen(tmpMolecule));
+    }
+    //
+    /**
+     * Tests ChemUtil.checkAndCorrectElectronConfiguration() guard branches: a null molecule throws
+     * NullPointerException and an empty atom container returns without throwing. Also checks that a real molecule
+     * is processed without error.
+     */
+    @Test
+    public void testCheckAndCorrectElectronConfiguration() throws Exception {
+        Assertions.assertThrows(NullPointerException.class,
+                () -> ChemUtil.checkAndCorrectElectronConfiguration(null));
+        IAtomContainer tmpEmptyContainer = SilentChemObjectBuilder.getInstance().newAtomContainer();
+        Assertions.assertDoesNotThrow(() -> ChemUtil.checkAndCorrectElectronConfiguration(tmpEmptyContainer));
+        IAtomContainer tmpMolecule = ChemUtil.parseSmilesToAtomContainer("c1ccccc1");
+        Assertions.assertDoesNotThrow(() -> ChemUtil.checkAndCorrectElectronConfiguration(tmpMolecule));
+    }
+    //
+    /**
+     * Tests ChemUtil.fixRadicals() guard branches: a null molecule throws NullPointerException, an empty atom
+     * container returns without throwing, and a molecule without any single electrons is left untouched (the
+     * "do nothing" branch).
+     */
+    @Test
+    public void testFixRadicalsGuards() throws Exception {
+        Assertions.assertThrows(NullPointerException.class, () -> ChemUtil.fixRadicals(null));
+        IAtomContainer tmpEmptyContainer = SilentChemObjectBuilder.getInstance().newAtomContainer();
+        Assertions.assertDoesNotThrow(() -> ChemUtil.fixRadicals(tmpEmptyContainer));
+        IAtomContainer tmpMoleculeWithoutRadicals = ChemUtil.parseSmilesToAtomContainer("c1ccccc1");
+        Assertions.assertEquals(0, tmpMoleculeWithoutRadicals.getSingleElectronCount());
+        Assertions.assertDoesNotThrow(() -> ChemUtil.fixRadicals(tmpMoleculeWithoutRadicals));
+        Assertions.assertEquals(0, tmpMoleculeWithoutRadicals.getSingleElectronCount());
+    }
+    //
+    /**
+     * Tests the single-argument ChemUtil.parseSmilesToAtomContainer(String), which delegates to the three-argument
+     * variant with kekulization and atom type perception enabled. The result must be a non-null atom container.
+     */
+    @Test
+    public void testParseSmilesToAtomContainerSingleArg() throws Exception {
+        IAtomContainer tmpMolecule = ChemUtil.parseSmilesToAtomContainer("c1ccccc1");
+        Assertions.assertNotNull(tmpMolecule);
+        Assertions.assertEquals(6, tmpMolecule.getAtomCount());
+    }
+    //
+    /**
+     * Tests the CDKException catch branch of ChemUtil.has2DCoordinates() and has3DCoordinates(): a molecule data model
+     * whose unique SMILES cannot be parsed makes getAtomContainer() throw, and both coordinate checks must return
+     * false instead of propagating the exception.
+     */
+    @Test
+    public void testHasCoordinatesWithUnparseableSmiles() throws Exception {
+        MoleculeDataModel tmpMolecule = new MoleculeDataModel("not_a_valid_smiles", "BrokenMolecule", new java.util.HashMap<>());
+        Assertions.assertFalse(ChemUtil.has2DCoordinates(tmpMolecule));
+        Assertions.assertFalse(ChemUtil.has3DCoordinates(tmpMolecule));
+    }
+    //
+    /**
+     * Tests the empty-container early-return branch of ChemUtil.generatePseudo3Dfrom2DCoordinates(): an empty atom
+     * container returns without throwing.
+     */
+    @Test
+    public void testGeneratePseudo3Dfrom2DCoordinatesEmptyContainer() throws Exception {
+        IAtomContainer tmpEmptyContainer = SilentChemObjectBuilder.getInstance().newAtomContainer();
+        Assertions.assertDoesNotThrow(() -> ChemUtil.generatePseudo3Dfrom2DCoordinates(tmpEmptyContainer));
+    }
+    //
+    /**
+     * Drives the fix-aromatic-nitrogen success branch of ChemUtil.createUniqueSmiles(): the first SMILES generation
+     * fails to kekulize because of an aromatic nitrogen missing its explicit hydrogen, then the fix-aromatic-N
+     * routine succeeds and a non-null unique SMILES is produced. Uses a ChEBI molecule known to be fixable.
+     */
+    @Test
+    public void testCreateUniqueSmilesFixAromaticNitrogenSuccess() throws Exception {
+        //CHEBI:10048 - two aromatic n need to be fixed; proven fixable by testFixAromaticNitrogensAndCreateSMILES
+        String tmpSmilesCode = "O=c1nc(=O)c2ncn([C@@H]3O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]3O)c2n1";
+        SmilesParser tmpSmiPar = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        tmpSmiPar.kekulise(false);
+        IAtomContainer tmpMolecule = tmpSmiPar.parseSmiles(tmpSmilesCode);
+        //isAromaticityEncoded=false forces a kekulizing flavor, so the first generation fails and the fix-aromatic-N branch is taken
+        String tmpUniqueSmiles = ChemUtil.createUniqueSmiles(tmpMolecule, false, false);
+        Assertions.assertNotNull(tmpUniqueSmiles);
+    }
+    //
+    /**
+     * Tests the guard branches of ChemUtil.fixAromaticNitrogenAndCreateSMILES(): a null molecule throws
+     * NullPointerException, an empty atom container returns null, and a molecule without any aromatic nitrogen
+     * atoms returns null.
+     */
+    @Test
+    public void testFixAromaticNitrogenAndCreateSMILESGuards() throws Exception {
+        Assertions.assertThrows(NullPointerException.class,
+                () -> ChemUtil.fixAromaticNitrogenAndCreateSMILES(null));
+        IAtomContainer tmpEmptyContainer = SilentChemObjectBuilder.getInstance().newAtomContainer();
+        Assertions.assertNull(ChemUtil.fixAromaticNitrogenAndCreateSMILES(tmpEmptyContainer));
+        SmilesParser tmpSmiPar = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        tmpSmiPar.kekulise(false);
+        IAtomContainer tmpMoleculeWithoutAromaticN = tmpSmiPar.parseSmiles("c1ccccc1");
+        Assertions.assertNull(ChemUtil.fixAromaticNitrogenAndCreateSMILES(tmpMoleculeWithoutAromaticN));
+    }
+    //
+    /**
+     * Exercises the private no-argument constructor of the utility class ChemUtil via reflection to cover the
+     * otherwise-unreachable constructor line.
+     */
+    @Test
+    public void testPrivateConstructor() throws Exception {
+        Constructor<ChemUtil> tmpConstructor = ChemUtil.class.getDeclaredConstructor();
+        tmpConstructor.setAccessible(true);
+        Assertions.assertNotNull(tmpConstructor.newInstance());
     }
 }
