@@ -37,8 +37,13 @@ import javafx.collections.ObservableList;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.MockedConstruction;
+import org.mockito.Mockito;
+import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
+import org.openscience.cdk.io.PDBWriter;
+import org.openscience.cdk.io.SDFWriter;
 import org.openscience.cdk.silent.SilentChemObjectBuilder;
 import org.openscience.cdk.smiles.SmilesParser;
 
@@ -55,6 +60,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Tests the file-taking export methods of the {@link Exporter} class directly against a temporary output directory and
@@ -1002,6 +1008,347 @@ public class ExporterTest {
     }
     //</editor-fold>
     //
+    //<editor-fold desc="Writer-exception kekulize-retry tests (targeted Mockito)" defaultstate="collapsed">
+    /*
+     * The following tests use Mockito's mockConstruction exclusively to drive the inner kekulize-retry blocks of the
+     * SD/PDB export methods (createFragmentationTabSingleSDFile / createFragmentationTabSeparateSDFiles /
+     * createFragmentationTabPDBFiles). Those blocks fire ONLY when the very first SDFWriter.write(...) /
+     * PDBWriter.writeMolecule(...) throws a CDKException; with OptWriteAromaticBondTypes=true a real CDK writer never
+     * fails the first write for the fragments used here (verified empirically in plan 03-06), so the branch is
+     * unreachable with real objects. Mockito is authorized for THIS package only (the project's no-mock rule was
+     * explicitly overturned here); usage is kept minimal and targeted — the constructed writer is the only mock, the
+     * kekulization on the real fragment clone runs for real, and the returned failed-export list is asserted to be empty
+     * so the retry's successful path (not the outer catch) is what is exercised.
+     */
+    /**
+     * Drives the kekulize-retry block of {@code createFragmentationTabSingleSDFile} (no-3D fragment sub-branch). A
+     * mock-constructed {@link SDFWriter} throws a {@link CDKException} on its first {@code write} call (forcing the inner
+     * catch), then succeeds on the retried {@code write} of the kekulized clone. The fragments carry no 3D coordinates,
+     * so the retry kekulizes the pre-built no-3D clone. The export returns an empty failed-list (the retry succeeded, the
+     * outer catch was not reached) and the writer received at least one more {@code write} call than there are fragments
+     * (proving exactly one retry occurred).
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSingleSdfWriteRetry(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpOut = aTempDir.resolve("single_retry.sdf").toFile();
+        AtomicInteger tmpWriteCounter = new AtomicInteger(0);
+        try (MockedConstruction<SDFWriter> tmpMocked = Mockito.mockConstruction(SDFWriter.class,
+                Mockito.withSettings().defaultAnswer(Mockito.RETURNS_MOCKS),
+                (aMock, aContext) -> Mockito.doAnswer(anInvocation -> {
+                    if (tmpWriteCounter.getAndIncrement() == 0) {
+                        throw new CDKException("First write fails on purpose to drive the kekulize retry.");
+                    }
+                    return null;
+                }).when(aMock).write(Mockito.any()))) {
+            List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                    tmpOut, tmpFragments, ChemFileTypes.SDF, true, true);
+            Assertions.assertNotNull(tmpFailed);
+            Assertions.assertTrue(tmpFailed.isEmpty());
+            //one write per fragment plus the single extra retry write
+            Assertions.assertTrue(tmpWriteCounter.get() >= tmpFragments.size() + 1);
+        }
+    }
+    //
+    /**
+     * Drives the {@code tmpPoint3dAvailable == true} sub-branch of the kekulize-retry block of
+     * {@code createFragmentationTabSingleSDFile} (line {@code tmpFragmentClone = tmpFragment.clone()}). The fragments
+     * carry explicit 3D coordinates, so on retry the original atom container is cloned and kekulized. A mock-constructed
+     * {@link SDFWriter} throws on its first {@code write} then succeeds; the export returns an empty failed-list.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSingleSdfWriteRetry3d(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildAromatic3dFragmentList();
+        File tmpOut = aTempDir.resolve("single_retry_3d.sdf").toFile();
+        AtomicInteger tmpWriteCounter = new AtomicInteger(0);
+        try (MockedConstruction<SDFWriter> tmpMocked = Mockito.mockConstruction(SDFWriter.class,
+                Mockito.withSettings().defaultAnswer(Mockito.RETURNS_MOCKS),
+                (aMock, aContext) -> Mockito.doAnswer(anInvocation -> {
+                    if (tmpWriteCounter.getAndIncrement() == 0) {
+                        throw new CDKException("First write fails on purpose to drive the kekulize retry.");
+                    }
+                    return null;
+                }).when(aMock).write(Mockito.any()))) {
+            List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                    tmpOut, tmpFragments, ChemFileTypes.SDF, true, true);
+            Assertions.assertNotNull(tmpFailed);
+            Assertions.assertTrue(tmpFailed.isEmpty());
+            Assertions.assertTrue(tmpWriteCounter.get() >= tmpFragments.size() + 1);
+        }
+    }
+    //
+    /**
+     * Drives the kekulize-retry block of {@code createFragmentationTabSeparateSDFiles}: a fresh {@link SDFWriter} is
+     * mock-constructed per fragment (one writer per file), and the first one throws a {@link CDKException} on its first
+     * {@code write}, forcing the inner catch and the retried {@code write} of the kekulized clone. The export returns an
+     * empty failed-list and a sub-directory is still created.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSeparateSdfWriteRetry(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpDir = aTempDir.toFile();
+        AtomicInteger tmpWriteCounter = new AtomicInteger(0);
+        try (MockedConstruction<SDFWriter> tmpMocked = Mockito.mockConstruction(SDFWriter.class,
+                Mockito.withSettings().defaultAnswer(Mockito.RETURNS_MOCKS),
+                (aMock, aContext) -> Mockito.doAnswer(anInvocation -> {
+                    if (tmpWriteCounter.getAndIncrement() == 0) {
+                        throw new CDKException("First write fails on purpose to drive the kekulize retry.");
+                    }
+                    return null;
+                }).when(aMock).write(Mockito.any()))) {
+            List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                    tmpDir, tmpFragments, ChemFileTypes.SDF, true, false);
+            Assertions.assertNotNull(tmpFailed);
+            Assertions.assertTrue(tmpFailed.isEmpty());
+            Assertions.assertTrue(tmpWriteCounter.get() >= tmpFragments.size() + 1);
+            File[] tmpSubDirs = tmpDir.listFiles(File::isDirectory);
+            Assertions.assertNotNull(tmpSubDirs);
+            Assertions.assertEquals(1, tmpSubDirs.length);
+        }
+    }
+    //
+    /**
+     * Drives the kekulize-retry block of {@code createFragmentationTabPDBFiles}: a mock-constructed {@link PDBWriter}
+     * throws a {@link CDKException} on its first {@code writeMolecule} (forcing the inner catch), then the retried
+     * {@code write} of the kekulized clone succeeds. Note the production retry uses {@code write} rather than
+     * {@code writeMolecule}, so the mock stubs both methods independently. The export returns an empty failed-list and a
+     * sub-directory is still created.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFilePdbWriteRetry(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpDir = aTempDir.toFile();
+        AtomicInteger tmpWriteMoleculeCounter = new AtomicInteger(0);
+        AtomicInteger tmpRetryWriteCounter = new AtomicInteger(0);
+        try (MockedConstruction<PDBWriter> tmpMocked = Mockito.mockConstruction(PDBWriter.class,
+                Mockito.withSettings().defaultAnswer(Mockito.RETURNS_MOCKS),
+                (aMock, aContext) -> {
+                    Mockito.doAnswer(anInvocation -> {
+                        if (tmpWriteMoleculeCounter.getAndIncrement() == 0) {
+                            throw new CDKException("First writeMolecule fails on purpose to drive the kekulize retry.");
+                        }
+                        return null;
+                    }).when(aMock).writeMolecule(Mockito.any());
+                    Mockito.doAnswer(anInvocation -> {
+                        tmpRetryWriteCounter.incrementAndGet();
+                        return null;
+                    }).when(aMock).write(Mockito.any());
+                })) {
+            List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                    tmpDir, tmpFragments, ChemFileTypes.PDB, true);
+            Assertions.assertNotNull(tmpFailed);
+            Assertions.assertTrue(tmpFailed.isEmpty());
+            //the first fragment failed writeMolecule and was retried via write(...)
+            Assertions.assertEquals(1, tmpRetryWriteCounter.get());
+            File[] tmpSubDirs = tmpDir.listFiles(File::isDirectory);
+            Assertions.assertNotNull(tmpSubDirs);
+            Assertions.assertEquals(1, tmpSubDirs.length);
+        }
+    }
+    //
+    /**
+     * Drives the outer exception branch reached when the kekulize retry itself fails in
+     * {@code createFragmentationTabSingleSDFile}: a mock-constructed {@link SDFWriter} throws a {@link CDKException} on
+     * every {@code write} call, so the first write throws, the retried write of the kekulized clone throws again, and the
+     * fragment falls through to the method's outer {@code catch} block. The returned failed-export list is therefore
+     * non-empty for every fragment.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSingleSdfWriteRetryAlsoFails(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpOut = aTempDir.resolve("single_retry_fail.sdf").toFile();
+        try (MockedConstruction<SDFWriter> tmpMocked = Mockito.mockConstruction(SDFWriter.class,
+                Mockito.withSettings().defaultAnswer(Mockito.RETURNS_MOCKS),
+                (aMock, aContext) -> Mockito.doThrow(new CDKException("Every write fails on purpose."))
+                        .when(aMock).write(Mockito.any()))) {
+            List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                    tmpOut, tmpFragments, ChemFileTypes.SDF, true, true);
+            Assertions.assertNotNull(tmpFailed);
+            Assertions.assertEquals(tmpFragments.size(), tmpFailed.size());
+        }
+    }
+    //</editor-fold>
+    //
+    //<editor-fold desc="Thread-interrupt guard tests" defaultstate="collapsed">
+    /*
+     * The following tests cover the top-of-loop thread-interrupt early-return guards
+     * ({@code if (Thread.currentThread().isInterrupted()) return null;}) of the export loops. The guards exist so a
+     * cancelled fragmentation/export task stops promptly; they are normally driven by a cooperating interrupting thread.
+     * Here the running test thread interrupts itself BEFORE invoking the export so the guard fires on the first loop
+     * iteration and the method returns {@code null}. Each test clears the interrupt flag in a {@code finally} block (via
+     * {@link Thread#interrupted()}) so the interrupted state does not leak into the rest of the suite. No mocking is
+     * involved — only the real interrupt flag of the current thread. The inner (nested) interrupt guards remain
+     * unreachable single-threaded because the outer guard returns first.
+     */
+    /**
+     * Tests that the ITEMIZATION-tab CSV export returns {@code null} immediately when the current thread is interrupted
+     * (top-of-loop guard of {@code createItemizationTabCsvFile}).
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportCsvFileItemizationTabInterrupted(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpMolecules = new ArrayList<>();
+        tmpMolecules.add(ExporterTest.buildMoleculeWithFragments("ErtlFG"));
+        File tmpOut = aTempDir.resolve("items_interrupt.csv").toFile();
+        try {
+            Thread.currentThread().interrupt();
+            List<String> tmpFailed = this.exporter.exportCsvFile(tmpOut, tmpMolecules, "ErtlFG", ',', TabNames.ITEMIZATION);
+            Assertions.assertNull(tmpFailed);
+        } finally {
+            Thread.interrupted();
+        }
+    }
+    //
+    /**
+     * Tests that the FRAGMENTS-tab CSV export returns {@code null} immediately when the current thread is interrupted
+     * (top-of-loop guard of {@code createFragmentsTabCsvFile}).
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportCsvFileFragmentsTabInterrupted(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpOut = aTempDir.resolve("frags_interrupt.csv").toFile();
+        try {
+            Thread.currentThread().interrupt();
+            List<String> tmpFailed = this.exporter.exportCsvFile(tmpOut, tmpFragments, "ErtlFG", ',', TabNames.FRAGMENTS);
+            Assertions.assertNull(tmpFailed);
+        } finally {
+            Thread.interrupted();
+        }
+    }
+    //
+    /**
+     * Tests that the FRAGMENTS-tab PDF export hits its top-of-loop interrupt guard ({@code createFragmentsTabPdfFile})
+     * when the current thread is interrupted. Unlike the itemization variant, this method opens the iText
+     * {@code Document} but only adds its content table AFTER the export loop, so the interrupt's {@code return null} on
+     * the first iteration leaves the document with no pages; the try-with-resources {@code close()} then throws an iText
+     * {@code ExceptionConverter} ("The document has no pages."). The guard's {@code return null} line is still executed
+     * (it runs before the implicit close). This asserts the documented throw-on-interrupt behavior (see findings) rather
+     * than a clean {@code null} return.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportPdfFileFragmentsTabInterrupted(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        ObservableList<MoleculeDataModel> tmpMolecules = FXCollections.observableArrayList(tmpFragments);
+        File tmpOut = aTempDir.resolve("frags_interrupt.pdf").toFile();
+        try {
+            Thread.currentThread().interrupt();
+            Assertions.assertThrows(RuntimeException.class, () -> this.exporter.exportPdfFile(
+                    tmpOut, tmpFragments, tmpMolecules, "ErtlFG", "input.smi", TabNames.FRAGMENTS));
+        } finally {
+            Thread.interrupted();
+        }
+    }
+    //
+    /**
+     * Tests that the ITEMIZATION-tab PDF export returns {@code null} immediately when the current thread is interrupted
+     * (top-of-loop guard of {@code createItemizationTabPdfFile}).
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportPdfFileItemizationTabInterrupted(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        ObservableList<MoleculeDataModel> tmpMolecules =
+                FXCollections.observableArrayList(ExporterTest.buildMoleculeWithFragments("ErtlFG"));
+        File tmpOut = aTempDir.resolve("items_interrupt.pdf").toFile();
+        try {
+            Thread.currentThread().interrupt();
+            List<String> tmpFailed = this.exporter.exportPdfFile(
+                    tmpOut, tmpFragments, tmpMolecules, "ErtlFG", "input.smi", TabNames.ITEMIZATION);
+            Assertions.assertNull(tmpFailed);
+        } finally {
+            Thread.interrupted();
+        }
+    }
+    //
+    /**
+     * Tests that the single SD-file export returns {@code null} immediately when the current thread is interrupted
+     * (top-of-loop guard of {@code createFragmentationTabSingleSDFile}).
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSingleSdfInterrupted(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpOut = aTempDir.resolve("single_interrupt.sdf").toFile();
+        try {
+            Thread.currentThread().interrupt();
+            List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                    tmpOut, tmpFragments, ChemFileTypes.SDF, true, true);
+            Assertions.assertNull(tmpFailed);
+        } finally {
+            Thread.interrupted();
+        }
+    }
+    //
+    /**
+     * Tests that the separate SD-files export returns {@code null} immediately when the current thread is interrupted
+     * (top-of-loop guard of {@code createFragmentationTabSeparateSDFiles}).
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSeparateSdfInterrupted(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpDir = aTempDir.toFile();
+        try {
+            Thread.currentThread().interrupt();
+            List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                    tmpDir, tmpFragments, ChemFileTypes.SDF, true, false);
+            Assertions.assertNull(tmpFailed);
+        } finally {
+            Thread.interrupted();
+        }
+    }
+    //
+    /**
+     * Tests that the PDB export returns {@code null} immediately when the current thread is interrupted (top-of-loop
+     * guard of {@code createFragmentationTabPDBFiles}).
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFilePdbInterrupted(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpDir = aTempDir.toFile();
+        try {
+            Thread.currentThread().interrupt();
+            List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                    tmpDir, tmpFragments, ChemFileTypes.PDB, true);
+            Assertions.assertNull(tmpFailed);
+        } finally {
+            Thread.interrupted();
+        }
+    }
+    //</editor-fold>
+    //
     //<editor-fold desc="Private static helper methods" defaultstate="collapsed">
     /**
      * Builds a FRAGMENTS-tab export input: a list of real FragmentDataModel instances (parsed from three SMILES) with
@@ -1073,6 +1420,30 @@ public class ExporterTest {
      * @return list of FragmentDataModel instances with 2D coordinates
      * @throws Exception if SMILES parsing fails
      */
+    /**
+     * Builds a list of FragmentDataModel instances holding an aromatic ring (benzene) whose atoms carry explicit 3D
+     * coordinates. Aromaticity makes {@link org.openscience.cdk.aromaticity.Kekulization#kekulize} meaningful, and the 3D
+     * coordinates make {@code ChemUtil.has3DCoordinates} return true, so the kekulize-retry block's
+     * {@code tmpPoint3dAvailable == true} sub-branch (which clones the original atom container) is exercised.
+     *
+     * @return list of FragmentDataModel instances with an aromatic ring and 3D coordinates
+     * @throws Exception if SMILES parsing fails
+     */
+    private static List<MoleculeDataModel> buildAromatic3dFragmentList() throws Exception {
+        SmilesParser tmpParser = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        List<MoleculeDataModel> tmpList = new ArrayList<>();
+        IAtomContainer tmpAtomContainer = tmpParser.parseSmiles("c1ccccc1");
+        double tmpCoordinate = 0.0;
+        for (IAtom tmpAtom : tmpAtomContainer.atoms()) {
+            tmpAtom.setPoint3d(new Point3d(tmpCoordinate, tmpCoordinate, tmpCoordinate));
+            tmpCoordinate += 1.0;
+        }
+        FragmentDataModel tmpFragment = new FragmentDataModel(tmpAtomContainer, false);
+        tmpFragment.setAbsoluteFrequency(1);
+        tmpList.add(tmpFragment);
+        return tmpList;
+    }
+    //
     private static List<MoleculeDataModel> buildFragmentListWith2dCoordinates() throws Exception {
         SmilesParser tmpParser = new SmilesParser(SilentChemObjectBuilder.getInstance());
         List<MoleculeDataModel> tmpList = new ArrayList<>();
