@@ -148,6 +148,40 @@ public class SimpleIDisplayEnumConstantPropertyTest {
     }
 
     /**
+     * Tests the guard branches of the remaining constructor variants (all-params and initialValue+class) so the
+     * defensive non-enum / empty-enum / non-IDisplayEnum throws in those constructors are exercised too. A valid
+     * IDisplayEnum initial value is supplied while the associated enum class is deliberately mismatched.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testGuardBranchesOnInitialValueConstructors() throws Exception {
+        IDisplayEnum tmpValidInitialValue = IMoleculeFragmenter.FragmentSaturationOption.HYDROGEN_SATURATION;
+        // all-params constructor: non-enum, empty-enum and non-IDisplayEnum guards
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new SimpleIDisplayEnumConstantProperty(this, "testProp", tmpValidInitialValue, String.class));
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new SimpleIDisplayEnumConstantProperty(this, "testProp", tmpValidInitialValue, EmptyTestEnum.class));
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new SimpleIDisplayEnumConstantProperty(this, "testProp", tmpValidInitialValue, PlainTestEnum.class));
+        // initialValue + class constructor: non-enum, empty-enum and non-IDisplayEnum guards
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new SimpleIDisplayEnumConstantProperty(tmpValidInitialValue, String.class));
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new SimpleIDisplayEnumConstantProperty(tmpValidInitialValue, EmptyTestEnum.class));
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new SimpleIDisplayEnumConstantProperty(tmpValidInitialValue, PlainTestEnum.class));
+        // bean + name + class constructor: empty-enum and non-IDisplayEnum guards
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new SimpleIDisplayEnumConstantProperty(this, "testProp", EmptyTestEnum.class));
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new SimpleIDisplayEnumConstantProperty(this, "testProp", PlainTestEnum.class));
+        // class-only constructor: empty-enum guard
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new SimpleIDisplayEnumConstantProperty(EmptyTestEnum.class));
+    }
+
+    /**
      * Tests that getAssociatedEnumConstantDisplayNames returns the display name of every enum constant of the
      * associated enum class.
      *
@@ -197,5 +231,11 @@ public class SimpleIDisplayEnumConstantPropertyTest {
          * Second arbitrary constant.
          */
         BETA;
+    }
+
+    /**
+     * A test-local enum that declares no constants, used to drive the empty-enum guard branches of the constructors.
+     */
+    private enum EmptyTestEnum {
     }
 }
