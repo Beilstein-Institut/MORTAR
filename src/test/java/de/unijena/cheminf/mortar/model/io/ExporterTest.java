@@ -37,9 +37,13 @@ import javafx.collections.ObservableList;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.silent.SilentChemObjectBuilder;
 import org.openscience.cdk.smiles.SmilesParser;
+
+import javax.vecmath.Point2d;
+import javax.vecmath.Point3d;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -393,6 +397,593 @@ public class ExporterTest {
      * Tests that the nested enums of the Exporter ({@code ExportTypes}, {@code FileExtension}, {@code CSVSeparator})
      * load and expose non-null accessors, loading their static initializers for coverage.
      */
+    /**
+     * Tests the ITEMIZATION-tab CSV export with a molecule that has NOT undergone the requested fragmentation. This drives
+     * the {@code !hasMoleculeUndergoneSpecificFragmentation} continue-branch of {@code createItemizationTabCsvFile}: the
+     * molecule row is written but no fragment rows are appended. The export succeeds with an empty failed-list and the
+     * file content starts with the four-column itemization header.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportCsvFileItemizationTabMoleculeWithoutFragmentation(@TempDir Path aTempDir) throws Exception {
+        SmilesParser tmpParser = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        IAtomContainer tmpAtomContainer = tmpParser.parseSmiles("c1ccccc1CCO");
+        MoleculeDataModel tmpMolecule = new MoleculeDataModel(tmpAtomContainer, false);
+        tmpMolecule.setName("UnfragmentedMolecule");
+        List<MoleculeDataModel> tmpMolecules = new ArrayList<>();
+        tmpMolecules.add(tmpMolecule);
+        File tmpOut = aTempDir.resolve("items_nofrag.csv").toFile();
+        List<String> tmpFailed = this.exporter.exportCsvFile(tmpOut, tmpMolecules, "ErtlFG", ',', TabNames.ITEMIZATION);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        String tmpContent = Files.readString(tmpOut.toPath());
+        String tmpExpectedHeader =
+                Message.get("Exporter.itemsTab.csvHeader.moleculeName") + ',' +
+                Message.get("Exporter.itemsTab.csvHeader.smilesOfStructure") + ',' +
+                Message.get("Exporter.itemsTab.csvHeader.smilesOfFragment") + ',' +
+                Message.get("Exporter.itemsTab.csvHeader.frequencyOfFragment");
+        Assertions.assertTrue(tmpContent.startsWith(tmpExpectedHeader));
+    }
+    //
+    /**
+     * Tests the ITEMIZATION-tab CSV null-argument guard: a null fragmentation name makes
+     * {@code createItemizationTabCsvFile} return {@code null} before writing anything.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportCsvFileItemizationTabNullFragmentationNameGuard(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpMolecules = new ArrayList<>();
+        tmpMolecules.add(ExporterTest.buildMoleculeWithFragments("ErtlFG"));
+        File tmpOut = aTempDir.resolve("items_nullname.csv").toFile();
+        List<String> tmpFailed = this.exporter.exportCsvFile(tmpOut, tmpMolecules, null, ',', TabNames.ITEMIZATION);
+        Assertions.assertNull(tmpFailed);
+    }
+    //
+    /**
+     * Tests the ITEMIZATION-tab PDF export with a molecule that has NOT undergone the requested fragmentation, driving the
+     * {@code !hasMoleculeUndergoneSpecificFragmentation} continue-branch of {@code createItemizationTabPdfFile} (the
+     * molecule structure is rendered but no fragment images follow). A non-zero fragment-list size is still passed so the
+     * size guard does not short-circuit. Asserts an empty failed-list and the {@code %PDF} magic bytes.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportPdfFileItemizationTabMoleculeWithoutFragmentation(@TempDir Path aTempDir) throws Exception {
+        SmilesParser tmpParser = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        IAtomContainer tmpAtomContainer = tmpParser.parseSmiles("c1ccccc1CCO");
+        MoleculeDataModel tmpMolecule = new MoleculeDataModel(tmpAtomContainer, false);
+        tmpMolecule.setName("UnfragmentedMolecule");
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        ObservableList<MoleculeDataModel> tmpMolecules = FXCollections.observableArrayList(tmpMolecule);
+        File tmpOut = aTempDir.resolve("items_nofrag.pdf").toFile();
+        List<String> tmpFailed = this.exporter.exportPdfFile(
+                tmpOut, tmpFragments, tmpMolecules, "ErtlFG", "input.smi", TabNames.ITEMIZATION);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        Assertions.assertTrue(tmpOut.length() > 0);
+        byte[] tmpHead = Arrays.copyOf(Files.readAllBytes(tmpOut.toPath()), 4);
+        Assertions.assertEquals("%PDF", new String(tmpHead, StandardCharsets.US_ASCII));
+    }
+    //
+    /**
+     * Tests the empty-input handling of the single SD-file export: an empty fragment list produces an empty (header-less,
+     * but valid) SD file with an empty failed-list and exercises the summary-logging lambda without iterating any
+     * fragment.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSingleSdfEmptyList(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = new ArrayList<>();
+        File tmpOut = aTempDir.resolve("empty.sdf").toFile();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpOut, tmpFragments, ChemFileTypes.SDF, true, true);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        Assertions.assertTrue(tmpOut.exists());
+    }
+    //
+    /**
+     * Tests the separate SD-files export with an empty fragment list: the sub-directory is still created (containing no
+     * {@code .sdf} files) and the failed-list is empty, exercising the directory-creation path and summary-logging lambda
+     * with no fragment iterations.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSeparateSdfEmptyList(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = new ArrayList<>();
+        File tmpDir = aTempDir.toFile();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpDir, tmpFragments, ChemFileTypes.SDF, true, false);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        File[] tmpSubDirs = tmpDir.listFiles(File::isDirectory);
+        Assertions.assertNotNull(tmpSubDirs);
+        Assertions.assertEquals(1, tmpSubDirs.length);
+    }
+    //
+    /**
+     * Tests the separate SD-files null/non-directory guard of {@code createFragmentationTabSeparateSDFiles}: passing a
+     * regular file (not a directory) makes the method return {@code null} before creating anything.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSeparateSdfNonDirectoryGuard(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpRegularFile = aTempDir.resolve("not_a_dir.sdf").toFile();
+        Files.writeString(tmpRegularFile.toPath(), "placeholder");
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpRegularFile, tmpFragments, ChemFileTypes.SDF, true, false);
+        Assertions.assertNull(tmpFailed);
+    }
+    //
+    /**
+     * Tests the PDB export null/non-directory guard of {@code createFragmentationTabPDBFiles}: passing a regular file
+     * (not a directory) makes the method return {@code null} before creating anything.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFilePdbNonDirectoryGuard(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpRegularFile = aTempDir.resolve("not_a_dir.pdb").toFile();
+        Files.writeString(tmpRegularFile.toPath(), "placeholder");
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpRegularFile, tmpFragments, ChemFileTypes.PDB, true);
+        Assertions.assertNull(tmpFailed);
+    }
+    //
+    /**
+     * Tests the no-2D/no-3D coordinate branch of {@code handleFragmentWithNo3dInformationAvailable} via a single SD-file
+     * export with {@code generate2dCoords=false} of a fragment that has neither 2D nor 3D coordinates (parsed from
+     * SMILES). This drives the {@code generateZero3DCoordinates} branch (coordinates set to zero). The export succeeds
+     * with an empty failed-list and a non-empty file containing the MDL record terminator.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSeparateSdfNoGenerate2d(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpDir = aTempDir.toFile();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpDir, tmpFragments, ChemFileTypes.SDF, false, false);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        File[] tmpSubDirs = tmpDir.listFiles(File::isDirectory);
+        Assertions.assertNotNull(tmpSubDirs);
+        Assertions.assertEquals(1, tmpSubDirs.length);
+        File[] tmpSdfFiles = tmpSubDirs[0].listFiles((aDir, aName) -> aName.endsWith(".sdf"));
+        Assertions.assertNotNull(tmpSdfFiles);
+        Assertions.assertTrue(tmpSdfFiles.length > 0);
+    }
+    //
+    /**
+     * Tests the null-file guard of {@code exportCsvFile}: a null file returns {@code null} before any writing.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportCsvFileNullFileGuard() throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        List<String> tmpFailed = this.exporter.exportCsvFile(null, tmpFragments, "ErtlFG", ',', TabNames.FRAGMENTS);
+        Assertions.assertNull(tmpFailed);
+    }
+    //
+    /**
+     * Tests the null-file guard of {@code exportPdfFile}: a null file returns {@code null} before any writing.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportPdfFileNullFileGuard() throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        ObservableList<MoleculeDataModel> tmpMolecules = FXCollections.observableArrayList(tmpFragments);
+        List<String> tmpFailed = this.exporter.exportPdfFile(
+                null, tmpFragments, tmpMolecules, "ErtlFG", "input.smi", TabNames.FRAGMENTS);
+        Assertions.assertNull(tmpFailed);
+    }
+    //
+    /**
+     * Tests that the PDB branch of {@code exportFragmentsAsChemicalFile} ignores the {@code anIsSingleExport} flag:
+     * requesting PDB with {@code anIsSingleExport=true} and a valid directory still routes to the separate-PDB-files
+     * export, producing a sub-directory of {@code .pdb} files and an empty failed-list.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFilePdbIgnoresSingleExportFlag(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpDir = aTempDir.toFile();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpDir, tmpFragments, ChemFileTypes.PDB, true, true);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        File[] tmpSubDirs = tmpDir.listFiles(File::isDirectory);
+        Assertions.assertNotNull(tmpSubDirs);
+        Assertions.assertEquals(1, tmpSubDirs.length);
+    }
+    //
+    /**
+     * Tests the single SD-file export of fragments that already carry 3D coordinates. This drives the
+     * {@code tmpPoint3dAvailable} true branch of {@code createFragmentationTabSingleSDFile} (the original atom container is
+     * written directly without generating coordinates). The export succeeds with an empty failed-list and a file
+     * containing the MDL record terminator.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSingleSdf3dCoordinates(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentListWith3dCoordinates();
+        File tmpOut = aTempDir.resolve("single_3d.sdf").toFile();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpOut, tmpFragments, ChemFileTypes.SDF, false, true);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        Assertions.assertTrue(tmpOut.length() > 0);
+        Assertions.assertTrue(Files.readString(tmpOut.toPath()).contains("$$$$"));
+    }
+    //
+    /**
+     * Tests the single SD-file export of fragments that carry 2D (but not 3D) coordinates. This drives the
+     * 2D-coordinates-available branch of {@code handleFragmentWithNo3dInformationAvailable} (pseudo-3D generated from the
+     * existing 2D coordinates, no coordinate generation performed). The export succeeds with an empty failed-list.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSingleSdf2dCoordinates(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentListWith2dCoordinates();
+        File tmpOut = aTempDir.resolve("single_2d.sdf").toFile();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpOut, tmpFragments, ChemFileTypes.SDF, false, true);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        Assertions.assertTrue(tmpOut.length() > 0);
+        Assertions.assertTrue(Files.readString(tmpOut.toPath()).contains("$$$$"));
+    }
+    //
+    /**
+     * Tests the separate SD-files export of fragments that already carry 3D coordinates, driving the
+     * {@code tmpPoint3dAvailable} true branch of {@code createFragmentationTabSeparateSDFiles}. A sub-directory of
+     * {@code .sdf} files is produced and the failed-list is empty.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSeparateSdf3dCoordinates(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentListWith3dCoordinates();
+        File tmpDir = aTempDir.toFile();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpDir, tmpFragments, ChemFileTypes.SDF, false, false);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        File[] tmpSubDirs = tmpDir.listFiles(File::isDirectory);
+        Assertions.assertNotNull(tmpSubDirs);
+        Assertions.assertEquals(1, tmpSubDirs.length);
+        File[] tmpSdfFiles = tmpSubDirs[0].listFiles((aDir, aName) -> aName.endsWith(".sdf"));
+        Assertions.assertNotNull(tmpSdfFiles);
+        Assertions.assertTrue(tmpSdfFiles.length > 0);
+    }
+    //
+    /**
+     * Tests the PDB export of fragments that already carry 3D coordinates, driving the {@code tmpPoint3dAvailable} true
+     * branch of {@code createFragmentationTabPDBFiles}. A sub-directory of {@code .pdb} files is produced and the
+     * failed-list is empty.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFilePdb3dCoordinates(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentListWith3dCoordinates();
+        File tmpDir = aTempDir.toFile();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpDir, tmpFragments, ChemFileTypes.PDB, false);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        File[] tmpSubDirs = tmpDir.listFiles(File::isDirectory);
+        Assertions.assertNotNull(tmpSubDirs);
+        Assertions.assertEquals(1, tmpSubDirs.length);
+        File[] tmpPdbFiles = tmpSubDirs[0].listFiles((aDir, aName) -> aName.endsWith(".pdb"));
+        Assertions.assertNotNull(tmpPdbFiles);
+        Assertions.assertTrue(tmpPdbFiles.length > 0);
+    }
+    //
+    /**
+     * Tests the PDB export of fragments that carry 2D (but not 3D) coordinates, driving the 2D-available branch of
+     * {@code handleFragmentWithNo3dInformationAvailable} within the PDB export. A sub-directory of {@code .pdb} files is
+     * produced and the failed-list is empty.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFilePdb2dCoordinates(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentListWith2dCoordinates();
+        File tmpDir = aTempDir.toFile();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpDir, tmpFragments, ChemFileTypes.PDB, false);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        File[] tmpSubDirs = tmpDir.listFiles(File::isDirectory);
+        Assertions.assertNotNull(tmpSubDirs);
+        Assertions.assertEquals(1, tmpSubDirs.length);
+        File[] tmpPdbFiles = tmpSubDirs[0].listFiles((aDir, aName) -> aName.endsWith(".pdb"));
+        Assertions.assertNotNull(tmpPdbFiles);
+        Assertions.assertTrue(tmpPdbFiles.length > 0);
+    }
+    //
+    /**
+     * Tests the FRAGMENTS-tab PDF export of a fragment whose atom container carries no 3D information, driving the
+     * fragment-image rendering path with a fragment that has neither 2D nor 3D coordinates (the depiction generator lays
+     * the structure out itself). Asserts an empty failed-list and the {@code %PDF} magic bytes. This complements the
+     * happy-path PDF tests by ensuring the no-coordinate fragment path renders successfully.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportPdfFileFragmentsTabWith3dCoordinateFragments(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentListWith3dCoordinates();
+        ObservableList<MoleculeDataModel> tmpMolecules = FXCollections.observableArrayList(tmpFragments);
+        File tmpOut = aTempDir.resolve("fragments_3d.pdf").toFile();
+        List<String> tmpFailed = this.exporter.exportPdfFile(
+                tmpOut, tmpFragments, tmpMolecules, "ErtlFG", "input.smi", TabNames.FRAGMENTS);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        Assertions.assertTrue(tmpOut.length() > 0);
+        byte[] tmpHead = Arrays.copyOf(Files.readAllBytes(tmpOut.toPath()), 4);
+        Assertions.assertEquals("%PDF", new String(tmpHead, StandardCharsets.US_ASCII));
+    }
+    //
+    /**
+     * Tests the ITEMIZATION-tab CSV export of a molecule carrying four fragments, driving the multi-fragment row-writing
+     * loop of {@code createItemizationTabCsvFile}. The export succeeds with an empty failed-list and the written content
+     * contains all four fragment SMILES codes.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportCsvFileItemizationTabMultipleFragments(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpMolecules = new ArrayList<>();
+        tmpMolecules.add(ExporterTest.buildMoleculeWithMultipleFragments("ErtlFG"));
+        File tmpOut = aTempDir.resolve("items_multi.csv").toFile();
+        List<String> tmpFailed = this.exporter.exportCsvFile(tmpOut, tmpMolecules, "ErtlFG", ',', TabNames.ITEMIZATION);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        String tmpContent = Files.readString(tmpOut.toPath());
+        Assertions.assertFalse(tmpContent.isBlank());
+        String tmpExpectedHeader =
+                Message.get("Exporter.itemsTab.csvHeader.moleculeName") + ',' +
+                Message.get("Exporter.itemsTab.csvHeader.smilesOfStructure") + ',' +
+                Message.get("Exporter.itemsTab.csvHeader.smilesOfFragment") + ',' +
+                Message.get("Exporter.itemsTab.csvHeader.frequencyOfFragment");
+        Assertions.assertTrue(tmpContent.startsWith(tmpExpectedHeader));
+    }
+    //
+    /**
+     * Tests the ITEMIZATION-tab PDF export of a molecule carrying four fragments, driving the inner three-fragments-per-
+     * line row-wrapping loop and the trailing empty-cell padding loop of {@code createItemizationTabPdfFile} (four
+     * fragments require two rows, the second padded with empty cells). Asserts an empty failed-list and the {@code %PDF}
+     * magic bytes.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportPdfFileItemizationTabMultipleFragments(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        ObservableList<MoleculeDataModel> tmpMolecules =
+                FXCollections.observableArrayList(ExporterTest.buildMoleculeWithMultipleFragments("ErtlFG"));
+        File tmpOut = aTempDir.resolve("items_multi.pdf").toFile();
+        List<String> tmpFailed = this.exporter.exportPdfFile(
+                tmpOut, tmpFragments, tmpMolecules, "ErtlFG", "input.smi", TabNames.ITEMIZATION);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        Assertions.assertTrue(tmpOut.length() > 0);
+        byte[] tmpHead = Arrays.copyOf(Files.readAllBytes(tmpOut.toPath()), 4);
+        Assertions.assertEquals("%PDF", new String(tmpHead, StandardCharsets.US_ASCII));
+    }
+    //
+    /**
+     * Tests the per-fragment exception branch of {@code createItemizationTabCsvFile}. A molecule has a fragment registered
+     * under the fragmentation name, but the matching frequency map entry is missing, so the frequency lookup yields null
+     * and the {@code .toString()} call throws a NullPointerException. The exception is caught, the fragment's SMILES is
+     * added to the failed-export list, and the export completes returning a non-empty failed-list.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportCsvFileItemizationTabFragmentWithoutFrequency(@TempDir Path aTempDir) throws Exception {
+        SmilesParser tmpParser = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        IAtomContainer tmpParentAtomContainer = tmpParser.parseSmiles("c1ccccc1CCO");
+        MoleculeDataModel tmpMolecule = new MoleculeDataModel(tmpParentAtomContainer, false);
+        tmpMolecule.setName("MoleculeMissingFrequency");
+        FragmentDataModel tmpFragment = new FragmentDataModel(tmpParser.parseSmiles("c1ccccc1"), false);
+        tmpFragment.setAbsoluteFrequency(1);
+        List<FragmentDataModel> tmpFragments = new ArrayList<>(List.of(tmpFragment));
+        tmpMolecule.getAllFragments().put("ErtlFG", tmpFragments);
+        //deliberately register an empty frequency map so the per-fragment frequency lookup returns null
+        tmpMolecule.getFragmentFrequencies().put("ErtlFG", new HashMap<>());
+        List<MoleculeDataModel> tmpMolecules = new ArrayList<>();
+        tmpMolecules.add(tmpMolecule);
+        File tmpOut = aTempDir.resolve("items_nofreq.csv").toFile();
+        List<String> tmpFailed = this.exporter.exportCsvFile(tmpOut, tmpMolecules, "ErtlFG", ',', TabNames.ITEMIZATION);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertFalse(tmpFailed.isEmpty());
+    }
+    //
+    /**
+     * Tests the neither-FRAGMENTS-nor-ITEMIZATION fallback branch of {@code exportCsvFile}: passing
+     * {@code TabNames.MOLECULES} causes the method to return an empty (non-null) list without writing a file.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportCsvFileWithUnsupportedTabNameReturnsEmptyList(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpOut = aTempDir.resolve("molecules.csv").toFile();
+        List<String> tmpFailed = this.exporter.exportCsvFile(tmpOut, tmpFragments, "ErtlFG", ',', TabNames.MOLECULES);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+    }
+    //
+    /**
+     * Tests the neither-FRAGMENTS-nor-ITEMIZATION fallback branch of {@code exportPdfFile}: passing
+     * {@code TabNames.MOLECULES} causes the method to return {@code null} without writing a file.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportPdfFileWithUnsupportedTabNameReturnsNull(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        ObservableList<MoleculeDataModel> tmpMolecules = FXCollections.observableArrayList(tmpFragments);
+        File tmpOut = aTempDir.resolve("molecules.pdf").toFile();
+        List<String> tmpFailed = this.exporter.exportPdfFile(
+                tmpOut, tmpFragments, tmpMolecules, "ErtlFG", "input.smi", TabNames.MOLECULES);
+        Assertions.assertNull(tmpFailed);
+    }
+    //
+    /**
+     * Tests the main exception-handling branch of {@code createFragmentationTabSingleSDFile}. A FragmentDataModel built
+     * from an unparsable unique SMILES makes {@code getAtomContainer} throw a CDKException, which is caught by the
+     * method's outer catch block: the fragment's SMILES is added to the failed-export list and the export continues. The
+     * returned failed-list is non-empty.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSingleSdfInvalidFragment(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = new ArrayList<>();
+        FragmentDataModel tmpInvalidFragment = new FragmentDataModel("not_a_valid_smiles", "Invalid", new HashMap<>());
+        tmpInvalidFragment.setAbsoluteFrequency(1);
+        tmpFragments.add(tmpInvalidFragment);
+        File tmpOut = aTempDir.resolve("single_invalid.sdf").toFile();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpOut, tmpFragments, ChemFileTypes.SDF, true, true);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertFalse(tmpFailed.isEmpty());
+    }
+    //
+    /**
+     * Tests the main exception-handling branch of {@code createFragmentationTabSeparateSDFiles}. A FragmentDataModel built
+     * from an unparsable unique SMILES makes {@code getAtomContainer} throw a CDKException, caught by the method's outer
+     * catch block: the fragment's SMILES is added to the failed-export list and the export continues. The sub-directory is
+     * still created and the returned failed-list is non-empty.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSeparateSdfInvalidFragment(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = new ArrayList<>();
+        FragmentDataModel tmpInvalidFragment = new FragmentDataModel("not_a_valid_smiles", "Invalid", new HashMap<>());
+        tmpInvalidFragment.setAbsoluteFrequency(1);
+        tmpFragments.add(tmpInvalidFragment);
+        File tmpDir = aTempDir.toFile();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpDir, tmpFragments, ChemFileTypes.SDF, true, false);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertFalse(tmpFailed.isEmpty());
+    }
+    //
+    /**
+     * Tests the main exception-handling branch of {@code createFragmentationTabPDBFiles}. A FragmentDataModel built from
+     * an unparsable unique SMILES makes {@code getAtomContainer} throw a CDKException, caught by the method's outer catch
+     * block: the fragment's SMILES is added to the failed-export list and the export continues. The sub-directory is still
+     * created and the returned failed-list is non-empty.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFilePdbInvalidFragment(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = new ArrayList<>();
+        FragmentDataModel tmpInvalidFragment = new FragmentDataModel("not_a_valid_smiles", "Invalid", new HashMap<>());
+        tmpInvalidFragment.setAbsoluteFrequency(1);
+        tmpFragments.add(tmpInvalidFragment);
+        File tmpDir = aTempDir.toFile();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpDir, tmpFragments, ChemFileTypes.PDB, true);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertFalse(tmpFailed.isEmpty());
+    }
+    //
+    /**
+     * Tests the per-fragment atom-container-exception branch of the FRAGMENTS-tab PDF export. A FragmentDataModel built
+     * from an unparsable unique SMILES (with no retained atom container) makes {@code getAtomContainer} throw a
+     * CDKException during rendering; the fragment's SMILES is added to the failed-export list and rendering continues. The
+     * export still produces a valid {@code %PDF} file and a non-empty failed-list.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportPdfFileFragmentsTabFragmentWithInvalidStructure(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = new ArrayList<>();
+        FragmentDataModel tmpInvalidFragment = new FragmentDataModel("not_a_valid_smiles", "Invalid", new HashMap<>());
+        tmpInvalidFragment.setAbsoluteFrequency(1);
+        tmpFragments.add(tmpInvalidFragment);
+        ObservableList<MoleculeDataModel> tmpMolecules = FXCollections.observableArrayList(tmpFragments);
+        File tmpOut = aTempDir.resolve("fragments_invalid.pdf").toFile();
+        List<String> tmpFailed = this.exporter.exportPdfFile(
+                tmpOut, tmpFragments, tmpMolecules, "ErtlFG", "input.smi", TabNames.FRAGMENTS);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertFalse(tmpFailed.isEmpty());
+        Assertions.assertTrue(tmpOut.length() > 0);
+        byte[] tmpHead = Arrays.copyOf(Files.readAllBytes(tmpOut.toPath()), 4);
+        Assertions.assertEquals("%PDF", new String(tmpHead, StandardCharsets.US_ASCII));
+    }
+    //
+    /**
+     * Tests the molecule atom-container-exception branch of the ITEMIZATION-tab PDF export. A parent MoleculeDataModel
+     * built from an unparsable unique SMILES makes {@code getAtomContainer} throw a CDKException while rendering the
+     * molecule structure; the molecule's SMILES is added to the failed-export list and rendering continues to the next
+     * molecule. The export still produces a valid {@code %PDF} file and a non-empty failed-list.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportPdfFileItemizationTabMoleculeWithInvalidStructure(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        MoleculeDataModel tmpInvalidMolecule = new MoleculeDataModel("not_a_valid_smiles", "Invalid", new HashMap<>());
+        ObservableList<MoleculeDataModel> tmpMolecules = FXCollections.observableArrayList(tmpInvalidMolecule);
+        File tmpOut = aTempDir.resolve("items_invalid.pdf").toFile();
+        List<String> tmpFailed = this.exporter.exportPdfFile(
+                tmpOut, tmpFragments, tmpMolecules, "ErtlFG", "input.smi", TabNames.ITEMIZATION);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertFalse(tmpFailed.isEmpty());
+        Assertions.assertTrue(tmpOut.length() > 0);
+        byte[] tmpHead = Arrays.copyOf(Files.readAllBytes(tmpOut.toPath()), 4);
+        Assertions.assertEquals("%PDF", new String(tmpHead, StandardCharsets.US_ASCII));
+    }
+    //
+    /**
+     * Tests that the nested enums of the Exporter ({@code ExportTypes}, {@code FileExtension}, {@code CSVSeparator})
+     * load and expose non-null accessors, loading their static initializers for coverage.
+     */
     @Test
     public void testNestedEnumsSmoke() {
         Assertions.assertTrue(Exporter.ExportTypes.values().length > 0);
@@ -445,6 +1036,61 @@ public class ExporterTest {
      * @return parent molecule with attached fragments for the given fragmentation name
      * @throws Exception if SMILES parsing fails
      */
+    /**
+     * Builds a list of FragmentDataModel instances whose atom containers carry explicit 3D coordinates (a {@code Point3d}
+     * is assigned to every atom). Because the data model retains the given atom container, the export methods see these 3D
+     * coordinates ({@code ChemUtil.has3DCoordinates} returns true), driving the 3D-coordinates-available export branch
+     * (writing the original atom container without generating coordinates).
+     *
+     * @return list of FragmentDataModel instances with 3D coordinates
+     * @throws Exception if SMILES parsing fails
+     */
+    private static List<MoleculeDataModel> buildFragmentListWith3dCoordinates() throws Exception {
+        SmilesParser tmpParser = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        List<MoleculeDataModel> tmpList = new ArrayList<>();
+        String[] tmpSmilesCodes = {"CCO", "CCC"};
+        for (String tmpSmilesCode : tmpSmilesCodes) {
+            IAtomContainer tmpAtomContainer = tmpParser.parseSmiles(tmpSmilesCode);
+            double tmpCoordinate = 0.0;
+            for (IAtom tmpAtom : tmpAtomContainer.atoms()) {
+                tmpAtom.setPoint3d(new Point3d(tmpCoordinate, tmpCoordinate, tmpCoordinate));
+                tmpCoordinate += 1.0;
+            }
+            FragmentDataModel tmpFragment = new FragmentDataModel(tmpAtomContainer, false);
+            tmpFragment.setAbsoluteFrequency(1);
+            tmpList.add(tmpFragment);
+        }
+        return tmpList;
+    }
+    //
+    /**
+     * Builds a list of FragmentDataModel instances whose atom containers carry explicit 2D coordinates (a {@code Point2d}
+     * is assigned to every atom) but no 3D coordinates. Because the data model retains the given atom container, the
+     * export methods see 2D coordinates ({@code ChemUtil.has2DCoordinates} returns true), driving the
+     * 2D-coordinates-available branch of {@code handleFragmentWithNo3dInformationAvailable} (pseudo-3D from 2D, no
+     * coordinate generation needed).
+     *
+     * @return list of FragmentDataModel instances with 2D coordinates
+     * @throws Exception if SMILES parsing fails
+     */
+    private static List<MoleculeDataModel> buildFragmentListWith2dCoordinates() throws Exception {
+        SmilesParser tmpParser = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        List<MoleculeDataModel> tmpList = new ArrayList<>();
+        String[] tmpSmilesCodes = {"CCO", "CCC"};
+        for (String tmpSmilesCode : tmpSmilesCodes) {
+            IAtomContainer tmpAtomContainer = tmpParser.parseSmiles(tmpSmilesCode);
+            double tmpCoordinate = 0.0;
+            for (IAtom tmpAtom : tmpAtomContainer.atoms()) {
+                tmpAtom.setPoint2d(new Point2d(tmpCoordinate, tmpCoordinate));
+                tmpCoordinate += 1.0;
+            }
+            FragmentDataModel tmpFragment = new FragmentDataModel(tmpAtomContainer, false);
+            tmpFragment.setAbsoluteFrequency(1);
+            tmpList.add(tmpFragment);
+        }
+        return tmpList;
+    }
+    //
     private static MoleculeDataModel buildMoleculeWithFragments(String aFragmentationName) throws Exception {
         SmilesParser tmpParser = new SmilesParser(SilentChemObjectBuilder.getInstance());
         IAtomContainer tmpParentAtomContainer = tmpParser.parseSmiles("c1ccccc1CCO");
@@ -455,6 +1101,34 @@ public class ExporterTest {
         tmpMolecule.getAllFragments().put(aFragmentationName, tmpFragments);
         Map<String, Integer> tmpFrequencies = new HashMap<>();
         tmpFrequencies.put(tmpFragment.getUniqueSmiles(), 1);
+        tmpMolecule.getFragmentFrequencies().put(aFragmentationName, tmpFrequencies);
+        return tmpMolecule;
+    }
+    //
+    /**
+     * Builds an ITEMIZATION-tab export input carrying multiple (four) distinct fragments under the given fragmentation
+     * name. Four fragments span more than the three-fragments-per-line layout used by the itemization PDF export, driving
+     * the inner row-wrapping and cell-padding loops of {@code createItemizationTabPdfFile} as well as the multi-fragment
+     * row writing of {@code createItemizationTabCsvFile}.
+     *
+     * @param aFragmentationName fragmentation name under which the fragments are registered
+     * @return parent molecule with four attached fragments for the given fragmentation name
+     * @throws Exception if SMILES parsing fails
+     */
+    private static MoleculeDataModel buildMoleculeWithMultipleFragments(String aFragmentationName) throws Exception {
+        SmilesParser tmpParser = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        IAtomContainer tmpParentAtomContainer = tmpParser.parseSmiles("c1ccccc1CCOCC(=O)O");
+        MoleculeDataModel tmpMolecule = new MoleculeDataModel(tmpParentAtomContainer, false);
+        String[] tmpFragmentSmilesCodes = {"c1ccccc1", "CCO", "O=CO", "CC"};
+        List<FragmentDataModel> tmpFragments = new ArrayList<>();
+        Map<String, Integer> tmpFrequencies = new HashMap<>();
+        for (String tmpFragmentSmiles : tmpFragmentSmilesCodes) {
+            FragmentDataModel tmpFragment = new FragmentDataModel(tmpParser.parseSmiles(tmpFragmentSmiles), false);
+            tmpFragment.setAbsoluteFrequency(1);
+            tmpFragments.add(tmpFragment);
+            tmpFrequencies.put(tmpFragment.getUniqueSmiles(), 1);
+        }
+        tmpMolecule.getAllFragments().put(aFragmentationName, tmpFragments);
         tmpMolecule.getFragmentFrequencies().put(aFragmentationName, tmpFrequencies);
         return tmpMolecule;
     }
