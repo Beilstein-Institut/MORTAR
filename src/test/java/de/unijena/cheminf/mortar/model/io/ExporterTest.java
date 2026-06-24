@@ -187,6 +187,209 @@ public class ExporterTest {
     }
     //
     /**
+     * Tests that a single SD-file export of a list of FragmentDataModel instances (with 2D-coordinate generation
+     * enabled, the common case for SMILES-derived fragments) succeeds with an empty failed-export list and writes a
+     * file whose content contains the MDL record terminator {@code $$$$}, proving a valid SDF was written.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSingleSdfGenerate2d(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpOut = aTempDir.resolve("single.sdf").toFile();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpOut, tmpFragments, ChemFileTypes.SDF, true, true);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        Assertions.assertTrue(tmpOut.length() > 0);
+        String tmpContent = Files.readString(tmpOut.toPath());
+        Assertions.assertTrue(tmpContent.contains("$$$$"));
+        int tmpRecordTerminatorCount =
+                tmpContent.split("\\$\\$\\$\\$", -1).length - 1;
+        Assertions.assertEquals(tmpFragments.size(), tmpRecordTerminatorCount);
+    }
+    //
+    /**
+     * Tests the single SD-file export with 2D-coordinate generation disabled, driving the zero-3D-coordinate branch of
+     * {@code handleFragmentWithNo3dInformationAvailable}. The export still succeeds (empty failed-list) and writes a
+     * non-empty file containing the MDL record terminator {@code $$$$}.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSingleSdfNoGenerate2d(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpOut = aTempDir.resolve("single_no2d.sdf").toFile();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpOut, tmpFragments, ChemFileTypes.SDF, false, true);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        Assertions.assertTrue(tmpOut.length() > 0);
+        Assertions.assertTrue(Files.readString(tmpOut.toPath()).contains("$$$$"));
+    }
+    //
+    /**
+     * Tests the single SD-file export with the {@code alwaysMDLV3000FormatAtExport} setting enabled, exercising the
+     * {@code SDFWriter.setAlwaysV3000(true)} branch. A local SettingsContainer and Exporter are used so the global
+     * instance under test is not mutated; the setting is restored in a {@code finally} block (FileUtilTest idiom). The
+     * file is written and contains the V3000 connection-table marker.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSingleSdfV3000(@TempDir Path aTempDir) throws Exception {
+        SettingsContainer tmpContainer = new SettingsContainer();
+        boolean tmpOriginalSetting = tmpContainer.getAlwaysMDLV3000FormatAtExportSetting();
+        try {
+            tmpContainer.setAlwaysMDLV3000FormatAtExportSetting(true);
+            Exporter tmpLocalExporter = new Exporter(tmpContainer);
+            List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+            File tmpOut = aTempDir.resolve("single_v3000.sdf").toFile();
+            List<String> tmpFailed = tmpLocalExporter.exportFragmentsAsChemicalFile(
+                    tmpOut, tmpFragments, ChemFileTypes.SDF, true, true);
+            Assertions.assertNotNull(tmpFailed);
+            Assertions.assertTrue(tmpFailed.isEmpty());
+            Assertions.assertTrue(tmpOut.length() > 0);
+            String tmpContent = Files.readString(tmpOut.toPath());
+            Assertions.assertTrue(tmpContent.contains("$$$$"));
+            Assertions.assertTrue(tmpContent.contains("V3000"));
+        } finally {
+            tmpContainer.setAlwaysMDLV3000FormatAtExportSetting(tmpOriginalSetting);
+        }
+    }
+    //
+    /**
+     * Tests the separate SD-files export ({@code isSingleExport=false}): the method creates a sub-directory inside the
+     * passed @TempDir directory and writes one {@code .sdf} file per fragment into it. Asserts an empty failed-list, that
+     * a sub-directory was created, and that it contains at least one {@code .sdf} file whose content carries the MDL
+     * record terminator {@code $$$$}.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileSeparateSdf(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpDir = aTempDir.toFile();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpDir, tmpFragments, ChemFileTypes.SDF, true, false);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        File[] tmpSubDirs = tmpDir.listFiles(File::isDirectory);
+        Assertions.assertNotNull(tmpSubDirs);
+        Assertions.assertEquals(1, tmpSubDirs.length);
+        File[] tmpSdfFiles = tmpSubDirs[0].listFiles((aDir, aName) -> aName.endsWith(".sdf"));
+        Assertions.assertNotNull(tmpSdfFiles);
+        Assertions.assertTrue(tmpSdfFiles.length > 0);
+        Assertions.assertTrue(Files.readString(tmpSdfFiles[0].toPath()).contains("$$$$"));
+    }
+    //
+    /**
+     * Tests the PDB export: the method creates a sub-directory inside the passed @TempDir directory and writes one
+     * {@code .pdb} file per fragment into it. Asserts an empty failed-list, that a sub-directory was created, and that it
+     * contains at least one non-empty {@code .pdb} file.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFilePdb(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        File tmpDir = aTempDir.toFile();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                tmpDir, tmpFragments, ChemFileTypes.PDB, true);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        File[] tmpSubDirs = tmpDir.listFiles(File::isDirectory);
+        Assertions.assertNotNull(tmpSubDirs);
+        Assertions.assertEquals(1, tmpSubDirs.length);
+        File[] tmpPdbFiles = tmpSubDirs[0].listFiles((aDir, aName) -> aName.endsWith(".pdb"));
+        Assertions.assertNotNull(tmpPdbFiles);
+        Assertions.assertTrue(tmpPdbFiles.length > 0);
+        Assertions.assertTrue(tmpPdbFiles[0].length() > 0);
+    }
+    //
+    /**
+     * Tests the null-file guard of {@code exportFragmentsAsChemicalFile}: passing a {@code null} file returns
+     * {@code null} (no file written).
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportFragmentsAsChemicalFileNullFileGuard() throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        List<String> tmpFailed = this.exporter.exportFragmentsAsChemicalFile(
+                null, tmpFragments, ChemFileTypes.SDF, true, true);
+        Assertions.assertNull(tmpFailed);
+    }
+    //
+    /**
+     * Tests the full FRAGMENTS-tab PDF export with multiple real FragmentDataModel instances (a fuller variant of the
+     * headless smoke test). Asserts an empty failed-list, a non-empty file, and the {@code %PDF} magic bytes.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportPdfFileFragmentsTabFull(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        ObservableList<MoleculeDataModel> tmpMolecules = FXCollections.observableArrayList(tmpFragments);
+        File tmpOut = aTempDir.resolve("fragments_full.pdf").toFile();
+        List<String> tmpFailed = this.exporter.exportPdfFile(
+                tmpOut, tmpFragments, tmpMolecules, "ErtlFG", "input.smi", TabNames.FRAGMENTS);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        Assertions.assertTrue(tmpOut.length() > 0);
+        byte[] tmpHead = Arrays.copyOf(Files.readAllBytes(tmpOut.toPath()), 4);
+        Assertions.assertEquals("%PDF", new String(tmpHead, StandardCharsets.US_ASCII));
+    }
+    //
+    /**
+     * Tests the ITEMIZATION-tab PDF export, the largest single Exporter block. A non-empty observable molecule list
+     * (a parent molecule with attached fragments), a non-empty fragmentation name, and a non-empty imported-file name
+     * are all required (the three guards return {@code null} if any is empty). Asserts an empty failed-list and the
+     * {@code %PDF} magic bytes.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportPdfFileItemizationTab(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        ObservableList<MoleculeDataModel> tmpMolecules =
+                FXCollections.observableArrayList(ExporterTest.buildMoleculeWithFragments("ErtlFG"));
+        File tmpOut = aTempDir.resolve("items.pdf").toFile();
+        List<String> tmpFailed = this.exporter.exportPdfFile(
+                tmpOut, tmpFragments, tmpMolecules, "ErtlFG", "input.smi", TabNames.ITEMIZATION);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        Assertions.assertTrue(tmpOut.length() > 0);
+        byte[] tmpHead = Arrays.copyOf(Files.readAllBytes(tmpOut.toPath()), 4);
+        Assertions.assertEquals("%PDF", new String(tmpHead, StandardCharsets.US_ASCII));
+    }
+    //
+    /**
+     * Tests the ITEMIZATION-tab PDF null-guard: passing an empty imported-file name makes the export return
+     * {@code null} (no file written), per the empty-name guard of {@code createItemizationTabPdfFile}.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportPdfFileItemizationTabEmptyNameGuard(@TempDir Path aTempDir) throws Exception {
+        List<MoleculeDataModel> tmpFragments = ExporterTest.buildFragmentList();
+        ObservableList<MoleculeDataModel> tmpMolecules =
+                FXCollections.observableArrayList(ExporterTest.buildMoleculeWithFragments("ErtlFG"));
+        File tmpOut = aTempDir.resolve("items_guard.pdf").toFile();
+        List<String> tmpFailed = this.exporter.exportPdfFile(
+                tmpOut, tmpFragments, tmpMolecules, "ErtlFG", "", TabNames.ITEMIZATION);
+        Assertions.assertNull(tmpFailed);
+    }
+    //
+    /**
      * Tests that the nested enums of the Exporter ({@code ExportTypes}, {@code FileExtension}, {@code CSVSeparator})
      * load and expose non-null accessors, loading their static initializers for coverage.
      */
