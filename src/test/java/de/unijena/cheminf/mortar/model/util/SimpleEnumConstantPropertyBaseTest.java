@@ -95,6 +95,21 @@ public class SimpleEnumConstantPropertyBaseTest {
     }
 
     /**
+     * Tests the non-enum and empty-enum guard branches of the remaining base constructor variants — the
+     * (initialValue, class) variant — so the defensive throws in every base constructor are exercised. A valid initial
+     * value string is supplied while the associated class is deliberately not a usable enum.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testGuardBranchesOnInitialValueConstructor() throws Exception {
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new SimpleEnumConstantNameProperty("anyValue", String.class));
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new SimpleEnumConstantNameProperty("anyValue", EmptyTestEnum.class));
+    }
+
+    /**
      * Tests that the base getAssociatedEnum, getAssociatedEnumConstants, getEnumValue, and setEnumValue accessors behave
      * as expected when exercised through a concrete subclass over a valid enum class.
      *
