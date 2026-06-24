@@ -36,6 +36,7 @@ repositories {
 dependencies {
     testImplementation(platform(libs.junit))
     testImplementation(libs.jupiter)
+    testImplementation(libs.mockitoCore)
     //<editor-fold desc="CDK dependencies">
     implementation(libs.cdkPdb)
     implementation(libs.cdkSilent)
