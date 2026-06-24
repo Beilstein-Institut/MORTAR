@@ -504,5 +504,55 @@ public class ImporterTest extends Importer {
         Assertions.assertNotNull(tmpNameProperty);
         Assertions.assertFalse(tmpNameProperty.toString().isBlank());
     }
+    /**
+     * Tests the thread-interrupt {@code break} guard of the private {@code importPDBFile} method (reached via reflection).
+     * The current thread is interrupted before the call, so after the PDB file is read the per-atom-container loop hits
+     * its {@code if (Thread.currentThread().isInterrupted()) break;} on the first iteration and adds no molecule; the
+     * returned atom container set is therefore empty. The interrupt flag is cleared in a {@code finally} block so it does
+     * not leak into the rest of the suite. This drives the guard with the real interrupt flag (no mocking) and documents
+     * that cancelling a PDB import stops it promptly.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    @SuppressWarnings("deprecation")
+    public void testImportPDBFileInterrupted() throws Exception {
+        URL tmpURL = this.getClass().getResource("Glycine.pdb");
+        File tmpResourceFile = Paths.get(tmpURL.toURI()).toFile();
+        Method tmpImportPDBFile = Importer.class.getDeclaredMethod("importPDBFile", File.class);
+        tmpImportPDBFile.setAccessible(true);
+        try {
+            Thread.currentThread().interrupt();
+            Object tmpResult = tmpImportPDBFile.invoke(this, tmpResourceFile);
+            Assertions.assertInstanceOf(IAtomContainerSet.class, tmpResult);
+            Assertions.assertEquals(0, ((IAtomContainerSet) tmpResult).getAtomContainerCount());
+        } finally {
+            Thread.interrupted();
+        }
+    }
+    /**
+     * Tests the thread-interrupt guard of the private {@code importSDFile} method (reached via reflection). The current
+     * thread is interrupted before the call, so the {@code while (!Thread.currentThread().isInterrupted())} loop is never
+     * entered and the returned atom container set is empty. The interrupt flag is cleared in a {@code finally} block so it
+     * does not leak into the rest of the suite. This drives the loop's interrupted-exit condition with the real interrupt
+     * flag (no mocking).
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testImportSDFileInterrupted() throws Exception {
+        URL tmpURL = this.getClass().getResource("MultiRecord.sdf");
+        File tmpResourceFile = Paths.get(tmpURL.toURI()).toFile();
+        Method tmpImportSDFile = Importer.class.getDeclaredMethod("importSDFile", File.class);
+        tmpImportSDFile.setAccessible(true);
+        try {
+            Thread.currentThread().interrupt();
+            Object tmpResult = tmpImportSDFile.invoke(this, tmpResourceFile);
+            Assertions.assertInstanceOf(IAtomContainerSet.class, tmpResult);
+            Assertions.assertEquals(0, ((IAtomContainerSet) tmpResult).getAtomContainerCount());
+        } finally {
+            Thread.interrupted();
+        }
+    }
     //</editor-fold>
 }
