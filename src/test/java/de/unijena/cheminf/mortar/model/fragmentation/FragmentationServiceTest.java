@@ -29,6 +29,7 @@ import de.unijena.cheminf.mortar.configuration.Configuration;
 import de.unijena.cheminf.mortar.model.data.FragmentDataModel;
 import de.unijena.cheminf.mortar.model.data.MoleculeDataModel;
 import de.unijena.cheminf.mortar.model.fragmentation.algorithm.IMoleculeFragmenter;
+import de.unijena.cheminf.mortar.model.util.BasicDefinitions;
 import de.unijena.cheminf.mortar.model.util.ChemUtil;
 import de.unijena.cheminf.mortar.model.util.FileUtil;
 
@@ -37,6 +38,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.openscience.cdk.interfaces.IAtomContainer;
 
+import java.io.File;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -304,11 +306,435 @@ public class FragmentationServiceTest {
             Assertions.assertEquals(tmpService.getSelectedFragmenter().getFragmentationAlgorithmName(),
                     tmpReloaded.getSelectedFragmenter().getFragmentationAlgorithmName());
             Assertions.assertEquals("PersistedPipeline", tmpReloaded.getPipeliningFragmentationName());
+            //the reloaded pipeline must round-trip its size (number of fragmenters)
+            Assertions.assertEquals(tmpService.getPipelineFragmenter().length, tmpReloaded.getPipelineFragmenter().length);
+            for (int i = 0; i < tmpService.getPipelineFragmenter().length; i++) {
+                Assertions.assertEquals(tmpService.getPipelineFragmenter()[i].getFragmentationAlgorithmName(),
+                        tmpReloaded.getPipelineFragmenter()[i].getFragmentationAlgorithmName());
+            }
         } finally {
             System.setProperty("user.home", tmpOldHome);
             this.resetAppDirPathCache();
             LogManager.getLogManager().reset();
         }
+    }
+    //
+    /**
+     * Tests that persisting the fragmenter settings and the selected-fragmenter/pipeline settings twice in a row
+     * exercises the directory-already-exists branch (which deletes the previous files before re-writing) in both
+     * {@code persistFragmenterSettings} and {@code persistSelectedFragmenterAndPipeline}. The round-trip is isolated to a
+     * {@link TempDir} exactly as in {@link #persistAndReloadRoundTrip(Path)} so the real {@code ~/MORTAR} directory is
+     * never touched. After the second persist a fresh service must still reload the selected fragmenter, the pipeline
+     * name and the pipeline size unchanged.
+     *
+     * @param aTempHome temporary directory used as a fake user home
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void persistTwiceOverwritesExistingSettings(@TempDir Path aTempHome) throws Exception {
+        String tmpOldHome = System.getProperty("user.home");
+        try {
+            System.setProperty("user.home", aTempHome.toString());
+            this.resetAppDirPathCache();
+            FragmentationService tmpService = new FragmentationService();
+            tmpService.setSelectedFragmenter(tmpService.getFragmenters()[1].getFragmentationAlgorithmDisplayName());
+            tmpService.setPipelineFragmenter(new IMoleculeFragmenter[] {
+                    tmpService.getFragmenters()[0].copy(),
+                    tmpService.getFragmenters()[2].copy()
+            });
+            tmpService.setPipeliningFragmentationName("OverwritePipeline");
+            //first persist creates the directories
+            tmpService.persistFragmenterSettings();
+            tmpService.persistSelectedFragmenterAndPipeline();
+            //second persist hits the directory-already-exists / delete-then-rewrite branch
+            Assertions.assertDoesNotThrow(tmpService::persistFragmenterSettings);
+            Assertions.assertDoesNotThrow(tmpService::persistSelectedFragmenterAndPipeline);
+            FragmentationService tmpReloaded = new FragmentationService();
+            tmpReloaded.reloadFragmenterSettings();
+            tmpReloaded.reloadActiveFragmenterAndPipeline();
+            Assertions.assertEquals(tmpService.getSelectedFragmenter().getFragmentationAlgorithmName(),
+                    tmpReloaded.getSelectedFragmenter().getFragmentationAlgorithmName());
+            Assertions.assertEquals("OverwritePipeline", tmpReloaded.getPipeliningFragmentationName());
+            Assertions.assertEquals(2, tmpReloaded.getPipelineFragmenter().length);
+        } finally {
+            System.setProperty("user.home", tmpOldHome);
+            this.resetAppDirPathCache();
+            LogManager.getLogManager().reset();
+        }
+    }
+    //
+    /**
+     * Tests the pipeline-name normalisation branches of {@code persistSelectedFragmenterAndPipeline}: persisting with a
+     * null pipeline name must fall back to the default pipeline name (the null/empty branch), and persisting with a
+     * pipeline name that contains a character disallowed by the preference content pattern (a tab) must reset the name to
+     * the default (the invalid-content branch). Both drives are isolated to a {@link TempDir}; after each the persisted
+     * pipeline name reloaded by a fresh service must equal the default pipeline name.
+     *
+     * @param aTempHome temporary directory used as a fake user home
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void persistResetsNullAndInvalidPipelineName(@TempDir Path aTempHome) throws Exception {
+        String tmpOldHome = System.getProperty("user.home");
+        try {
+            System.setProperty("user.home", aTempHome.toString());
+            this.resetAppDirPathCache();
+            //null pipeline name -> default-name fallback branch (693)
+            FragmentationService tmpNullNameService = new FragmentationService();
+            tmpNullNameService.setPipeliningFragmentationName(null);
+            Assertions.assertDoesNotThrow(tmpNullNameService::persistSelectedFragmenterAndPipeline);
+            FragmentationService tmpReloadedFromNull = new FragmentationService();
+            tmpReloadedFromNull.reloadActiveFragmenterAndPipeline();
+            Assertions.assertEquals(FragmentationService.DEFAULT_PIPELINE_NAME, tmpReloadedFromNull.getPipeliningFragmentationName());
+            //invalid pipeline name (contains a tab) -> invalid-content reset branch (696-698)
+            FragmentationService tmpInvalidNameService = new FragmentationService();
+            tmpInvalidNameService.setPipeliningFragmentationName("Invalid\tName");
+            Assertions.assertDoesNotThrow(tmpInvalidNameService::persistSelectedFragmenterAndPipeline);
+            FragmentationService tmpReloadedFromInvalid = new FragmentationService();
+            tmpReloadedFromInvalid.reloadActiveFragmenterAndPipeline();
+            Assertions.assertEquals(FragmentationService.DEFAULT_PIPELINE_NAME, tmpReloadedFromInvalid.getPipeliningFragmentationName());
+        } finally {
+            System.setProperty("user.home", tmpOldHome);
+            this.resetAppDirPathCache();
+            LogManager.getLogManager().reset();
+        }
+    }
+    //
+    /**
+     * Tests the no-persisted-settings reload branches: a fresh service is created against a temporary, empty fake home
+     * (so no settings files exist) and both {@code reloadFragmenterSettings} and {@code reloadActiveFragmenterAndPipeline}
+     * are driven. Neither must throw; the fragmenter settings remain in their defaults (the warning-only "no persisted
+     * settings" branch) and the selected fragmenter / pipeline stay at their construction defaults (the "settings file
+     * not found" branch). Isolated to a {@link TempDir} so the real {@code ~/MORTAR} directory is never touched.
+     *
+     * @param aTempHome temporary directory used as a fake user home
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void reloadWithoutPersistedSettingsKeepsDefaults(@TempDir Path aTempHome) throws Exception {
+        String tmpOldHome = System.getProperty("user.home");
+        try {
+            System.setProperty("user.home", aTempHome.toString());
+            this.resetAppDirPathCache();
+            FragmentationService tmpService = new FragmentationService();
+            String tmpDefaultSelected = tmpService.getSelectedFragmenter().getFragmentationAlgorithmName();
+            String tmpDefaultPipelineName = tmpService.getPipeliningFragmentationName();
+            int tmpDefaultPipelineSize = tmpService.getPipelineFragmenter().length;
+            Assertions.assertDoesNotThrow(tmpService::reloadFragmenterSettings);
+            Assertions.assertDoesNotThrow(tmpService::reloadActiveFragmenterAndPipeline);
+            //nothing was persisted, so everything stays at the construction defaults
+            Assertions.assertEquals(tmpDefaultSelected, tmpService.getSelectedFragmenter().getFragmentationAlgorithmName());
+            Assertions.assertEquals(tmpDefaultPipelineName, tmpService.getPipeliningFragmentationName());
+            Assertions.assertEquals(tmpDefaultPipelineSize, tmpService.getPipelineFragmenter().length);
+        } finally {
+            System.setProperty("user.home", tmpOldHome);
+            this.resetAppDirPathCache();
+            LogManager.getLogManager().reset();
+        }
+    }
+    //
+    /**
+     * Tests the corrupt-fragmenter-settings-file branch of {@code reloadFragmenterSettings}: a garbage (non-compressed)
+     * file is written under the {@link TempDir}-isolated fragmenter settings directory using the simple class name of the
+     * first available fragmenter, so that constructing a {@code PreferenceContainer} from it throws and the reload logs a
+     * warning and leaves that fragmenter in its default settings (the catch/continue branch). The reload must not throw
+     * and the fragmenter must retain a valid (default) algorithm name.
+     *
+     * @param aTempHome temporary directory used as a fake user home
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void reloadWithCorruptFragmenterSettingsFile(@TempDir Path aTempHome) throws Exception {
+        String tmpOldHome = System.getProperty("user.home");
+        try {
+            System.setProperty("user.home", aTempHome.toString());
+            this.resetAppDirPathCache();
+            FragmentationService tmpService = new FragmentationService();
+            String tmpFragmenterSettingsDirPath = FileUtil.getSettingsDirPath()
+                    + FragmentationService.FRAGMENTER_SETTINGS_SUBFOLDER_NAME + File.separator;
+            File tmpFragmenterSettingsDir = new File(tmpFragmenterSettingsDirPath);
+            Assertions.assertTrue(tmpFragmenterSettingsDir.exists() || tmpFragmenterSettingsDir.mkdirs());
+            //write a garbage (non-compressed) settings file named after the first fragmenter's simple class name
+            File tmpCorruptFile = new File(tmpFragmenterSettingsDirPath
+                    + tmpService.getFragmenters()[0].getClass().getSimpleName()
+                    + BasicDefinitions.PREFERENCE_CONTAINER_FILE_EXTENSION);
+            java.nio.file.Files.writeString(tmpCorruptFile.toPath(), "this is not a valid preference container");
+            Assertions.assertTrue(tmpCorruptFile.exists() && tmpCorruptFile.canRead());
+            //reload must swallow the corrupt-file exception and leave the fragmenter in default
+            Assertions.assertDoesNotThrow(tmpService::reloadFragmenterSettings);
+            Assertions.assertNotNull(tmpService.getFragmenters()[0].getFragmentationAlgorithmName());
+        } finally {
+            System.setProperty("user.home", tmpOldHome);
+            this.resetAppDirPathCache();
+            LogManager.getLogManager().reset();
+        }
+    }
+    //
+    /**
+     * Tests the missing-pipeline-fragmenter-file branch of {@code reloadActiveFragmenterAndPipeline}: a two-fragmenter
+     * pipeline is persisted under {@link TempDir} isolation, then one of the persisted pipeline-fragmenter files is
+     * deleted before a fresh service reloads. The reload must not throw; the persisted pipeline size still declares two
+     * fragmenters, but only the one whose file survived can be reconstructed, so the reloaded pipeline has exactly one
+     * fragmenter. The selected fragmenter and pipeline name are still reloaded from the surviving service settings file.
+     *
+     * @param aTempHome temporary directory used as a fake user home
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void reloadWithMissingPipelineFragmenterFile(@TempDir Path aTempHome) throws Exception {
+        String tmpOldHome = System.getProperty("user.home");
+        try {
+            System.setProperty("user.home", aTempHome.toString());
+            this.resetAppDirPathCache();
+            FragmentationService tmpService = new FragmentationService();
+            tmpService.setSelectedFragmenter(tmpService.getFragmenters()[0].getFragmentationAlgorithmDisplayName());
+            tmpService.setPipelineFragmenter(new IMoleculeFragmenter[] {
+                    tmpService.getFragmenters()[0].copy(),
+                    tmpService.getFragmenters()[1].copy()
+            });
+            tmpService.setPipeliningFragmentationName("MissingFilePipeline");
+            tmpService.persistSelectedFragmenterAndPipeline();
+            //delete the second persisted pipeline fragmenter file so its reload branch reports a missing file
+            String tmpServiceSettingsDirPath = FileUtil.getSettingsDirPath()
+                    + FragmentationService.FRAGMENTATION_SERVICE_SETTINGS_SUBFOLDER_NAME + File.separator;
+            File tmpSecondFragmenterFile = new File(tmpServiceSettingsDirPath
+                    + FragmentationService.PIPELINE_FRAGMENTER_FILE_NAME_PREFIX + 1
+                    + BasicDefinitions.PREFERENCE_CONTAINER_FILE_EXTENSION);
+            Assertions.assertTrue(tmpSecondFragmenterFile.delete());
+            FragmentationService tmpReloaded = new FragmentationService();
+            Assertions.assertDoesNotThrow(tmpReloaded::reloadActiveFragmenterAndPipeline);
+            Assertions.assertEquals("MissingFilePipeline", tmpReloaded.getPipeliningFragmentationName());
+            //only the surviving pipeline fragmenter file could be reconstructed
+            Assertions.assertEquals(1, tmpReloaded.getPipelineFragmenter().length);
+        } finally {
+            System.setProperty("user.home", tmpOldHome);
+            this.resetAppDirPathCache();
+            LogManager.getLogManager().reset();
+        }
+    }
+    //
+    /**
+     * Tests the zero-task normalisation and the empty-molecule-list early return: driving {@code startSingleFragmentation}
+     * with {@code aNumberOfTasks == 0} must internally clamp the task count to one and still produce a non-empty fragment
+     * map, while driving it over an empty molecule list (also with zero tasks) exercises the early-return branch of the
+     * private {@code startFragmentation} and yields an empty (but non-null) fragment map.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void zeroTaskAndEmptyInputTest() throws Exception {
+        FragmentationService tmpService = new FragmentationService();
+        tmpService.setSelectedFragmenter(tmpService.getFragmenters()[0].getFragmentationAlgorithmDisplayName());
+        List<MoleculeDataModel> tmpMols = new ArrayList<>(1);
+        tmpMols.add(FragmentationServiceTest.buildMDM("O=C(O)CCC"));
+        //aNumberOfTasks == 0 -> normalised to 1
+        tmpService.startSingleFragmentation(tmpMols, 0, false);
+        Assertions.assertNotNull(tmpService.getFragments());
+        Assertions.assertFalse(tmpService.getFragments().isEmpty());
+        //empty molecule list -> early-return branch of startFragmentation, empty but non-null map
+        FragmentationService tmpEmptyService = new FragmentationService();
+        tmpEmptyService.setSelectedFragmenter(tmpEmptyService.getFragmenters()[0].getFragmentationAlgorithmDisplayName());
+        tmpEmptyService.startSingleFragmentation(new ArrayList<>(0), 0, false);
+        Assertions.assertNotNull(tmpEmptyService.getFragments());
+        Assertions.assertTrue(tmpEmptyService.getFragments().isEmpty());
+    }
+    //
+    /**
+     * Tests the task-loop modulo / final-task boundary branches of the private {@code startFragmentation} by driving a
+     * single fragmentation over five molecules split across three parallel tasks (5 % 3 == 2, so the first two tasks get
+     * an extra molecule and the final-task index clamp applies). The drive must complete without throwing and produce a
+     * non-empty fragment map whose absolute percentages sum to approximately 1.0, and the result must be shaped
+     * identically to the same five molecules fragmented in a single task.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void multiTaskModuloBoundaryTest() throws Exception {
+        List<String> tmpSmilesList = List.of("O=C(O)CC", "O=C(O)CCC", "O=C(O)CCCC", "O=C(O)CCCCC", "O=C(O)CCCCCC");
+        FragmentationService tmpThreeTaskService = new FragmentationService();
+        tmpThreeTaskService.setSelectedFragmenter(tmpThreeTaskService.getFragmenters()[0].getFragmentationAlgorithmDisplayName());
+        List<MoleculeDataModel> tmpMolsThreeTasks = new ArrayList<>(tmpSmilesList.size());
+        for (String tmpSmiles : tmpSmilesList) {
+            tmpMolsThreeTasks.add(FragmentationServiceTest.buildMDM(tmpSmiles));
+        }
+        tmpThreeTaskService.startSingleFragmentation(tmpMolsThreeTasks, 3, false);
+        Map<String, FragmentDataModel> tmpThreeTaskFragments = tmpThreeTaskService.getFragments();
+        Assertions.assertNotNull(tmpThreeTaskFragments);
+        Assertions.assertFalse(tmpThreeTaskFragments.isEmpty());
+        double tmpPercentageSum = 0.0;
+        for (FragmentDataModel tmpFragment : tmpThreeTaskFragments.values()) {
+            tmpPercentageSum += tmpFragment.getAbsolutePercentage();
+        }
+        Assertions.assertEquals(1.0, tmpPercentageSum, 1e-9);
+        //single-task drive over the same molecules must yield the same number of distinct fragments
+        FragmentationService tmpSingleTaskService = new FragmentationService();
+        tmpSingleTaskService.setSelectedFragmenter(tmpSingleTaskService.getFragmenters()[0].getFragmentationAlgorithmDisplayName());
+        List<MoleculeDataModel> tmpMolsSingleTask = new ArrayList<>(tmpSmilesList.size());
+        for (String tmpSmiles : tmpSmilesList) {
+            tmpMolsSingleTask.add(FragmentationServiceTest.buildMDM(tmpSmiles));
+        }
+        tmpSingleTaskService.startSingleFragmentation(tmpMolsSingleTask, 1, false);
+        Assertions.assertEquals(tmpSingleTaskService.getFragments().size(), tmpThreeTaskFragments.size());
+    }
+    //
+    /**
+     * Tests the zero-task normalisation and the default-pipeline-name fallback branches of
+     * {@code startPipelineFragmentation}: a two-fragmenter pipeline is configured with the pipeline name explicitly set
+     * to the empty string and driven with {@code aNumberOfTasks == 0}. The service must normalise the task count to one,
+     * fall back to the default pipeline name, and still produce a non-empty fragment map; the current fragmentation name
+     * must therefore start with the default pipeline name.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void pipelineZeroTaskAndDefaultNameTest() throws Exception {
+        FragmentationService tmpService = new FragmentationService();
+        tmpService.setPipelineFragmenter(new IMoleculeFragmenter[] {
+                tmpService.getFragmenters()[0].copy(),
+                tmpService.getFragmenters()[0].copy()
+        });
+        //empty pipeline name -> default-name fallback branch
+        tmpService.setPipeliningFragmentationName("");
+        List<MoleculeDataModel> tmpMols = new ArrayList<>(2);
+        tmpMols.add(FragmentationServiceTest.buildMDM("O=C(O)CCC"));
+        tmpMols.add(FragmentationServiceTest.buildMDM("O=C(O)CCCCCC"));
+        //aNumberOfTasks == 0 -> normalised to 1
+        tmpService.startPipelineFragmentation(tmpMols, 0, false, false);
+        Assertions.assertNotNull(tmpService.getFragments());
+        Assertions.assertFalse(tmpService.getFragments().isEmpty());
+        Assertions.assertNotNull(tmpService.getCurrentFragmentationName());
+        Assertions.assertTrue(tmpService.getCurrentFragmentationName().startsWith(FragmentationService.DEFAULT_PIPELINE_NAME));
+    }
+    //
+    /**
+     * Tests the {@code isKeepLastFragmentSetting == true} branch of {@code startPipelineFragmentation}: the same
+     * two-fragmenter pipeline is driven once with the keep-last-fragment flag {@code true} and once {@code false} over
+     * equivalent molecule sets. Both drives must complete without throwing and produce a non-empty fragment map with
+     * valid absolute frequencies and percentages; the keep-last-fragment drive must yield at least as many distinct
+     * fragments as the discard drive (keeping last fragments can only retain, never drop, results).
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void pipelineKeepLastFragmentBranchTest() throws Exception {
+        int tmpKeptCount = this.runTwoStagePipelineAndCountFragments(true);
+        int tmpDiscardedCount = this.runTwoStagePipelineAndCountFragments(false);
+        Assertions.assertTrue(tmpKeptCount > 0);
+        Assertions.assertTrue(tmpDiscardedCount > 0);
+        Assertions.assertTrue(tmpKeptCount >= tmpDiscardedCount);
+    }
+    //
+    /**
+     * Tests the nested parent/child fragment-merge path of {@code startPipelineFragmentation} with a three-stage pipeline
+     * (Sugar Removal Utility, then the Ertl functional groups finder, then the Sugar Removal Utility again) driven over
+     * glycoside molecules. The later stages re-fragment the fragments of earlier stages, so a molecule's stored parent
+     * fragments themselves carry child fragments, exercising the parent-has-children branch of the merge loop. The drive
+     * must complete without throwing and produce a non-empty fragment map whose absolute frequencies and percentages are
+     * valid and whose absolute percentages sum to approximately 1.0.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void pipelineThreeStageNestedFragmentsTest() throws Exception {
+        FragmentationService tmpService = new FragmentationService();
+        tmpService.setPipelineFragmenter(new IMoleculeFragmenter[] {
+                tmpService.getFragmenters()[1].copy(),
+                tmpService.getFragmenters()[0].copy(),
+                tmpService.getFragmenters()[1].copy()
+        });
+        tmpService.setPipeliningFragmentationName("ThreeStagePipeline");
+        List<MoleculeDataModel> tmpMols = new ArrayList<>(2);
+        tmpMols.add(FragmentationServiceTest.buildMDM("OCC1OC(O)C(O)C(O)C1OC2OC(CO)C(O)C(O)C2OCCC(=O)O"));
+        tmpMols.add(FragmentationServiceTest.buildMDM("O=C(O)CCCCCCc1ccc(OC2OC(CO)C(O)C(O)C2O)cc1"));
+        tmpService.startPipelineFragmentation(tmpMols, 1, false, false);
+        Map<String, FragmentDataModel> tmpFragments = tmpService.getFragments();
+        Assertions.assertNotNull(tmpFragments);
+        Assertions.assertFalse(tmpFragments.isEmpty());
+        double tmpPercentageSum = 0.0;
+        for (FragmentDataModel tmpFragment : tmpFragments.values()) {
+            Assertions.assertTrue(tmpFragment.getAbsoluteFrequency() >= 1);
+            Assertions.assertTrue(tmpFragment.getAbsolutePercentage() > 0.0 && tmpFragment.getAbsolutePercentage() <= 1.0);
+            tmpPercentageSum += tmpFragment.getAbsolutePercentage();
+        }
+        Assertions.assertEquals(1.0, tmpPercentageSum, 1e-9);
+    }
+    //
+    /**
+     * Tests the nested mol-by-mol path with a three-stage pipeline (Sugar Removal Utility, Ertl functional groups finder,
+     * Sugar Removal Utility) driven over glycoside molecules, so the deprecated {@code startPipelineFragmentationMolByMol}
+     * re-fragments each molecule's stage fragments across two consecutive stage-loop iterations. The drive must complete
+     * without throwing and leave a non-null fragment map.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void molByMolThreeStageNestedFragmentsTest() throws Exception {
+        FragmentationService tmpService = new FragmentationService();
+        tmpService.setPipelineFragmenter(new IMoleculeFragmenter[] {
+                tmpService.getFragmenters()[1].copy(),
+                tmpService.getFragmenters()[0].copy(),
+                tmpService.getFragmenters()[1].copy()
+        });
+        tmpService.setPipeliningFragmentationName("ThreeStageMolByMol");
+        List<MoleculeDataModel> tmpMols = new ArrayList<>(2);
+        tmpMols.add(FragmentationServiceTest.buildMDM("OCC1OC(O)C(O)C(O)C1OC2OC(CO)C(O)C(O)C2OCCC(=O)O"));
+        tmpMols.add(FragmentationServiceTest.buildMDM("O=C(O)CCCCCCc1ccc(OC2OC(CO)C(O)C(O)C2O)cc1"));
+        Assertions.assertDoesNotThrow(() -> tmpService.startPipelineFragmentationMolByMol(tmpMols, 1, false));
+        Assertions.assertNotNull(tmpService.getFragments());
+    }
+    //
+    /**
+     * Tests the zero-total-frequency branches: a Scaffold-Generator pipeline is driven over molecules that yield no
+     * fragments, so the sum of absolute frequencies is zero and the percentage-calculation step is skipped (the
+     * warning-only branch in {@code startPipelineFragmentation}). The drive must complete without throwing and leave a
+     * non-null, empty fragment map.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void pipelineZeroFrequencyTest() throws Exception {
+        FragmentationService tmpService = new FragmentationService();
+        //the Scaffold Generator (index 2) yields no fragments for these molecules, driving the zero-total-frequency branch
+        tmpService.setPipelineFragmenter(new IMoleculeFragmenter[] {
+                tmpService.getFragmenters()[2].copy(),
+                tmpService.getFragmenters()[0].copy()
+        });
+        tmpService.setPipeliningFragmentationName("ZeroFrequencyPipeline");
+        List<MoleculeDataModel> tmpMols = new ArrayList<>(2);
+        tmpMols.add(FragmentationServiceTest.buildMDM("c1ccc2c(c1)ccc3c2cccc3O"));
+        tmpMols.add(FragmentationServiceTest.buildMDM("O=C(O)CCCCc1ccc(O)cc1"));
+        Assertions.assertDoesNotThrow(() -> tmpService.startPipelineFragmentation(tmpMols, 1, false, false));
+        Assertions.assertNotNull(tmpService.getFragments());
+        Assertions.assertTrue(tmpService.getFragments().isEmpty());
+    }
+    //
+    /**
+     * Tests the deprecated mol-by-mol pipeline over a genuine two-stage pipeline with two distinct fragmenters (the Ertl
+     * functional groups finder followed by the Sugar Removal Utility), driving the {@code i == 1} stage loop body that
+     * re-fragments each molecule's stage-one fragments. The drive must complete without throwing, the resulting fragment
+     * map must be non-null, and the empty-pipeline-name fallback branch is exercised by leaving the pipeline name empty.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void molByMolTwoStagePipelineTest() throws Exception {
+        FragmentationService tmpService = new FragmentationService();
+        //Sugar Removal Utility first then the Ertl functional groups finder so the i == 1 stage loop re-fragments the
+        //stage-one fragments of each molecule
+        tmpService.setPipelineFragmenter(new IMoleculeFragmenter[] {
+                tmpService.getFragmenters()[1].copy(),
+                tmpService.getFragmenters()[0].copy()
+        });
+        //empty pipeline name -> default-name fallback branch in the mol-by-mol path
+        tmpService.setPipeliningFragmentationName("");
+        List<MoleculeDataModel> tmpMols = new ArrayList<>(3);
+        tmpMols.add(FragmentationServiceTest.buildMDM("OCC1OC(O)C(O)C(O)C1OC2OC(CO)C(O)C(O)C2O"));
+        tmpMols.add(FragmentationServiceTest.buildMDM("O=C(O)CCCCCCc1ccccc1O"));
+        tmpMols.add(FragmentationServiceTest.buildMDM("OCC1OC(O)C(O)C(O)C1O"));
+        //aNumberOfTasks == 0 -> normalised to 1
+        Assertions.assertDoesNotThrow(() -> tmpService.startPipelineFragmentationMolByMol(tmpMols, 0, false));
+        Assertions.assertNotNull(tmpService.getFragments());
+        Assertions.assertNotNull(tmpService.getCurrentFragmentationName());
     }
     //</editor-fold>
     //
@@ -363,6 +789,42 @@ public class FragmentationServiceTest {
         Map<String, FragmentDataModel> tmpFragments = tmpService.getFragments();
         Assertions.assertNotNull(tmpFragments);
         Assertions.assertFalse(tmpFragments.isEmpty());
+        return tmpFragments.size();
+    }
+    //
+    /**
+     * Runs a genuine two-stage pipeline (the Ertl functional groups finder followed by the Sugar Removal Utility) on a
+     * fresh service over a small molecule set and returns the number of distinct fragments produced. The keep-last-fragment
+     * flag is passed through so both its branches can be exercised by the caller.
+     *
+     * @param isKeepLastFragment whether the last pipeline fragments should be kept when a molecule produces no new fragment
+     * @return number of distinct fragments in the result map
+     * @throws Exception if anything goes wrong
+     */
+    private int runTwoStagePipelineAndCountFragments(boolean isKeepLastFragment) throws Exception {
+        FragmentationService tmpService = new FragmentationService();
+        //Sugar Removal Utility first (splits sugar moieties from aglycone), then the Ertl functional groups finder
+        //re-fragments those stage-one fragments, producing the nested parent/child fragment structure
+        tmpService.setPipelineFragmenter(new IMoleculeFragmenter[] {
+                tmpService.getFragmenters()[1].copy(),
+                tmpService.getFragmenters()[0].copy()
+        });
+        tmpService.setPipeliningFragmentationName("TwoStagePipeline");
+        List<MoleculeDataModel> tmpMols = new ArrayList<>(4);
+        //a disaccharide and a glycoside both bear sugar moieties that the SRU stage splits, whose aglycone children the
+        //Ertl stage fragments further, exercising the parent-has-children path of the pipeline merge
+        tmpMols.add(FragmentationServiceTest.buildMDM("OCC1OC(O)C(O)C(O)C1OC2OC(CO)C(O)C(O)C2O"));
+        tmpMols.add(FragmentationServiceTest.buildMDM("O=C(O)CCCCCCc1ccccc1O"));
+        tmpMols.add(FragmentationServiceTest.buildMDM("OCC1OC(O)C(O)C(O)C1O"));
+        tmpMols.add(FragmentationServiceTest.buildMDM("O=C(O)CCC"));
+        tmpService.startPipelineFragmentation(tmpMols, 1, false, isKeepLastFragment);
+        Map<String, FragmentDataModel> tmpFragments = tmpService.getFragments();
+        Assertions.assertNotNull(tmpFragments);
+        Assertions.assertFalse(tmpFragments.isEmpty());
+        for (FragmentDataModel tmpFragment : tmpFragments.values()) {
+            Assertions.assertTrue(tmpFragment.getAbsoluteFrequency() >= 1);
+            Assertions.assertTrue(tmpFragment.getAbsolutePercentage() > 0.0 && tmpFragment.getAbsolutePercentage() <= 1.0);
+        }
         return tmpFragments.size();
     }
     //
