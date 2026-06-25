@@ -26,6 +26,7 @@
 package de.unijena.cheminf.mortar.model.fragmentation;
 
 import de.unijena.cheminf.mortar.configuration.Configuration;
+import de.unijena.cheminf.mortar.gui.util.GuiUtil;
 import de.unijena.cheminf.mortar.model.data.FragmentDataModel;
 import de.unijena.cheminf.mortar.model.data.MoleculeDataModel;
 import de.unijena.cheminf.mortar.model.fragmentation.algorithm.IMoleculeFragmenter;
@@ -36,6 +37,8 @@ import de.unijena.cheminf.mortar.model.util.FileUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.openscience.cdk.interfaces.IAtomContainer;
 
 import java.io.File;
@@ -45,6 +48,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.LogManager;
 
 /**
@@ -55,8 +59,15 @@ import java.util.logging.LogManager;
  * populated, so assertions are made directly after the call with no sleep, latch, or {@code Platform.runLater} wait.
  * The persist/reload round-trip is isolated to a JUnit {@link TempDir} by redirecting the {@code user.home} system
  * property and reflectively resetting the private static {@code appDirPath} cache of {@link FileUtil}, with the
- * original state always restored in a finally block, so the real {@code ~/MORTAR} directory is never touched. Only
- * real CDK objects and real fragmenters are used (no mocking).
+ * original state always restored in a finally block, so the real {@code ~/MORTAR} directory is never touched. Most
+ * drives use only real CDK objects and real fragmenters.
+ * <p>
+ * A small set of tests at the end of this class use {@link org.mockito.MockedStatic} to neutralize the static
+ * {@code GuiUtil.guiExceptionAlert}/{@code GuiUtil.guiMessageAlert} calls in the service's error-handling branches.
+ * Those alert calls construct a JavaFX {@code Alert}, which throws "Toolkit not initialized" when run headless, so the
+ * catch bodies never complete without the static stub. Targeted Mockito is authorized for this package (the project's
+ * no-mock default was extended to {@code model/fragmentation} to close the coverage gap on these GUI-bound error
+ * branches); mocking is kept minimal and used only where a real object cannot drive the branch headless.
  *
  * @author Felix Baensch
  * @version 1.0.0.0
@@ -735,6 +746,185 @@ public class FragmentationServiceTest {
         Assertions.assertDoesNotThrow(() -> tmpService.startPipelineFragmentationMolByMol(tmpMols, 0, false));
         Assertions.assertNotNull(tmpService.getFragments());
         Assertions.assertNotNull(tmpService.getCurrentFragmentationName());
+    }
+    //
+    /**
+     * Tests the directory-not-writable error branches of {@code persistFragmenterSettings} and
+     * {@code persistSelectedFragmenterAndPipeline}: the application data directory is made read-only under {@link TempDir}
+     * isolation so that the {@code mkdirs} of the settings subfolders fails, driving the {@code !canWrite() ||
+     * !mkdirsSuccessful} alert branch in both persist methods. The static {@code GuiUtil} alert is neutralized with a
+     * {@link MockedStatic} (it would otherwise throw "Toolkit not initialized" headless); the test asserts that the
+     * warning alert is requested at least once and that neither persist method throws. The data directory is made writable
+     * again in a finally block so {@link TempDir} cleanup succeeds.
+     *
+     * @param aTempHome temporary directory used as a fake user home
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void persistWithUnwritableDirectoryShowsAlert(@TempDir Path aTempHome) throws Exception {
+        String tmpOldHome = System.getProperty("user.home");
+        File tmpAppDir = null;
+        try {
+            System.setProperty("user.home", aTempHome.toString());
+            this.resetAppDirPathCache();
+            FragmentationService tmpService = new FragmentationService();
+            //resolve (and thereby create) the application data directory, then make it read-only so the settings
+            //subfolder mkdirs fails
+            tmpAppDir = new File(FileUtil.getAppDirPath());
+            Assertions.assertTrue(tmpAppDir.exists());
+            Assertions.assertTrue(tmpAppDir.setWritable(false, false));
+            //skip the test if the filesystem ignores the read-only bit (e.g. running as root) so it does not give a
+            //false pass
+            org.junit.jupiter.api.Assumptions.assumeFalse(tmpAppDir.canWrite(),
+                    "Application data directory is still writable; cannot drive the not-writable branch on this filesystem.");
+            AtomicInteger tmpAlertCount = new AtomicInteger(0);
+            try (MockedStatic<GuiUtil> tmpGuiUtilMock = Mockito.mockStatic(GuiUtil.class)) {
+                tmpGuiUtilMock.when(() -> GuiUtil.guiMessageAlert(Mockito.any(), Mockito.anyString(), Mockito.anyString(), Mockito.anyString()))
+                        .thenAnswer(anInvocation -> {
+                            tmpAlertCount.incrementAndGet();
+                            return java.util.Optional.empty();
+                        });
+                Assertions.assertDoesNotThrow(tmpService::persistFragmenterSettings);
+                Assertions.assertDoesNotThrow(tmpService::persistSelectedFragmenterAndPipeline);
+            }
+            //both persist methods hit their not-writable alert branch
+            Assertions.assertEquals(2, tmpAlertCount.get());
+        } finally {
+            if (tmpAppDir != null) {
+                tmpAppDir.setWritable(true, false);
+            }
+            System.setProperty("user.home", tmpOldHome);
+            this.resetAppDirPathCache();
+            LogManager.getLogManager().reset();
+        }
+    }
+    //
+    /**
+     * Tests the corrupt-service-settings-file catch branch of {@code reloadActiveFragmenterAndPipeline}: a garbage
+     * (non-compressed) {@code FragmentationServiceSettings} file is written under {@link TempDir} isolation, so
+     * constructing a {@code PreferenceContainer} from it throws and the reload runs its catch body (which logs a warning
+     * and calls {@code GuiUtil.guiExceptionAlert}). The static {@code GuiUtil} alert is neutralized with a
+     * {@link MockedStatic}; the test asserts the exception alert is requested exactly once and that the reload does not
+     * throw.
+     *
+     * @param aTempHome temporary directory used as a fake user home
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void reloadWithCorruptServiceSettingsFileShowsAlert(@TempDir Path aTempHome) throws Exception {
+        String tmpOldHome = System.getProperty("user.home");
+        try {
+            System.setProperty("user.home", aTempHome.toString());
+            this.resetAppDirPathCache();
+            FragmentationService tmpService = new FragmentationService();
+            //write a garbage service settings file so PreferenceContainer construction throws on reload
+            String tmpServiceSettingsDirPath = FileUtil.getSettingsDirPath()
+                    + FragmentationService.FRAGMENTATION_SERVICE_SETTINGS_SUBFOLDER_NAME + File.separator;
+            File tmpServiceSettingsDir = new File(tmpServiceSettingsDirPath);
+            Assertions.assertTrue(tmpServiceSettingsDir.exists() || tmpServiceSettingsDir.mkdirs());
+            File tmpCorruptServiceFile = new File(tmpServiceSettingsDirPath
+                    + FragmentationService.FRAGMENTATION_SERVICE_SETTINGS_FILE_NAME
+                    + BasicDefinitions.PREFERENCE_CONTAINER_FILE_EXTENSION);
+            java.nio.file.Files.writeString(tmpCorruptServiceFile.toPath(), "this is not a valid preference container");
+            Assertions.assertTrue(tmpCorruptServiceFile.exists() && tmpCorruptServiceFile.canRead());
+            AtomicInteger tmpAlertCount = new AtomicInteger(0);
+            try (MockedStatic<GuiUtil> tmpGuiUtilMock = Mockito.mockStatic(GuiUtil.class)) {
+                tmpGuiUtilMock.when(() -> GuiUtil.guiExceptionAlert(Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.any()))
+                        .thenAnswer(anInvocation -> {
+                            tmpAlertCount.incrementAndGet();
+                            return null;
+                        });
+                Assertions.assertDoesNotThrow(tmpService::reloadActiveFragmenterAndPipeline);
+            }
+            Assertions.assertEquals(1, tmpAlertCount.get());
+        } finally {
+            System.setProperty("user.home", tmpOldHome);
+            this.resetAppDirPathCache();
+            LogManager.getLogManager().reset();
+        }
+    }
+    //
+    /**
+     * Tests the corrupt-pipeline-fragmenter-file catch branch of {@code reloadActiveFragmenterAndPipeline}: a valid
+     * service settings file (declaring a two-fragmenter pipeline) is persisted, then one of the persisted pipeline
+     * fragmenter files is overwritten with garbage, so reconstructing that pipeline fragmenter throws inside the per-file
+     * try and the inner Exception catch body runs (logging a warning and calling {@code GuiUtil.guiExceptionAlert}). The
+     * static {@code GuiUtil} alert is neutralized with a {@link MockedStatic}; the test asserts the exception alert is
+     * requested at least once, the reload does not throw, and only the surviving fragmenter is reconstructed.
+     *
+     * @param aTempHome temporary directory used as a fake user home
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void reloadWithCorruptPipelineFragmenterFileShowsAlert(@TempDir Path aTempHome) throws Exception {
+        String tmpOldHome = System.getProperty("user.home");
+        try {
+            System.setProperty("user.home", aTempHome.toString());
+            this.resetAppDirPathCache();
+            FragmentationService tmpService = new FragmentationService();
+            tmpService.setSelectedFragmenter(tmpService.getFragmenters()[0].getFragmentationAlgorithmDisplayName());
+            tmpService.setPipelineFragmenter(new IMoleculeFragmenter[] {
+                    tmpService.getFragmenters()[0].copy(),
+                    tmpService.getFragmenters()[1].copy()
+            });
+            tmpService.setPipeliningFragmentationName("CorruptPipelineFile");
+            tmpService.persistSelectedFragmenterAndPipeline();
+            //overwrite the second persisted pipeline fragmenter file with garbage so its reconstruction throws
+            String tmpServiceSettingsDirPath = FileUtil.getSettingsDirPath()
+                    + FragmentationService.FRAGMENTATION_SERVICE_SETTINGS_SUBFOLDER_NAME + File.separator;
+            File tmpSecondFragmenterFile = new File(tmpServiceSettingsDirPath
+                    + FragmentationService.PIPELINE_FRAGMENTER_FILE_NAME_PREFIX + 1
+                    + BasicDefinitions.PREFERENCE_CONTAINER_FILE_EXTENSION);
+            Assertions.assertTrue(tmpSecondFragmenterFile.exists());
+            java.nio.file.Files.writeString(tmpSecondFragmenterFile.toPath(), "this is not a valid preference container");
+            AtomicInteger tmpAlertCount = new AtomicInteger(0);
+            FragmentationService tmpReloaded = new FragmentationService();
+            try (MockedStatic<GuiUtil> tmpGuiUtilMock = Mockito.mockStatic(GuiUtil.class)) {
+                tmpGuiUtilMock.when(() -> GuiUtil.guiExceptionAlert(Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.any()))
+                        .thenAnswer(anInvocation -> {
+                            tmpAlertCount.incrementAndGet();
+                            return null;
+                        });
+                Assertions.assertDoesNotThrow(tmpReloaded::reloadActiveFragmenterAndPipeline);
+            }
+            Assertions.assertTrue(tmpAlertCount.get() >= 1);
+            //only the first pipeline fragmenter file could be reconstructed
+            Assertions.assertEquals(1, tmpReloaded.getPipelineFragmenter().length);
+            Assertions.assertEquals("CorruptPipelineFile", tmpReloaded.getPipeliningFragmentationName());
+        } finally {
+            System.setProperty("user.home", tmpOldHome);
+            this.resetAppDirPathCache();
+            LogManager.getLogManager().reset();
+        }
+    }
+    //
+    /**
+     * Tests the interrupted-thread branch of {@code abortExecutor}: a single fragmentation is run first so the service's
+     * internal {@code ExecutorService} is instantiated, then the current thread's interrupt flag is set so that the
+     * {@code executorService.awaitTermination} call inside {@code abortExecutor} throws an {@link InterruptedException},
+     * driving the catch body (which logs a warning, force-shuts down the executor, and re-sets the interrupt flag). The
+     * interrupt flag is cleared in a finally block so sibling tests are unaffected. The method must not throw.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void abortExecutorInterruptedTest() throws Exception {
+        FragmentationService tmpService = new FragmentationService();
+        tmpService.setSelectedFragmenter(tmpService.getFragmenters()[0].getFragmentationAlgorithmDisplayName());
+        List<MoleculeDataModel> tmpMols = new ArrayList<>(1);
+        tmpMols.add(FragmentationServiceTest.buildMDM("O=C(O)CCC"));
+        //run a fragmentation so the internal executor service exists
+        tmpService.startSingleFragmentation(tmpMols, 1, false);
+        try {
+            //set the interrupt flag so awaitTermination inside abortExecutor throws InterruptedException
+            Thread.currentThread().interrupt();
+            Assertions.assertDoesNotThrow(tmpService::abortExecutor);
+            //abortExecutor re-sets the interrupt flag in its catch body
+            Assertions.assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            //clear the interrupt status so subsequent tests are not affected
+            Thread.interrupted();
+        }
     }
     //</editor-fold>
     //
