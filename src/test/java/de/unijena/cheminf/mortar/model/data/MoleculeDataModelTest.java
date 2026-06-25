@@ -259,14 +259,15 @@ public class MoleculeDataModelTest {
     }
     //
     /**
-     * Tests that {@code getStructure()} returns a non-null {@code ImageView} for an invalid-SMILES model, i.e. the
-     * error-image branch via {@code DepictionUtil.depictErrorImage(...)} (CDK parse failure caught), verified
-     * headless.
+     * Tests that {@code getStructure()} and {@code getStructureWithText(...)} both return a non-null {@code ImageView}
+     * for an invalid-SMILES model, i.e. the error-image branch via {@code DepictionUtil.depictErrorImage(...)} (CDK
+     * parse failure caught) in each accessor, verified headless.
      */
     @Test
     public void testStructureImageAccessorErrorBranchForInvalidSmiles() {
         MoleculeDataModel tmpMolecule = new MoleculeDataModel("not_a_valid_smiles", "Invalid", new HashMap<>());
         Assertions.assertNotNull(tmpMolecule.getStructure());
+        Assertions.assertNotNull(tmpMolecule.getStructureWithText("caption"));
     }
     //
     /**
