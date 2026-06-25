@@ -194,6 +194,8 @@ public class DepictionUtilTest {
     public void testDepictErrorImageNullMessageReturnsNonNullImage() {
         Image tmpImage = DepictionUtil.depictErrorImage(null, 250, 250);
         Assertions.assertNotNull(tmpImage);
+        Assertions.assertEquals(250.0, tmpImage.getWidth());
+        Assertions.assertEquals(250.0, tmpImage.getHeight());
     }
     //
     /**
@@ -204,6 +206,8 @@ public class DepictionUtilTest {
     public void testDepictErrorImageWithMessageReturnsNonNullImage() {
         Image tmpImage = DepictionUtil.depictErrorImage("explicit error", 250, 250);
         Assertions.assertNotNull(tmpImage);
+        Assertions.assertEquals(250.0, tmpImage.getWidth());
+        Assertions.assertEquals(250.0, tmpImage.getHeight());
     }
     //</editor-fold>
     //
