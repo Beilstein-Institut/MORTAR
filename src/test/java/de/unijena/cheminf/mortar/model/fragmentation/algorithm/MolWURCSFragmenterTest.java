@@ -25,6 +25,8 @@
 
 package de.unijena.cheminf.mortar.model.fragmentation.algorithm;
 
+import javafx.beans.property.Property;
+
 import org.glycoinfo.MolWURCS.io.WURCSWriter;
 import org.glycoinfo.MolWURCS.util.analysis.MoleculeNormalizer;
 import org.junit.jupiter.api.Assertions;
@@ -41,6 +43,7 @@ import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Test class for {@link MolWURCSFragmenter}, mostly contains experiments and documents corner cases encountered during development.
@@ -202,5 +205,124 @@ public class MolWURCSFragmenterTest {
         Kekulization.kekulize(tmpMol);
         SmilesGenerator smiGen = new SmilesGenerator(SmiFlavor.Absolute | SmiFlavor.UseAromaticSymbols);
         System.out.println(smiGen.create(tmpMol));
+    }
+
+    /**
+     * Exercises the settings API of the fragmenter: round-trips the output-with-aglycone setting through its getter and
+     * setter, checks that {@code settingsProperties()} and the algorithm name/display name are non-null, verifies the
+     * tooltip and display-name maps are non-null/non-empty, and confirms that {@link MolWURCSFragmenter#copy()} preserves
+     * the setting and {@link MolWURCSFragmenter#restoreDefaultSettings()} resets it to its documented default.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    void settingsTest() throws Exception {
+        MolWURCSFragmenter tmpFragmenter = new MolWURCSFragmenter();
+        //round-trip of the output with aglycone setting through both values
+        tmpFragmenter.setOutputWithAglyconeSetting(true);
+        Assertions.assertTrue(tmpFragmenter.getOutputWithAglyconeSetting());
+        tmpFragmenter.setOutputWithAglyconeSetting(false);
+        Assertions.assertFalse(tmpFragmenter.getOutputWithAglyconeSetting());
+        //settingsProperties non-null and each entry's name does not throw
+        List<Property<?>> tmpSettings = tmpFragmenter.settingsProperties();
+        Assertions.assertNotNull(tmpSettings);
+        Assertions.assertFalse(tmpSettings.isEmpty());
+        for (Property<?> tmpSetting : tmpSettings) {
+            Assertions.assertDoesNotThrow(tmpSetting::getName);
+        }
+        //algorithm name and display name non-null
+        Assertions.assertNotNull(tmpFragmenter.getFragmentationAlgorithmName());
+        Assertions.assertNotNull(tmpFragmenter.getFragmentationAlgorithmDisplayName());
+        //tooltip and display-name maps non-null/non-empty with an entry per setting
+        Map<String, String> tmpTooltipMap = tmpFragmenter.getSettingNameToTooltipTextMap();
+        Map<String, String> tmpDisplayMap = tmpFragmenter.getSettingNameToDisplayNameMap();
+        Assertions.assertNotNull(tmpTooltipMap);
+        Assertions.assertNotNull(tmpDisplayMap);
+        Assertions.assertFalse(tmpTooltipMap.isEmpty());
+        Assertions.assertFalse(tmpDisplayMap.isEmpty());
+        for (Property<?> tmpSetting : tmpSettings) {
+            Assertions.assertTrue(tmpTooltipMap.containsKey(tmpSetting.getName()));
+            Assertions.assertTrue(tmpDisplayMap.containsKey(tmpSetting.getName()));
+        }
+        //copy() preserves the setting
+        tmpFragmenter.setOutputWithAglyconeSetting(true);
+        IMoleculeFragmenter tmpCopyAsInterface = tmpFragmenter.copy();
+        Assertions.assertInstanceOf(MolWURCSFragmenter.class, tmpCopyAsInterface);
+        MolWURCSFragmenter tmpCopy = (MolWURCSFragmenter) tmpCopyAsInterface;
+        Assertions.assertTrue(tmpCopy.getOutputWithAglyconeSetting());
+        //restoreDefaultSettings() resets the setting to its documented default
+        tmpFragmenter.restoreDefaultSettings();
+        Assertions.assertEquals(MolWURCSFragmenter.OUTPUT_WITH_AGLYCONE_SETTING_DEFAULT, tmpFragmenter.getOutputWithAglyconeSetting());
+    }
+
+    /**
+     * Drives {@link MolWURCSFragmenter#applyPreprocessing(org.openscience.cdk.interfaces.IAtomContainer)} on a
+     * fragmentable glycan molecule (asserting a non-null result) and runs {@code fragmentMolecule} with both values of the
+     * output-with-aglycone setting, asserting that any returned fragment carries the
+     * {@link IMoleculeFragmenter#FRAGMENT_CATEGORY_PROPERTY_KEY}-bearing structures without throwing. A
+     * {@code canBeFragmented} guard keeps the test robust against unfragmentable inputs.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    void applyPreprocessingTest() throws Exception {
+        SmilesParser tmpSmiPar = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        //CNP0080325_1 - a glycan that is fragmented by WURCS (reused from testWURCSCornerCases)
+        String tmpGlycanSmiles = "CCCCCC(CCCCCCCCCC(=O)O)O[C@H]1[C@@H]([C@H]([C@@H]([C@@H](C)O1)O)O)O[C@@H]2C[C@H](CO)[C@@H](C)[C@@H]([C@H]2O[C@H]3[C@@H]([C@@H]([C@H]([C@H](C)O3)O[C@H]4[C@@H]([C@H]([C@@H]([C@@H](C)O4)O)O)O)O)O)O";
+        MolWURCSFragmenter tmpFragmenter = new MolWURCSFragmenter();
+        IAtomContainer tmpMolecule = tmpSmiPar.parseSmiles(tmpGlycanSmiles);
+        Assertions.assertFalse(tmpFragmenter.shouldBePreprocessed(tmpMolecule));
+        //applyPreprocessing returns a non-null clone for a non-filterable molecule
+        IAtomContainer tmpPreprocessed = tmpFragmenter.applyPreprocessing(tmpMolecule);
+        Assertions.assertNotNull(tmpPreprocessed);
+        //fragment with both output-with-aglycone values, guarded by canBeFragmented
+        for (boolean tmpOutputWithAglycone : new boolean[] {false, true}) {
+            MolWURCSFragmenter tmpVariantFragmenter = new MolWURCSFragmenter();
+            tmpVariantFragmenter.setOutputWithAglyconeSetting(tmpOutputWithAglycone);
+            IAtomContainer tmpVariantMolecule = tmpSmiPar.parseSmiles(tmpGlycanSmiles);
+            if (!tmpVariantFragmenter.canBeFragmented(tmpVariantMolecule)) {
+                continue;
+            }
+            List<IAtomContainer> tmpFragments = Assertions.assertDoesNotThrow(
+                    () -> tmpVariantFragmenter.fragmentMolecule(tmpVariantMolecule));
+            Assertions.assertNotNull(tmpFragments);
+        }
+        //applyPreprocessing throws if the molecule should be filtered (empty molecule)
+        IAtomContainer tmpEmptyMolecule = SilentChemObjectBuilder.getInstance().newAtomContainer();
+        Assertions.assertTrue(tmpFragmenter.shouldBeFiltered(tmpEmptyMolecule));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> tmpFragmenter.applyPreprocessing(tmpEmptyMolecule));
+        //fragmentMolecule throws IllegalArgumentException for a molecule that should be filtered (cannot be fragmented)
+        IAtomContainer tmpEmptyMoleculeForFragment = SilentChemObjectBuilder.getInstance().newAtomContainer();
+        Assertions.assertFalse(tmpFragmenter.canBeFragmented(tmpEmptyMoleculeForFragment));
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> tmpFragmenter.fragmentMolecule(tmpEmptyMoleculeForFragment));
+        //fragmentMolecule throws NullPointerException for a null input molecule
+        Assertions.assertThrows(NullPointerException.class, () -> tmpFragmenter.fragmentMolecule(null));
+    }
+
+    /**
+     * Documents and asserts the WURCS-retranslation error path: for molecules whose generated WURCS string cannot be
+     * retranslated back into a molecule (the CoumerMycin / icas#9 cases noted in {@link #testWURCSCornerCases()} as
+     * causing kekulization errors), {@code fragmentMolecule} reports the failure by throwing once the molecule is
+     * deemed fragmentable. This exercises the WURCS parsing/conversion error-handling branches of
+     * {@link MolWURCSFragmenter#fragmentMolecule(org.openscience.cdk.interfaces.IAtomContainer)}.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    void fragmentMoleculeRetranslationErrorTest() throws Exception {
+        SmilesParser tmpSmiPar = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        //CNP0260701.1 - COUMERMYCIN SODIUM: generated WURCS cannot be retranslated (pyrrole/kekulization issue)
+        String tmpCoumerMycinSodium = "CO[C@@H]1[C@@H](OC(=O)C2=CC=C(C)N2)[C@@H](O)[C@@H](OC2=CC=C3C(O)=C(NC(=O)C4=CNC(C(=O)NC5=C(O)C6=CC=C(O[C@H]7OC(C)(C)[C@H](OC)[C@@H](OC(=O)C8=CC=C(C)N8)[C@H]7O)C(C)=C6OC5=O)=C4C)C(=O)OC3=C2C)OC1(C)C";
+        //CNP0170667.1 - icas#9: same kekulization-on-retranslation issue
+        String tmpIcas9 = "C[C@H](CCC(=O)O)O[C@@H]1O[C@@H](C)[C@H](OC(=O)C2=CNC3=CC=CC=C23)C[C@H]1O";
+        MolWURCSFragmenter tmpFragmenter = new MolWURCSFragmenter();
+        for (String tmpSmiles : new String[] {tmpCoumerMycinSodium, tmpIcas9}) {
+            IAtomContainer tmpMolecule = tmpSmiPar.parseSmiles(tmpSmiles);
+            //these molecules pass the filter (so the error surfaces during fragmentation, not before)
+            Assertions.assertTrue(tmpFragmenter.canBeFragmented(tmpMolecule));
+            //fragmentation surfaces the retranslation failure by throwing
+            Assertions.assertThrows(RuntimeException.class, () -> tmpFragmenter.fragmentMolecule(tmpMolecule));
+        }
     }
 }
