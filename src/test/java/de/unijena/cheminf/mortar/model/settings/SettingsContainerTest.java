@@ -26,6 +26,7 @@
 package de.unijena.cheminf.mortar.model.settings;
 
 import de.unijena.cheminf.mortar.configuration.Configuration;
+import de.unijena.cheminf.mortar.gui.util.GuiUtil;
 import de.unijena.cheminf.mortar.model.io.Exporter;
 import de.unijena.cheminf.mortar.model.util.FileUtil;
 
@@ -34,6 +35,8 @@ import javafx.beans.property.Property;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import java.lang.reflect.Field;
 import java.nio.file.Path;
@@ -233,6 +236,65 @@ public class SettingsContainerTest {
             System.setProperty("user.home", tmpOldHome);
             this.resetAppDirPathCache();
             LogManager.getLogManager().reset();
+        }
+    }
+
+    /**
+     * Tests that the recent-directory-path validator rejects null both through the public setter and through the
+     * underlying JavaFX property's set() override (Group E). This validator raises NO GUI alert (it is an internal
+     * setting), so no Mockito neutralization is required.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testIllegalRecentDirectoryPathThrows() throws Exception {
+        SettingsContainer tmpSettingsContainer = new SettingsContainer();
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> tmpSettingsContainer.setRecentDirectoryPathSetting(null));
+        //also drive the property override's illegal branch directly (no GUI alert on this internal setting)
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> tmpSettingsContainer.recentDirectoryPathSettingProperty().set(null));
+    }
+
+    /**
+     * Tests that an illegal rows-per-page value is rejected both by the public setter and by the JavaFX property's
+     * set() override (Group E). The property override routes through GuiUtil.guiExceptionAlert, so that static call is
+     * neutralized via Mockito.mockStatic for the headless run.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testIllegalRowsPerPageThrowsAndAlertNeutralized() throws Exception {
+        SettingsContainer tmpSettingsContainer = new SettingsContainer();
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> tmpSettingsContainer.setRowsPerPageSetting(0));
+        try (MockedStatic<GuiUtil> tmpGuiUtilMock = Mockito.mockStatic(GuiUtil.class)) {
+            tmpGuiUtilMock.when(() -> GuiUtil.guiExceptionAlert(
+                    Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.any()))
+                .thenAnswer(anInvocation -> null);
+            Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> tmpSettingsContainer.rowsPerPageSettingProperty().set(0));
+        }
+    }
+
+    /**
+     * Tests that an illegal number-of-tasks value is rejected both by the public setter and by the JavaFX property's
+     * set() override (Group E). The property override routes through GuiUtil.guiExceptionAlert, so that static call is
+     * neutralized via Mockito.mockStatic for the headless run.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testIllegalNumberOfTasksThrowsAndAlertNeutralized() throws Exception {
+        SettingsContainer tmpSettingsContainer = new SettingsContainer();
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> tmpSettingsContainer.setNumberOfTasksForFragmentationSetting(0));
+        try (MockedStatic<GuiUtil> tmpGuiUtilMock = Mockito.mockStatic(GuiUtil.class)) {
+            tmpGuiUtilMock.when(() -> GuiUtil.guiExceptionAlert(
+                    Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.any()))
+                .thenAnswer(anInvocation -> null);
+            Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> tmpSettingsContainer.numberOfTasksForFragmentationSettingProperty().set(0));
         }
     }
     //</editor-fold>
