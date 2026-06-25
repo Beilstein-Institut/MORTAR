@@ -31,6 +31,9 @@ import org.glycoinfo.MolWURCS.io.WURCSWriter;
 import org.glycoinfo.MolWURCS.util.analysis.MoleculeNormalizer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedConstruction;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.openscience.cdk.aromaticity.Kekulization;
 import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.interfaces.IAtomContainer;
@@ -38,7 +41,9 @@ import org.openscience.cdk.silent.SilentChemObjectBuilder;
 import org.openscience.cdk.smiles.SmiFlavor;
 import org.openscience.cdk.smiles.SmilesGenerator;
 import org.openscience.cdk.smiles.SmilesParser;
+import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 
+import java.io.IOException;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
@@ -323,6 +328,68 @@ public class MolWURCSFragmenterTest {
             Assertions.assertTrue(tmpFragmenter.canBeFragmented(tmpMolecule));
             //fragmentation surfaces the retranslation failure by throwing
             Assertions.assertThrows(RuntimeException.class, () -> tmpFragmenter.fragmentMolecule(tmpMolecule));
+        }
+    }
+
+    /**
+     * Drives the defensive CDK atom-type-perception error branch of
+     * {@link MolWURCSFragmenter#fragmentMolecule(org.openscience.cdk.interfaces.IAtomContainer)}: the static
+     * {@code AtomContainerManipulator.percieveAtomTypesAndConfigureAtoms} call (which the fragmenter wraps in a
+     * {@link CDKException} catch) is stubbed via {@link MockedStatic} to throw a {@link CDKException}, so the catch body
+     * runs and re-throws an {@link IllegalArgumentException}. This branch cannot be reached with a valid input molecule
+     * (CDK never fails atom-type perception for the fragmentable glycans used elsewhere), so a targeted static mock is
+     * used (Mockito is authorized for this package to close the remaining defensive-branch coverage gap). The mock is
+     * scoped to the try-with-resources so no other test is affected.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    void fragmentMoleculePerceptionErrorTest() throws Exception {
+        SmilesParser tmpSmiPar = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        //a glycan that is normally fragmented by WURCS (reused from testWURCSCornerCases)
+        String tmpGlycanSmiles = "CCCCCC(CCCCCCCCCC(=O)O)O[C@H]1[C@@H]([C@H]([C@@H]([C@@H](C)O1)O)O)O[C@@H]2C[C@H](CO)[C@@H](C)[C@@H]([C@H]2O[C@H]3[C@@H]([C@@H]([C@H]([C@H](C)O3)O[C@H]4[C@@H]([C@H]([C@@H]([C@@H](C)O4)O)O)O)O)O)O";
+        MolWURCSFragmenter tmpFragmenter = new MolWURCSFragmenter();
+        IAtomContainer tmpMolecule = tmpSmiPar.parseSmiles(tmpGlycanSmiles);
+        Assertions.assertTrue(tmpFragmenter.canBeFragmented(tmpMolecule));
+        try (MockedStatic<AtomContainerManipulator> tmpManipulatorMock =
+                     Mockito.mockStatic(AtomContainerManipulator.class, Mockito.CALLS_REAL_METHODS)) {
+            tmpManipulatorMock.when(() -> AtomContainerManipulator.percieveAtomTypesAndConfigureAtoms(Mockito.any()))
+                    .thenThrow(new CDKException("Atom-type perception forced to fail for the defensive-branch test."));
+            //the CDKException catch re-throws an IllegalArgumentException
+            IllegalArgumentException tmpThrown = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> tmpFragmenter.fragmentMolecule(tmpMolecule));
+            Assertions.assertInstanceOf(CDKException.class, tmpThrown.getCause());
+        }
+    }
+
+    /**
+     * Drives the defensive {@code WURCSWriter.close()} {@link IOException} branch of
+     * {@link MolWURCSFragmenter#fragmentMolecule(org.openscience.cdk.interfaces.IAtomContainer)}: the
+     * {@link WURCSWriter} construction is intercepted via {@link MockedConstruction} so that {@code close()} throws an
+     * {@link IOException}, exercising the warning-only catch body around the writer close. Because the mocked writer's
+     * {@code writeAtomContainer} is a no-op, the backing {@code StringWriter} stays empty and the fragmenter returns an
+     * empty fragment list (the blank-WURCS early return), so the test asserts no throw and an empty result. This IO
+     * failure cannot be produced with a real writer, so a targeted construction mock is used (Mockito is authorized for
+     * this package). The mock is scoped to the try-with-resources so no other test is affected.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    void fragmentMoleculeWriterCloseIOExceptionTest() throws Exception {
+        SmilesParser tmpSmiPar = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        String tmpGlycanSmiles = "CCCCCC(CCCCCCCCCC(=O)O)O[C@H]1[C@@H]([C@H]([C@@H]([C@@H](C)O1)O)O)O[C@@H]2C[C@H](CO)[C@@H](C)[C@@H]([C@H]2O[C@H]3[C@@H]([C@@H]([C@H]([C@H](C)O3)O[C@H]4[C@@H]([C@H]([C@@H]([C@@H](C)O4)O)O)O)O)O)O";
+        MolWURCSFragmenter tmpFragmenter = new MolWURCSFragmenter();
+        IAtomContainer tmpMolecule = tmpSmiPar.parseSmiles(tmpGlycanSmiles);
+        Assertions.assertTrue(tmpFragmenter.canBeFragmented(tmpMolecule));
+        try (MockedConstruction<WURCSWriter> tmpWriterMock = Mockito.mockConstruction(WURCSWriter.class,
+                (aMock, aContext) -> Mockito.doThrow(new IOException("Writer close forced to fail for the defensive-branch test."))
+                        .when(aMock).close())) {
+            //writeAtomContainer is a no-op mock, so the backing StringWriter stays empty; close() throws and is caught,
+            //then the blank-WURCS early return yields an empty fragment list
+            List<IAtomContainer> tmpFragments = Assertions.assertDoesNotThrow(() -> tmpFragmenter.fragmentMolecule(tmpMolecule));
+            Assertions.assertNotNull(tmpFragments);
+            Assertions.assertTrue(tmpFragments.isEmpty());
+            Assertions.assertEquals(1, tmpWriterMock.constructed().size());
         }
     }
 }
