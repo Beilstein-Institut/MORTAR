@@ -25,6 +25,8 @@
 
 package de.unijena.cheminf.mortar.model.data;
 
+import javafx.scene.image.ImageView;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.openscience.cdk.interfaces.IAtomContainer;
@@ -184,6 +186,103 @@ public class FragmentDataModelTest {
     }
     //</editor-fold>
     //
+    //<editor-fold desc="Parent-molecule tracking test methods" defaultstate="collapsed">
+    /**
+     * Tests the empty-parent-Set state of a freshly built fragment: {@code getFirstParentMolecule()} is null,
+     * {@code getParentMoleculeName()} is the empty string, and {@code getParentMoleculeStructure()} returns the
+     * non-null "No parent molecules" error {@code ImageView} (headless-safe). Uses a fresh fragment so no cached
+     * first-parent leaks in from another state.
+     *
+     * @throws Exception if SMILES parsing fails
+     */
+    @Test
+    public void testParentTrackingEmptySetState() throws Exception {
+        FragmentDataModel tmpFragment = FragmentDataModelTest.buildFragment("c1ccccc1");
+        Assertions.assertNull(tmpFragment.getFirstParentMolecule());
+        Assertions.assertEquals("", tmpFragment.getParentMoleculeName());
+        ImageView tmpStructure = tmpFragment.getParentMoleculeStructure();
+        Assertions.assertNotNull(tmpStructure);
+    }
+    //
+    /**
+     * Tests the Set-populated state: a parent added through the live mutable Set returned by
+     * {@code getParentMolecules()} is the molecule reported by {@code getFirstParentMolecule()} (the lazy first-parent
+     * cache resolves to it), and {@code getParentMoleculeName()} equals the parent's name. Uses a fresh fragment so the
+     * lazy cache starts empty.
+     *
+     * @throws Exception if SMILES parsing fails
+     */
+    @Test
+    public void testParentTrackingSetPopulatedViaGetter() throws Exception {
+        FragmentDataModel tmpFragment = FragmentDataModelTest.buildFragment("c1ccccc1");
+        MoleculeDataModel tmpParent = FragmentDataModelTest.buildParent("CCO", "Ethanol");
+        tmpFragment.getParentMolecules().add(tmpParent);
+        Assertions.assertSame(tmpParent, tmpFragment.getFirstParentMolecule());
+        Assertions.assertEquals(tmpParent.getName(), tmpFragment.getParentMoleculeName());
+    }
+    //
+    /**
+     * Tests that {@code setParentMolecule(...)} registers a parent that is then used by
+     * {@code getFirstParentMolecule()}. Note that the explicit setter populates the cached first-parent field but not
+     * the parent Set, so {@code getFirstParentMolecule()} (whose empty-Set guard short-circuits to null) is only
+     * reached here because the parent Set is also populated via the live getter; a fresh fragment is used.
+     *
+     * @throws Exception if SMILES parsing fails
+     */
+    @Test
+    public void testSetParentMoleculeUsedByFirstParent() throws Exception {
+        FragmentDataModel tmpFragment = FragmentDataModelTest.buildFragment("c1ccccc1");
+        MoleculeDataModel tmpParent = FragmentDataModelTest.buildParent("CCO", "Ethanol");
+        tmpFragment.getParentMolecules().add(tmpParent);
+        tmpFragment.setParentMolecule(tmpParent);
+        Assertions.assertSame(tmpParent, tmpFragment.getFirstParentMolecule());
+    }
+    //
+    /**
+     * Tests that {@code setParentMolecule(null)} throws a {@code NullPointerException} (the
+     * {@code Objects.requireNonNull} null-guard).
+     *
+     * @throws Exception if SMILES parsing fails
+     */
+    @Test
+    public void testSetParentMoleculeRejectsNull() throws Exception {
+        FragmentDataModel tmpFragment = FragmentDataModelTest.buildFragment("c1ccccc1");
+        Assertions.assertThrows(NullPointerException.class, () -> tmpFragment.setParentMolecule(null));
+    }
+    //
+    /**
+     * Tests the valid-parent branch of {@code getParentMoleculeStructure()}: with a parent built from a valid SMILES
+     * registered, the accessor returns a non-null {@code ImageView} (the depicted-structure branch), verified headless.
+     * No golden-pixel assertions are made. Uses a fresh fragment.
+     *
+     * @throws Exception if SMILES parsing fails
+     */
+    @Test
+    public void testGetParentMoleculeStructureValidParentBranch() throws Exception {
+        FragmentDataModel tmpFragment = FragmentDataModelTest.buildFragment("c1ccccc1");
+        MoleculeDataModel tmpParent = FragmentDataModelTest.buildParent("CCO", "Ethanol");
+        tmpFragment.getParentMolecules().add(tmpParent);
+        ImageView tmpStructure = tmpFragment.getParentMoleculeStructure();
+        Assertions.assertNotNull(tmpStructure);
+    }
+    //
+    /**
+     * Tests the bad-parent branch of {@code getParentMoleculeStructure()}: with a parent built from an unparseable
+     * SMILES registered, the atom-container retrieval fails and the accessor still returns a non-null error-image
+     * {@code ImageView} (the catch branch), verified headless. Uses a fresh fragment.
+     *
+     * @throws Exception if SMILES parsing fails
+     */
+    @Test
+    public void testGetParentMoleculeStructureBadParentBranch() throws Exception {
+        FragmentDataModel tmpFragment = FragmentDataModelTest.buildFragment("c1ccccc1");
+        MoleculeDataModel tmpBadParent = new MoleculeDataModel("not_a_valid_smiles", "Invalid", new HashMap<>());
+        tmpFragment.getParentMolecules().add(tmpBadParent);
+        ImageView tmpStructure = tmpFragment.getParentMoleculeStructure();
+        Assertions.assertNotNull(tmpStructure);
+    }
+    //</editor-fold>
+    //
     //<editor-fold desc="Private methods" defaultstate="collapsed">
     /**
      * Parses the given SMILES into a real CDK atom container using a silent builder and wraps it in a
@@ -197,6 +296,18 @@ public class FragmentDataModelTest {
         SmilesParser tmpParser = new SmilesParser(SilentChemObjectBuilder.getInstance());
         IAtomContainer tmpAtomContainer = tmpParser.parseSmiles(aSmiles);
         return new FragmentDataModel(tmpAtomContainer, false);
+    }
+    //
+    /**
+     * Builds a parent {@link MoleculeDataModel} from the given valid SMILES via the string constructor so the parent
+     * carries a deterministic, explicitly supplied name (used to assert {@code getParentMoleculeName()}).
+     *
+     * @param aSmiles unique SMILES string of the parent molecule
+     * @param aName name of the parent molecule
+     * @return a parent molecule data model
+     */
+    private static MoleculeDataModel buildParent(String aSmiles, String aName) {
+        return new MoleculeDataModel(aSmiles, aName, new HashMap<>());
     }
     //</editor-fold>
 }
