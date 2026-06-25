@@ -149,6 +149,64 @@ public class DepictionUtilTest {
     }
     //</editor-fold>
     //
+    //<editor-fold desc="White-background, null-input catch, and error-image branch test methods" defaultstate="collapsed">
+    /**
+     * Tests that {@code depictImageWithZoomAndFillToFitAndWhiteBackground(...)} with
+     * {@code isBackgroundWhite=true} returns a non-null Image for a valid container, exercising the
+     * white-background branch and the otherwise-uncalled success body. Verified headless.
+     *
+     * @throws Exception if SMILES parsing fails
+     */
+    @Test
+    public void testDepictImageWithZoomAndFillToFitAndWhiteBackgroundValidContainerReturnsNonNullImage() throws Exception {
+        IAtomContainer tmpAtomContainer = DepictionUtilTest.buildAtomContainer("c1ccccc1");
+        Image tmpImage = DepictionUtil.depictImageWithZoomAndFillToFitAndWhiteBackground(tmpAtomContainer, 1.0, 250.0, 250.0, false, true);
+        Assertions.assertNotNull(tmpImage);
+    }
+    //
+    /**
+     * Tests that {@code depictImageWithZoomAndFillToFit(...)} routes a null container through the
+     * {@code catch (CDKException | NullPointerException)} branch to {@code depictErrorImage(...)} and still
+     * returns a non-null Image.
+     */
+    @Test
+    public void testDepictImageWithZoomAndFillToFitNullContainerReturnsErrorImage() {
+        Image tmpImage = DepictionUtil.depictImageWithZoomAndFillToFit(null, 1.0, 250.0, 250.0, false);
+        Assertions.assertNotNull(tmpImage);
+    }
+    //
+    /**
+     * Tests that {@code depictImageWithZoomAndFillToFitAndWhiteBackground(...)} routes a null container through
+     * its {@code catch (CDKException | NullPointerException)} branch to {@code depictErrorImage(...)} and still
+     * returns a non-null Image.
+     */
+    @Test
+    public void testDepictImageWithZoomAndFillToFitAndWhiteBackgroundNullContainerReturnsErrorImage() {
+        Image tmpImage = DepictionUtil.depictImageWithZoomAndFillToFitAndWhiteBackground(null, 1.0, 250.0, 250.0, false, false);
+        Assertions.assertNotNull(tmpImage);
+    }
+    //
+    /**
+     * Tests that {@code depictErrorImage(...)} with a null message returns a non-null Image, exercising the
+     * {@code Objects.requireNonNullElse(aMessage, "Error")} default-message branch.
+     */
+    @Test
+    public void testDepictErrorImageNullMessageReturnsNonNullImage() {
+        Image tmpImage = DepictionUtil.depictErrorImage(null, 250, 250);
+        Assertions.assertNotNull(tmpImage);
+    }
+    //
+    /**
+     * Tests that {@code depictErrorImage(...)} with an explicit message returns a non-null Image, exercising the
+     * non-null message path.
+     */
+    @Test
+    public void testDepictErrorImageWithMessageReturnsNonNullImage() {
+        Image tmpImage = DepictionUtil.depictErrorImage("explicit error", 250, 250);
+        Assertions.assertNotNull(tmpImage);
+    }
+    //</editor-fold>
+    //
     //<editor-fold desc="Reflective constructor test method" defaultstate="collapsed">
     /**
      * Exercises the private no-argument constructor of the utility class DepictionUtil via reflection to
