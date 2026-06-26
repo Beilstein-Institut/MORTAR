@@ -33,9 +33,12 @@ import de.unijena.cheminf.mortar.model.util.FileUtil;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.awt.Color;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 
@@ -138,5 +141,105 @@ public class PreferenceContainerTest {
         Assertions.assertDoesNotThrow(tmpNewContainer::writeRepresentation);
         final PreferenceContainer tmpNewNewContainer = PreferenceUtil.translateJavaFxPropertiesToPreferences(new SettingsContainer().settingsProperties(), tmpDir + "SettingContainer.txt");
         Assertions.assertDoesNotThrow(tmpNewNewContainer::writeRepresentation);
+    }
+    //
+    /**
+     * Tests a @TempDir-isolated .gzip write-&gt;reload round-trip of a container holding one of each typed preference,
+     * asserting structural identity (preferences array, GUID, time stamp, equals) across the round-trip rather than
+     * byte-for-byte file content (the gzip stream is non-deterministic at the byte level).
+     *
+     * @param aTempDir JUnit-managed temporary directory
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testContainerGzipRoundTrip(@TempDir Path aTempDir) throws Exception {
+        String tmpFilePathname = aTempDir.resolve("PreferenceContainerTest.gzip").toString();
+        PreferenceContainer tmpContainer = new PreferenceContainer(tmpFilePathname);
+        tmpContainer.add(new BooleanPreference("MORTAR is cool", true));
+        tmpContainer.add(new SingleIntegerPreference("Number one", 1));
+        tmpContainer.add(new SingleNumberPreference("Layout parameter xy", 2.0));
+        tmpContainer.add(new SingleTermPreference("Welcoming message", "Welcome to MORTAR"));
+        tmpContainer.add(new RGBColorPreference("My favorite color", 1.0, 0.0, 0.5, 1.0));
+        tmpContainer.writeRepresentation();
+        PreferenceContainer tmpReloadedContainer = new PreferenceContainer(new File(tmpFilePathname));
+        Assertions.assertArrayEquals(tmpContainer.getPreferences(), tmpReloadedContainer.getPreferences());
+        Assertions.assertEquals(tmpContainer.getGUID(), tmpReloadedContainer.getGUID());
+        Assertions.assertEquals(tmpContainer.getTimeStamp(), tmpReloadedContainer.getTimeStamp());
+        Assertions.assertEquals(tmpContainer, tmpReloadedContainer);
+    }
+    //
+    /**
+     * Tests a @TempDir-isolated .txt write-&gt;reload round-trip (the second extension branch of the
+     * compressed-writer / decompressed-reader dispatch), asserting structural identity across the round-trip.
+     *
+     * @param aTempDir JUnit-managed temporary directory
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testContainerTxtRoundTrip(@TempDir Path aTempDir) throws Exception {
+        String tmpFilePathname = aTempDir.resolve("PreferenceContainerTest.txt").toString();
+        PreferenceContainer tmpContainer = new PreferenceContainer(tmpFilePathname);
+        tmpContainer.add(new BooleanPreference("MORTAR is cool", true));
+        tmpContainer.add(new SingleIntegerPreference("Number one", 1));
+        tmpContainer.add(new SingleNumberPreference("Layout parameter xy", 2.0));
+        tmpContainer.add(new SingleTermPreference("Welcoming message", "Welcome to MORTAR"));
+        tmpContainer.add(new RGBColorPreference("My favorite color", 1.0, 0.0, 0.5, 1.0));
+        tmpContainer.writeRepresentation();
+        PreferenceContainer tmpReloadedContainer = new PreferenceContainer(new File(tmpFilePathname));
+        Assertions.assertArrayEquals(tmpContainer.getPreferences(), tmpReloadedContainer.getPreferences());
+        Assertions.assertEquals(tmpContainer.getGUID(), tmpReloadedContainer.getGUID());
+        Assertions.assertEquals(tmpContainer.getTimeStamp(), tmpReloadedContainer.getTimeStamp());
+        Assertions.assertEquals(tmpContainer, tmpReloadedContainer);
+    }
+    //
+    /**
+     * Tests that a @TempDir-isolated write-&gt;reload round-trip of an empty container (no preferences added) yields an
+     * empty reloaded container. This exercises the early Container_End write branch and the immediate Container_End
+     * read branch.
+     *
+     * @param aTempDir JUnit-managed temporary directory
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testEmptyContainerRoundTrip(@TempDir Path aTempDir) throws Exception {
+        String tmpFilePathname = aTempDir.resolve("EmptyPreferenceContainerTest.gzip").toString();
+        PreferenceContainer tmpContainer = new PreferenceContainer(tmpFilePathname);
+        Assertions.assertTrue(tmpContainer.isEmpty());
+        tmpContainer.writeRepresentation();
+        PreferenceContainer tmpReloadedContainer = new PreferenceContainer(new File(tmpFilePathname));
+        Assertions.assertTrue(tmpReloadedContainer.isEmpty());
+        Assertions.assertEquals(0, tmpReloadedContainer.getSize());
+        Assertions.assertEquals(tmpContainer.getGUID(), tmpReloadedContainer.getGUID());
+    }
+    //
+    /**
+     * Tests the static isValidContainerFilePathname method: false for a null pathname, an empty pathname, a bad
+     * extension (.csv) and a directory; true for a valid .gzip pathname under the temporary directory.
+     *
+     * @param aTempDir JUnit-managed temporary directory
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testIsValidContainerFilePathname(@TempDir Path aTempDir) throws Exception {
+        Assertions.assertFalse(PreferenceContainer.isValidContainerFilePathname(null));
+        Assertions.assertFalse(PreferenceContainer.isValidContainerFilePathname(""));
+        Assertions.assertFalse(PreferenceContainer.isValidContainerFilePathname(aTempDir.resolve("x.csv").toString()));
+        Assertions.assertFalse(PreferenceContainer.isValidContainerFilePathname(aTempDir.toString()));
+        Assertions.assertTrue(PreferenceContainer.isValidContainerFilePathname(aTempDir.resolve("ok.gzip").toString()));
+    }
+    //
+    /**
+     * Tests that constructing a PreferenceContainer from a corrupt .gzip file (garbage bytes that are no valid GZIP
+     * header) throws an IOException. The read-error catch branch is reached with a real malformed temporary file and
+     * no mock.
+     *
+     * @param aTempDir JUnit-managed temporary directory
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testReloadFromCorruptGzipThrows(@TempDir Path aTempDir) throws Exception {
+        File tmpBadFile = aTempDir.resolve("corrupt.gzip").toFile();
+        Files.write(tmpBadFile.toPath(), new byte[]{0, 1, 2, 3, 4, 5});
+        Assertions.assertThrows(java.io.IOException.class, () -> new PreferenceContainer(tmpBadFile));
     }
 }
