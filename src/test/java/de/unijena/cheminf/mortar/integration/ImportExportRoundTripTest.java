@@ -25,6 +25,8 @@
 
 package de.unijena.cheminf.mortar.integration;
 
+import de.unijena.cheminf.mortar.controller.TabNames;
+import de.unijena.cheminf.mortar.model.data.FragmentDataModel;
 import de.unijena.cheminf.mortar.model.data.MoleculeDataModel;
 import de.unijena.cheminf.mortar.model.io.ChemFileTypes;
 import de.unijena.cheminf.mortar.model.io.Exporter;
@@ -34,12 +36,16 @@ import de.unijena.cheminf.mortar.model.settings.SettingsContainer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.openscience.cdk.interfaces.IAtomContainer;
+import org.openscience.cdk.silent.SilentChemObjectBuilder;
+import org.openscience.cdk.smiles.SmilesParser;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -155,6 +161,50 @@ public class ImportExportRoundTripTest {
             tmpSetB.add(tmpModel.getUniqueSmiles());
         }
         Assertions.assertEquals(tmpSetA, tmpSetB);
+    }
+    //
+    /**
+     * CSV export smoke leg: builds a list of real {@link FragmentDataModel} instances (mirroring the
+     * {@code ExporterTest.buildFragmentList()} idiom), exports them to a {@code @TempDir} CSV via
+     * {@link Exporter#exportCsvFile(File, List, String, char, TabNames)} on the FRAGMENTS tab, and asserts the returned
+     * failed-list is empty, the file exists and is non-empty, and the file content contains at least one of the fragments'
+     * unique SMILES. Real {@code FragmentDataModel} instances are required because the FRAGMENTS branch casts every
+     * element to {@code FragmentDataModel} (a plain imported {@code MoleculeDataModel} would land in the failed-list and
+     * write no data rows). There is no CSV importer in MORTAR, so this is an export-succeeds + content smoke check only,
+     * not a structural re-import; the round-trip identity is covered by the SD/MOL and SMILES legs.
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void exportCsvFragmentsTabWritesFragmentUniqueSmiles(@TempDir Path aTempDir) throws Exception {
+        SmilesParser tmpParser = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        List<MoleculeDataModel> tmpFragmentList = new ArrayList<>();
+        String[] tmpSmilesCodes = {"c1ccccc1", "CCO", "O=CO"};
+        for (String tmpSmilesCode : tmpSmilesCodes) {
+            IAtomContainer tmpAtomContainer = tmpParser.parseSmiles(tmpSmilesCode);
+            FragmentDataModel tmpFragment = new FragmentDataModel(tmpAtomContainer, false);
+            tmpFragment.setAbsoluteFrequency(3);
+            tmpFragment.setAbsolutePercentage(0.25);
+            tmpFragment.setMoleculeFrequency(2);
+            tmpFragment.setMoleculePercentage(0.20);
+            tmpFragmentList.add(tmpFragment);
+        }
+        File tmpOut = aTempDir.resolve("out.csv").toFile();
+        List<String> tmpFailed = this.exporter.exportCsvFile(tmpOut, tmpFragmentList, "INT03", ',', TabNames.FRAGMENTS);
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.isEmpty());
+        Assertions.assertTrue(tmpOut.exists());
+        Assertions.assertTrue(tmpOut.length() > 0);
+        String tmpContent = Files.readString(tmpOut.toPath());
+        boolean tmpContainsExpectedFragment = false;
+        for (MoleculeDataModel tmpFragment : tmpFragmentList) {
+            if (tmpContent.contains(tmpFragment.getUniqueSmiles())) {
+                tmpContainsExpectedFragment = true;
+                break;
+            }
+        }
+        Assertions.assertTrue(tmpContainsExpectedFragment);
     }
     //</editor-fold>
 }
