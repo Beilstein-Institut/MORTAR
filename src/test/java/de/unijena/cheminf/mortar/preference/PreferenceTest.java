@@ -122,6 +122,105 @@ public class PreferenceTest {
     }
     //
     /**
+     * Tests the String-arg constructor, setContent overloads, static isValidContent, copy(), and the invalid-name /
+     * invalid-content guards of class SingleIntegerPreference with real valid and invalid input.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testSingleIntegerPreferenceValidationAndCopy() throws Exception {
+        SingleIntegerPreference tmpPref = new SingleIntegerPreference("Count", "42");
+        Assertions.assertEquals(42, tmpPref.getContent());
+        tmpPref.setContent(7);
+        Assertions.assertEquals(7, tmpPref.getContent());
+        tmpPref.setContent("13");
+        Assertions.assertEquals(13, tmpPref.getContent());
+        Assertions.assertTrue(SingleIntegerPreference.isValidContent("13"));
+        Assertions.assertFalse(SingleIntegerPreference.isValidContent("not-a-number"));
+        Assertions.assertFalse(SingleIntegerPreference.isValidContent(""));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> new SingleIntegerPreference("Count", "xyz"));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> new SingleIntegerPreference("lowercase-invalid-name", 1));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> tmpPref.setContent("oops"));
+        SingleIntegerPreference tmpCopy = tmpPref.copy();
+        Assertions.assertEquals(tmpPref, tmpCopy);
+        Assertions.assertEquals(tmpPref.getGUID(), tmpCopy.getGUID());
+        Assertions.assertNotSame(tmpPref, tmpCopy);
+    }
+    //
+    /**
+     * Tests the String-arg constructor, setContent overloads, static isValidContent overloads, copy(), and the
+     * invalid-name / NaN / Infinity guards of class SingleNumberPreference using clean doubles.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testSingleNumberPreferenceValidationAndCopy() throws Exception {
+        SingleNumberPreference tmpPref = new SingleNumberPreference("Layout parameter", "0.5");
+        Assertions.assertEquals(0.5, tmpPref.getContent(), 0.0);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> new SingleNumberPreference("Layout parameter", "NaN"));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> new SingleNumberPreference("lowercase-invalid-name", 1.0));
+        tmpPref.setContent(2.0);
+        Assertions.assertEquals(2.0, tmpPref.getContent(), 0.0);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> tmpPref.setContent(Double.POSITIVE_INFINITY));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> tmpPref.setContent(Double.NaN));
+        tmpPref.setContent("1.0");
+        Assertions.assertEquals(1.0, tmpPref.getContent(), 0.0);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> tmpPref.setContent("NaN"));
+        Assertions.assertTrue(SingleNumberPreference.isValidContent(2.0));
+        Assertions.assertFalse(SingleNumberPreference.isValidContent(Double.POSITIVE_INFINITY));
+        Assertions.assertFalse(SingleNumberPreference.isValidContent(Double.NaN));
+        Assertions.assertTrue(SingleNumberPreference.isValidContent("2.0"));
+        Assertions.assertFalse(SingleNumberPreference.isValidContent(null));
+        Assertions.assertFalse(SingleNumberPreference.isValidContent(" "));
+        Assertions.assertFalse(SingleNumberPreference.isValidContent("NaN"));
+        Assertions.assertFalse(SingleNumberPreference.isValidContent("Infinity"));
+        SingleNumberPreference tmpCopy = tmpPref.copy();
+        Assertions.assertEquals(tmpPref, tmpCopy);
+        Assertions.assertEquals(tmpPref.getGUID(), tmpCopy.getGUID());
+        Assertions.assertNotSame(tmpPref, tmpCopy);
+    }
+    //
+    /**
+     * Tests setContent, static isValidContent, copy(), and the invalid-content constructor guard of class
+     * SingleTermPreference with real valid and pattern-failing input.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testSingleTermPreferenceValidationAndCopy() throws Exception {
+        SingleTermPreference tmpPref = new SingleTermPreference("Welcoming message", "Welcome to MORTAR");
+        tmpPref.setContent("Hello world");
+        Assertions.assertEquals("Hello world", tmpPref.getContent());
+        Assertions.assertThrows(IllegalArgumentException.class, () -> tmpPref.setContent("invalid#term"));
+        Assertions.assertTrue(SingleTermPreference.isValidContent("A valid term"));
+        Assertions.assertFalse(SingleTermPreference.isValidContent(null));
+        Assertions.assertFalse(SingleTermPreference.isValidContent("invalid#term"));
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new SingleTermPreference("Bad content", "invalid#term"));
+        SingleTermPreference tmpCopy = tmpPref.copy();
+        Assertions.assertEquals(tmpPref, tmpCopy);
+        Assertions.assertEquals(tmpPref.getGUID(), tmpCopy.getGUID());
+        Assertions.assertNotSame(tmpPref, tmpCopy);
+    }
+    //
+    /**
+     * Tests setContent, copy(), and the invalid-name constructor guard of class BooleanPreference.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testBooleanPreferenceValidationAndCopy() throws Exception {
+        BooleanPreference tmpPref = new BooleanPreference("MORTAR is cool", false);
+        tmpPref.setContent(true);
+        Assertions.assertTrue(tmpPref.getContent());
+        Assertions.assertThrows(IllegalArgumentException.class, () -> new BooleanPreference("lowercase-invalid-name", true));
+        BooleanPreference tmpCopy = tmpPref.copy();
+        Assertions.assertEquals(tmpPref, tmpCopy);
+        Assertions.assertEquals(tmpPref.getGUID(), tmpCopy.getGUID());
+        Assertions.assertNotSame(tmpPref, tmpCopy);
+    }
+    //
+    /**
      * Tests basic functionalities of given preference object, like management of public properties and persistence.
      */
     private void testPreferenceBasics(IPreference aPreference) throws Exception {
