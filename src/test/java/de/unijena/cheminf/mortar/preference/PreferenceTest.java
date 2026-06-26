@@ -36,6 +36,8 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.PrintWriter;
+import java.io.StringReader;
+import java.lang.reflect.Constructor;
 import java.util.Locale;
 
 /**
@@ -218,6 +220,45 @@ public class PreferenceTest {
         Assertions.assertEquals(tmpPref, tmpCopy);
         Assertions.assertEquals(tmpPref.getGUID(), tmpCopy.getGUID());
         Assertions.assertNotSame(tmpPref, tmpCopy);
+    }
+    //
+    /**
+     * Tests the BasePreference equals (self / null / different-class / equal), compareTo (real compare + null
+     * NullPointerException), and isValidName(null) branches through a concrete subclass.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testBasePreferenceEqualsCompareToAndIsValidName() throws Exception {
+        BooleanPreference tmpPref = new BooleanPreference("Base preference setting", true);
+        Assertions.assertEquals(tmpPref, tmpPref);
+        Assertions.assertNotEquals(tmpPref, null);
+        Assertions.assertNotEquals(tmpPref, "a non-preference object");
+        BooleanPreference tmpEqual = tmpPref.copy();
+        Assertions.assertEquals(tmpPref, tmpEqual);
+        Assertions.assertEquals(0, tmpPref.compareTo(tmpEqual));
+        BooleanPreference tmpOther = new BooleanPreference("Another setting", false);
+        Assertions.assertNotEquals(0, tmpPref.compareTo(tmpOther));
+        Assertions.assertThrows(NullPointerException.class, () -> tmpPref.compareTo(null));
+        Assertions.assertFalse(BasePreference.isValidName(null));
+        Assertions.assertTrue(BasePreference.isValidName("Valid name"));
+    }
+    //
+    /**
+     * Tests the PreferenceFactory unknown-type-name IllegalArgumentException branch and its reflectively-invoked private
+     * parameter-less constructor.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testPreferenceFactoryUnknownTypeAndPrivateConstructor() throws Exception {
+        BufferedReader tmpReader = new BufferedReader(new StringReader("irrelevant"));
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> PreferenceFactory.reinitializePreference("NOT_A_PREFERENCE_TYPE", tmpReader));
+        tmpReader.close();
+        Constructor<PreferenceFactory> tmpCtor = PreferenceFactory.class.getDeclaredConstructor();
+        tmpCtor.setAccessible(true);
+        Assertions.assertNotNull(tmpCtor.newInstance());
     }
     //
     /**
