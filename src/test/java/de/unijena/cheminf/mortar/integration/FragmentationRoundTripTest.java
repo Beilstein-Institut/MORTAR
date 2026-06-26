@@ -36,10 +36,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.openscience.cdk.interfaces.IAtomContainer;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 /**
  * Integration test for requirement INT-01: an end-to-end parse -&gt; fragment -&gt; unique-SMILES round-trip for each of the
@@ -125,15 +123,23 @@ public class FragmentationRoundTripTest {
      * Drives the {@link ScaffoldGeneratorFragmenter} over two fused-ring scaffolds and asserts the per-fragment
      * round-trip invariant chain for each. The molecules are parsed with kekulization enabled because the scaffold
      * generator requires explicit (kekulized) bond orders on aromatic ring systems and rejects un-kekulized aromatic
-     * input with an {@link IllegalArgumentException}. Both molecules were verified at authoring time to yield a
-     * non-empty fragment set under default settings.
+     * input with an {@link IllegalArgumentException}. The first molecule is the verified substituted-tetralin fused
+     * bicyclic carrying side chains; the second is the verified COCONUT triterpenoid CNP0219624.2, a strongly fused
+     * tetracyclic scaffold chosen deliberately over the phenanthrenol that {@code FragmentationServiceTest}'s
+     * zero-frequency test uses to demonstrate an empty pipeline result, so this test does not rest on a molecule whose
+     * non-emptiness is a known drift risk. Non-emptiness is additionally asserted explicitly per molecule with a clear
+     * message, so a future cdk-scaffold drift that flips either molecule to zero fragments fails loudly and diagnosably
+     * rather than silently weakening the round-trip coverage.
      *
      * @throws Exception if anything goes wrong
      */
     @Test
     public void scaffoldGeneratorRoundTripTest() throws Exception {
         ScaffoldGeneratorFragmenter tmpFragmenter = new ScaffoldGeneratorFragmenter();
-        String[] tmpSmilesArray = {"CCc1ccc2c(c1)CCCC2C(=O)O", "c1ccc2c(c1)ccc3c2cccc3O"};
+        String[] tmpSmilesArray = {
+                "CCc1ccc2c(c1)CCCC2C(=O)O",
+                "C/C(=C\\C[C@@H]([C@@H](C)[C@H]1CC[C@@]2(C)C3=CC[C@H]4C(C)(C)[C@@H](CC[C@]4(C)C3=CC[C@]12C)O)OC(=O)C)"
+                        + "/C(=O)O"};
         for (String tmpSmiles : tmpSmilesArray) {
             //kekulize=true: the scaffold generator rejects un-kekulized aromatic systems with IllegalArgumentException
             IAtomContainer tmpMolecule = ChemUtil.parseSmilesToAtomContainer(tmpSmiles, true, false);
@@ -141,7 +147,11 @@ public class FragmentationRoundTripTest {
             Assertions.assertFalse(tmpFragmenter.shouldBePreprocessed(tmpMolecule));
             Assertions.assertTrue(tmpFragmenter.canBeFragmented(tmpMolecule));
             List<IAtomContainer> tmpFragments = tmpFragmenter.fragmentMolecule(tmpMolecule);
-            Assertions.assertFalse(tmpFragments.isEmpty());
+            //explicit, clearly messaged non-emptiness guard: ScaffoldGenerator can legitimately return zero fragments
+            //for unsuitable input, so a future cdk-scaffold drift must fail here loudly rather than silently
+            Assertions.assertFalse(tmpFragments.isEmpty(),
+                    "ScaffoldGenerator yielded zero fragments for a molecule expected to fragment non-trivially: "
+                            + tmpSmiles);
             this.assertFragmentsRoundTrip(tmpFragments, true);
         }
     }
@@ -193,7 +203,6 @@ public class FragmentationRoundTripTest {
      */
     private void assertFragmentsRoundTrip(List<IAtomContainer> aFragmentList, boolean anExpectFragmentCategory)
             throws Exception {
-        Set<String> tmpUniqueSmilesSet = new HashSet<>(aFragmentList.size());
         for (IAtomContainer tmpFragment : aFragmentList) {
             if (anExpectFragmentCategory) {
                 Assertions.assertNotNull(tmpFragment.getProperty(IMoleculeFragmenter.FRAGMENT_CATEGORY_PROPERTY_KEY));
@@ -203,9 +212,7 @@ public class FragmentationRoundTripTest {
             IAtomContainer tmpReparsed = ChemUtil.parseSmilesToAtomContainer(tmpUniqueSmiles, false, false);
             Assertions.assertNotNull(tmpReparsed);
             Assertions.assertEquals(tmpUniqueSmiles, ChemUtil.createUniqueSmiles(tmpReparsed, false));
-            tmpUniqueSmilesSet.add(tmpUniqueSmiles);
         }
-        Assertions.assertFalse(tmpUniqueSmilesSet.isEmpty());
     }
     //</editor-fold>
 }
