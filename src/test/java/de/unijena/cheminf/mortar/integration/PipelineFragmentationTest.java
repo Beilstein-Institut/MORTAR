@@ -37,9 +37,11 @@ import org.junit.jupiter.api.Test;
 import org.openscience.cdk.interfaces.IAtomContainer;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Integration test for requirement INT-02: a multi-algorithm pipeline driving
@@ -55,8 +57,14 @@ import java.util.Map;
  * The accumulation across both stages is asserted strictly by invariant (no golden SMILES, no exact fragment counts):
  * the result map is non-empty, every produced {@link FragmentDataModel} has an absolute frequency {@literal >=} 1 and an
  * absolute percentage in (0.0, 1.0], the sum of all absolute percentages is approximately 1.0, and the current
- * fragmentation name matches the configured pipeline name. This keeps the test robust against CDK version drift while
- * still proving the two-stage service wiring works end-to-end.
+ * fragmentation name matches the configured pipeline name. In addition, a discriminating cross-stage invariant proves
+ * that the second stage actually operated on the first stage's output rather than the test passing for a single-stage
+ * run: the same molecules are also fragmented with a SugarRemovalUtility-only single stage, and the two-stage pipeline's
+ * distinct-fragment unique-SMILES set is asserted to differ from (i.e. not be identical to) the SugarRemovalUtility-only
+ * set. Because the downstream ErtlFunctionalGroupsFinder re-fragments the deglycosylated aglycone produced by the first
+ * stage, the chained result cannot be the same fragment set the first stage alone produces. This keeps the test robust
+ * against CDK version drift (it compares two live results to each other, never to a golden literal) while genuinely
+ * demonstrating accumulation across both stages rather than a normalization identity that any non-empty map satisfies.
  *
  * @author Felix Baensch, Jonas Schaub
  * @version 1.0.0.0
@@ -115,6 +123,19 @@ public class PipelineFragmentationTest {
         }
         Assertions.assertEquals(1.0, tmpAbsolutePercentageSum, 1e-9);
         Assertions.assertEquals("INT02Pipeline", tmpService.getCurrentFragmentationName());
+        //discriminating cross-stage invariant: the percentage-sum check above is a normalization identity that any
+        //non-empty fragment map satisfies (a single-stage run would pass it identically), so it does not by itself
+        //prove cross-stage accumulation. To prove the downstream Ertl stage actually re-fragmented the first stage's
+        //SugarRemovalUtility output, run a SugarRemovalUtility-ONLY single stage over the very same molecules and assert
+        //the two-stage pipeline's distinct-fragment set is not identical to the single-stage set. The fragment map is
+        //keyed by unique SMILES, so its key set is the distinct-fragment unique-SMILES set; comparing two live results
+        //to each other (never to a golden literal) keeps the check CDK-drift robust while genuinely discriminating a
+        //two-stage pipeline from a single SugarRemovalUtility stage.
+        Set<String> tmpPipelineFragmentSmilesSet = tmpFragments.keySet();
+        Set<String> tmpSugarRemovalOnlyFragmentSmilesSet = PipelineFragmentationTest.fragmentSmilesSetForSingleStage(
+                tmpService.getFragmenters()[1].copy());
+        Assertions.assertFalse(tmpSugarRemovalOnlyFragmentSmilesSet.isEmpty());
+        Assertions.assertNotEquals(tmpSugarRemovalOnlyFragmentSmilesSet, tmpPipelineFragmentSmilesSet);
     }
     //</editor-fold>
     //
@@ -131,6 +152,31 @@ public class PipelineFragmentationTest {
     private static MoleculeDataModel buildMDM(String aSmiles) throws Exception {
         IAtomContainer tmpAtomContainer = ChemUtil.parseSmilesToAtomContainer(aSmiles, false, false);
         return new MoleculeDataModel(tmpAtomContainer, false);
+    }
+    //
+    /**
+     * Runs a single-stage (single-algorithm) fragmentation of the two pipeline input molecules through a fresh
+     * fragmentation service using the supplied fragmenter, and returns the resulting distinct-fragment unique-SMILES
+     * set. The fragment map is keyed by unique SMILES, so its key set is exactly the distinct-fragment unique-SMILES
+     * set. This is used by the discriminating cross-stage invariant to compare a single-stage result against the
+     * two-stage pipeline result without ever comparing to a golden literal (so it remains robust against CDK drift). The
+     * drive is synchronous-blocking (the service joins via {@code invokeAll} + {@code Future.get}), so the fragment map
+     * is fully populated when the call returns and a defensive copy of the key set is taken before it could be reused.
+     *
+     * @param aFragmenter the single fragmenter to drive (a fresh copy independent of the pipeline fragmenters)
+     * @return the distinct-fragment unique-SMILES set produced by the single-stage fragmentation over the two pipeline
+     *         input molecules
+     * @throws Exception if anything goes wrong while building the molecules or driving the fragmentation
+     */
+    private static Set<String> fragmentSmilesSetForSingleStage(IMoleculeFragmenter aFragmenter) throws Exception {
+        FragmentationService tmpSingleStageService = new FragmentationService();
+        tmpSingleStageService.setSelectedFragmenter(aFragmenter.getFragmentationAlgorithmDisplayName());
+        List<MoleculeDataModel> tmpMolecules = new ArrayList<>(2);
+        tmpMolecules.add(PipelineFragmentationTest.buildMDM("OCC1OC(O)C(O)C(O)C1OC2OC(CO)C(O)C(O)C2O"));
+        tmpMolecules.add(PipelineFragmentationTest.buildMDM("O=C(O)CCCCCCc1ccc(OC2OC(CO)C(O)C(O)C2O)cc1"));
+        //synchronous-blocking: the map is fully populated on return
+        tmpSingleStageService.startSingleFragmentation(tmpMolecules, 1, false);
+        return new HashSet<>(tmpSingleStageService.getFragments().keySet());
     }
     //</editor-fold>
 }
