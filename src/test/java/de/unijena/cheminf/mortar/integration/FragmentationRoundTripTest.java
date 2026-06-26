@@ -27,6 +27,8 @@ package de.unijena.cheminf.mortar.integration;
 
 import de.unijena.cheminf.mortar.model.fragmentation.algorithm.ErtlFunctionalGroupsFinderFragmenter;
 import de.unijena.cheminf.mortar.model.fragmentation.algorithm.IMoleculeFragmenter;
+import de.unijena.cheminf.mortar.model.fragmentation.algorithm.MolWURCSFragmenter;
+import de.unijena.cheminf.mortar.model.fragmentation.algorithm.ScaffoldGeneratorFragmenter;
 import de.unijena.cheminf.mortar.model.fragmentation.algorithm.SugarRemovalUtilityFragmenter;
 import de.unijena.cheminf.mortar.model.util.ChemUtil;
 
@@ -88,7 +90,7 @@ public class FragmentationRoundTripTest {
             Assertions.assertTrue(tmpFragmenter.canBeFragmented(tmpMolecule));
             List<IAtomContainer> tmpFragments = tmpFragmenter.fragmentMolecule(tmpMolecule);
             Assertions.assertFalse(tmpFragments.isEmpty());
-            this.assertFragmentsRoundTrip(tmpFragments);
+            this.assertFragmentsRoundTrip(tmpFragments, true);
         }
     }
 
@@ -115,7 +117,63 @@ public class FragmentationRoundTripTest {
             Assertions.assertTrue(tmpFragmenter.canBeFragmented(tmpMolecule));
             List<IAtomContainer> tmpFragments = tmpFragmenter.fragmentMolecule(tmpMolecule);
             Assertions.assertFalse(tmpFragments.isEmpty());
-            this.assertFragmentsRoundTrip(tmpFragments);
+            this.assertFragmentsRoundTrip(tmpFragments, true);
+        }
+    }
+
+    /**
+     * Drives the {@link ScaffoldGeneratorFragmenter} over two fused-ring scaffolds and asserts the per-fragment
+     * round-trip invariant chain for each. The molecules are parsed with kekulization enabled because the scaffold
+     * generator requires explicit (kekulized) bond orders on aromatic ring systems and rejects un-kekulized aromatic
+     * input with an {@link IllegalArgumentException}. Both molecules were verified at authoring time to yield a
+     * non-empty fragment set under default settings.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void scaffoldGeneratorRoundTripTest() throws Exception {
+        ScaffoldGeneratorFragmenter tmpFragmenter = new ScaffoldGeneratorFragmenter();
+        String[] tmpSmilesArray = {"CCc1ccc2c(c1)CCCC2C(=O)O", "c1ccc2c(c1)ccc3c2cccc3O"};
+        for (String tmpSmiles : tmpSmilesArray) {
+            //kekulize=true: the scaffold generator rejects un-kekulized aromatic systems with IllegalArgumentException
+            IAtomContainer tmpMolecule = ChemUtil.parseSmilesToAtomContainer(tmpSmiles, true, false);
+            Assertions.assertFalse(tmpFragmenter.shouldBeFiltered(tmpMolecule));
+            Assertions.assertFalse(tmpFragmenter.shouldBePreprocessed(tmpMolecule));
+            Assertions.assertTrue(tmpFragmenter.canBeFragmented(tmpMolecule));
+            List<IAtomContainer> tmpFragments = tmpFragmenter.fragmentMolecule(tmpMolecule);
+            Assertions.assertFalse(tmpFragments.isEmpty());
+            this.assertFragmentsRoundTrip(tmpFragments, true);
+        }
+    }
+
+    /**
+     * Drives the {@link MolWURCSFragmenter} over two verified-fragmentable glycans and asserts the per-fragment
+     * round-trip invariant chain for each. Every drive is guarded by {@code canBeFragmented} first, because many
+     * carbohydrate inputs are silently not detected as fragmentable or throw on WURCS retranslation; the two glycans
+     * used here are known-good carbohydrate structures that fragment non-trivially.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void molWurcsRoundTripTest() throws Exception {
+        MolWURCSFragmenter tmpFragmenter = new MolWURCSFragmenter();
+        String[] tmpSmilesArray = {
+                "CCCCCC(CCCCCCCCCC(=O)O)O[C@H]1[C@@H]([C@H]([C@@H]([C@@H](C)O1)O)O)O[C@@H]2C[C@H](CO)[C@@H](C)"
+                        + "[C@@H]([C@H]2O[C@H]3[C@@H]([C@@H]([C@H]([C@H](C)O3)O[C@H]4[C@@H]([C@H]([C@@H]([C@@H](C)O4)"
+                        + "O)O)O)O)O)O",
+                "CCCCCCCCCCCC(=O)O[C@@H]1[C@@H]([C@H]([C@H](C)O[C@H]1O[C@H]2[C@H](C)O[C@H]([C@@H]([C@@H]2O)O)"
+                        + "O[C@@H]3[C@H]([C@H]([C@@H](C)O[C@H]3O[C@@H](CCCCC)CCCCCCCCCC(=O)OC)O)O)O[C@H]4[C@@H]"
+                        + "([C@@H]([C@H]([C@H](C)O4)O)O)O)O[C@H]5[C@@H]([C@@H]([C@H]([C@H](C)O5)O)O)O"};
+        for (String tmpSmiles : tmpSmilesArray) {
+            IAtomContainer tmpMolecule = ChemUtil.parseSmilesToAtomContainer(tmpSmiles, false, false);
+            Assertions.assertFalse(tmpFragmenter.shouldBeFiltered(tmpMolecule));
+            Assertions.assertFalse(tmpFragmenter.shouldBePreprocessed(tmpMolecule));
+            //MolWURCS requires a detectable carbohydrate; guard every drive with canBeFragmented per the algorithm's contract
+            Assertions.assertTrue(tmpFragmenter.canBeFragmented(tmpMolecule));
+            List<IAtomContainer> tmpFragments = tmpFragmenter.fragmentMolecule(tmpMolecule);
+            Assertions.assertFalse(tmpFragments.isEmpty());
+            //MolWURCS does not tag its fragments with the fragment-category property, so it is not asserted here
+            this.assertFragmentsRoundTrip(tmpFragments, false);
         }
     }
     //</editor-fold>
@@ -128,12 +186,18 @@ public class FragmentationRoundTripTest {
      * fragment SMILES is ever compared to a hard-coded literal, so the check is invariant-based and CDK-drift robust.
      *
      * @param aFragmentList the list of fragments produced by a fragmenter (must be non-empty)
+     * @param anExpectFragmentCategory whether every fragment is expected to carry the fragment-category property; the
+     *                                 Ertl, SugarRemovalUtility and ScaffoldGenerator fragmenters tag their fragments
+     *                                 with it, whereas MolWURCS does not set it, so this is gated per algorithm
      * @throws Exception if anything goes wrong while regenerating or re-parsing SMILES
      */
-    private void assertFragmentsRoundTrip(List<IAtomContainer> aFragmentList) throws Exception {
+    private void assertFragmentsRoundTrip(List<IAtomContainer> aFragmentList, boolean anExpectFragmentCategory)
+            throws Exception {
         Set<String> tmpUniqueSmilesSet = new HashSet<>(aFragmentList.size());
         for (IAtomContainer tmpFragment : aFragmentList) {
-            Assertions.assertNotNull(tmpFragment.getProperty(IMoleculeFragmenter.FRAGMENT_CATEGORY_PROPERTY_KEY));
+            if (anExpectFragmentCategory) {
+                Assertions.assertNotNull(tmpFragment.getProperty(IMoleculeFragmenter.FRAGMENT_CATEGORY_PROPERTY_KEY));
+            }
             String tmpUniqueSmiles = ChemUtil.createUniqueSmiles(tmpFragment, false);
             Assertions.assertNotNull(tmpUniqueSmiles);
             IAtomContainer tmpReparsed = ChemUtil.parseSmilesToAtomContainer(tmpUniqueSmiles, false, false);
