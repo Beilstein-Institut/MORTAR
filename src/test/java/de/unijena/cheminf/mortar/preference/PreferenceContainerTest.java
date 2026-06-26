@@ -31,6 +31,9 @@ import de.unijena.cheminf.mortar.model.fragmentation.algorithm.SugarRemovalUtili
 import de.unijena.cheminf.mortar.model.settings.SettingsContainer;
 import de.unijena.cheminf.mortar.model.util.FileUtil;
 
+import javafx.beans.property.Property;
+import javafx.beans.property.SimpleBooleanProperty;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -241,5 +244,134 @@ public class PreferenceContainerTest {
         File tmpBadFile = aTempDir.resolve("corrupt.gzip").toFile();
         Files.write(tmpBadFile.toPath(), new byte[]{0, 1, 2, 3, 4, 5});
         Assertions.assertThrows(java.io.IOException.class, () -> new PreferenceContainer(tmpBadFile));
+    }
+    //
+    /**
+     * Tests the in-memory container management API with real preference objects: isEmpty, getSize, contains,
+     * containsPreferenceName, containsPreferenceType, getPreferences(String) hit and miss, getPreferences(PreferenceType),
+     * both name-sorted accessors including their cache-return and cache-rebuild branches, both replace overloads (success
+     * and fail), both delete overloads (success and miss), clearAll on a non-empty and an already-empty container, copy on
+     * a non-empty container, getVersion, compareTo and the equals/hashCode contract.
+     *
+     * @param aTempDir JUnit-managed temporary directory
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testContainerManagementApi(@TempDir Path aTempDir) throws Exception {
+        String tmpFilePathname = aTempDir.resolve("ManagementApiTest.txt").toString();
+        PreferenceContainer tmpContainer = new PreferenceContainer(tmpFilePathname);
+        Assertions.assertTrue(tmpContainer.isEmpty());
+        Assertions.assertEquals(0, tmpContainer.getSize());
+        BooleanPreference tmpAPreference = new BooleanPreference("Apple setting", true);
+        SingleTermPreference tmpBPreference = new SingleTermPreference("Banana setting", "ripe");
+        Assertions.assertTrue(tmpContainer.add(tmpAPreference));
+        Assertions.assertTrue(tmpContainer.add(tmpBPreference));
+        Assertions.assertFalse(tmpContainer.isEmpty());
+        Assertions.assertEquals(2, tmpContainer.getSize());
+        Assertions.assertTrue(tmpContainer.contains(tmpAPreference));
+        Assertions.assertTrue(tmpContainer.containsPreferenceName("Apple setting"));
+        Assertions.assertFalse(tmpContainer.containsPreferenceName("Nonexistent name"));
+        Assertions.assertTrue(tmpContainer.containsPreferenceType(PreferenceType.BOOLEAN));
+        Assertions.assertTrue(tmpContainer.containsPreferenceType(PreferenceType.SINGLE_TERM));
+        Assertions.assertEquals(1, tmpContainer.getPreferences("Apple setting").length);
+        Assertions.assertEquals(0, tmpContainer.getPreferences("Nonexistent name").length);
+        Assertions.assertEquals(1, tmpContainer.getPreferences(PreferenceType.SINGLE_TERM).length);
+        Assertions.assertEquals(0, tmpContainer.getPreferences(PreferenceType.RGB_COLOR).length);
+        //Each sorted accessor is validated inline immediately after the call, exercising the build-from-wrapper-set,
+        //the cache-return and the reverse-other-cache branches without holding a stale array reference across a
+        //subsequent (in-place reversing) accessor call.
+        //Ascending built from the wrapper set (both caches null)
+        IPreference[] tmpAscendingBuilt = tmpContainer.getPreferencesSortedNameAscending();
+        Assertions.assertEquals(tmpAPreference, tmpAscendingBuilt[0]);
+        Assertions.assertEquals(tmpBPreference, tmpAscendingBuilt[1]);
+        //Ascending again returns the cached array (cache-return branch)
+        IPreference[] tmpAscendingCached = tmpContainer.getPreferencesSortedNameAscending();
+        Assertions.assertEquals(tmpAPreference, tmpAscendingCached[0]);
+        Assertions.assertEquals(tmpBPreference, tmpAscendingCached[1]);
+        //Descending derived by reversing the ascending cache (reverse-other-cache branch)
+        IPreference[] tmpDescendingDerived = tmpContainer.getPreferencesSortedNameDescending();
+        Assertions.assertEquals(tmpBPreference, tmpDescendingDerived[0]);
+        Assertions.assertEquals(tmpAPreference, tmpDescendingDerived[1]);
+        //Clear the cache, then build descending first from the wrapper set (descending build-from-wrapper-set branch)
+        tmpContainer.clearCache();
+        IPreference[] tmpDescendingBuilt = tmpContainer.getPreferencesSortedNameDescending();
+        Assertions.assertEquals(tmpBPreference, tmpDescendingBuilt[0]);
+        Assertions.assertEquals(tmpAPreference, tmpDescendingBuilt[1]);
+        //Ascending now derived by reversing the descending cache (ascending reverse-other-cache branch)
+        IPreference[] tmpAscendingDerived = tmpContainer.getPreferencesSortedNameAscending();
+        Assertions.assertEquals(tmpAPreference, tmpAscendingDerived[0]);
+        Assertions.assertEquals(tmpBPreference, tmpAscendingDerived[1]);
+        Assertions.assertNotNull(tmpContainer.getVersion());
+        Assertions.assertEquals(0, tmpContainer.compareTo(tmpContainer));
+        //replace(IPreference, IPreference): success and fail (old not contained)
+        BooleanPreference tmpCPreference = new BooleanPreference("Cherry setting", false);
+        Assertions.assertTrue(tmpContainer.replace(tmpAPreference, tmpCPreference));
+        Assertions.assertFalse(tmpContainer.contains(tmpAPreference));
+        Assertions.assertTrue(tmpContainer.contains(tmpCPreference));
+        Assertions.assertFalse(tmpContainer.replace(tmpAPreference, new BooleanPreference("Date setting", true)));
+        //replace(String, IPreference): success path
+        BooleanPreference tmpDPreference = new BooleanPreference("Date setting", true);
+        Assertions.assertTrue(tmpContainer.replace(tmpCPreference.getGUID(), tmpDPreference));
+        Assertions.assertFalse(tmpContainer.contains(tmpCPreference));
+        Assertions.assertTrue(tmpContainer.contains(tmpDPreference));
+        //copy() on a non-empty container yields an equal container (same GUID)
+        PreferenceContainer tmpCopy = tmpContainer.copy();
+        Assertions.assertEquals(tmpContainer.getGUID(), tmpCopy.getGUID());
+        Assertions.assertEquals(tmpContainer, tmpCopy);
+        Assertions.assertEquals(tmpContainer.hashCode(), tmpCopy.hashCode());
+        //delete(String): success and miss
+        Assertions.assertTrue(tmpContainer.delete(tmpDPreference.getGUID()));
+        Assertions.assertFalse(tmpContainer.delete(tmpDPreference.getGUID()));
+        //delete(IPreference): success and miss
+        Assertions.assertTrue(tmpContainer.delete(tmpBPreference));
+        Assertions.assertFalse(tmpContainer.delete(tmpBPreference));
+        //clearAll() on a non-empty container empties it; on an empty container it is a safe no-op
+        PreferenceContainer tmpFullContainer = new PreferenceContainer(tmpFilePathname);
+        tmpFullContainer.add(new BooleanPreference("Echo setting", true));
+        Assertions.assertFalse(tmpFullContainer.isEmpty());
+        tmpFullContainer.clearAll();
+        Assertions.assertTrue(tmpFullContainer.isEmpty());
+        Assertions.assertDoesNotThrow(tmpFullContainer::clearAll);
+        Assertions.assertTrue(tmpFullContainer.isEmpty());
+    }
+    //
+    /**
+     * Tests PreferenceUtil.checkPropertiesForPreferenceRestrictions: a property with a valid name passes
+     * (assertDoesNotThrow); a property with an invalid (lower-case-starting) name throws an UnsupportedOperationException.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testCheckPropertiesForPreferenceRestrictions() throws Exception {
+        SimpleBooleanProperty tmpValidProperty = new SimpleBooleanProperty(null, "Valid name", true);
+        Assertions.assertDoesNotThrow(() ->
+                PreferenceUtil.checkPropertiesForPreferenceRestrictions(List.<Property<?>>of(tmpValidProperty)));
+        SimpleBooleanProperty tmpBadProperty = new SimpleBooleanProperty(null, "invalid lower-start", true);
+        Assertions.assertThrows(UnsupportedOperationException.class, () ->
+                PreferenceUtil.checkPropertiesForPreferenceRestrictions(List.<Property<?>>of(tmpBadProperty)));
+    }
+    //
+    /**
+     * Tests the reverse path PreferenceUtil.updatePropertiesFromPreferences: a list of JavaFx properties is translated
+     * into preferences, a fresh property list with the same names but differing values is updated from the resulting
+     * container, and each property value is asserted to reflect the persisted preference value (exercising the switch arm
+     * and the matching-name branch).
+     *
+     * @param aTempDir JUnit-managed temporary directory
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testUpdatePropertiesFromPreferences(@TempDir Path aTempDir) throws Exception {
+        String tmpFilePathname = aTempDir.resolve("UpdatePropertiesTest.txt").toString();
+        SimpleBooleanProperty tmpSourceProperty = new SimpleBooleanProperty(null, "Highlight atoms", true);
+        PreferenceContainer tmpContainer =
+                PreferenceUtil.translateJavaFxPropertiesToPreferences(List.<Property<?>>of(tmpSourceProperty), tmpFilePathname);
+        SimpleBooleanProperty tmpTargetProperty = new SimpleBooleanProperty(null, "Highlight atoms", false);
+        PreferenceUtil.updatePropertiesFromPreferences(List.<Property<?>>of(tmpTargetProperty), tmpContainer);
+        Assertions.assertTrue(tmpTargetProperty.get());
+        //A property whose name has no matching preference remains in its default value (no-match-name branch)
+        SimpleBooleanProperty tmpUnmatchedProperty = new SimpleBooleanProperty(null, "Unmatched setting", false);
+        PreferenceUtil.updatePropertiesFromPreferences(List.<Property<?>>of(tmpUnmatchedProperty), tmpContainer);
+        Assertions.assertFalse(tmpUnmatchedProperty.get());
     }
 }
