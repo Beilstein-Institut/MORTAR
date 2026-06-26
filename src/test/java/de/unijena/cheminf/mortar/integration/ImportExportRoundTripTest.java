@@ -61,7 +61,8 @@ import java.util.Set;
  * resources by absolute classpath path (D-06), since {@code getClass().getResource} resolves relative to this test's own
  * package. The en-GB locale guard is load-bearing for Message-resolved headers.
  *
- * @author Felix Baensch
+ * @author Felix Baensch, Jonas Schaub
+ * @version 1.0.0.0
  */
 public class ImportExportRoundTripTest {
     //<editor-fold desc="Private final variables">
