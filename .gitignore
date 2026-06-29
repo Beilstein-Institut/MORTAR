@@ -58,3 +58,4 @@ AdoptOpenJDK.zip
 # Local-only assistant/workflow scaffolding
 /CLAUDE.md
 /.planning/
+/.claude/
