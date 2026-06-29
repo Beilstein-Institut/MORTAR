@@ -49,6 +49,7 @@ import de.unijena.cheminf.mortar.model.util.ChemUtil;
 import de.unijena.cheminf.mortar.model.util.CollectionUtil;
 import de.unijena.cheminf.mortar.model.util.FileUtil;
 import de.unijena.cheminf.mortar.model.util.LogUtil;
+import de.unijena.cheminf.mortar.model.util.PaginationUtil;
 
 import javafx.application.Platform;
 import javafx.beans.Observable;
@@ -1073,13 +1074,7 @@ public class MainViewController {
      */
     private Pagination createPaginationWithSuitablePageCount(int aListSize) {
         int tmpRowsPerPage = this.settingsContainer.getRowsPerPageSetting();
-        int tmpPageCount = aListSize / tmpRowsPerPage;
-        if (aListSize % tmpRowsPerPage > 0) {
-            tmpPageCount++;
-        }
-        if (aListSize == 0) {
-            tmpPageCount = 1;
-        }
+        int tmpPageCount = PaginationUtil.calculatePageCount(aListSize, tmpRowsPerPage);
         Pagination tmpPagination = new Pagination(tmpPageCount, 0);
         tmpPagination.setSkin(new CustomPaginationSkin(tmpPagination));
         VBox.setVgrow(tmpPagination, Priority.ALWAYS);
