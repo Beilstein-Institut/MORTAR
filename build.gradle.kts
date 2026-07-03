@@ -94,6 +94,25 @@ jacoco {
 tasks.test {
     useJUnitPlatform()
     systemProperty("java.awt.headless", "true")
+    // --- headless JavaFX (TestFX + Monocle) recipe (HARN-02) ---
+    // Set BEFORE any FX class loads so Monocle registers its headless platform.
+    systemProperty("testfx.robot", "glass")
+    systemProperty("testfx.headless", "true")
+    systemProperty("glass.platform", "Monocle")
+    systemProperty("monocle.platform", "Headless")
+    // Overridable so local Mac/Windows dev can pass a real GPU pipeline
+    // (e.g. -Dprism.order=es2): do NOT hardcode "sw" unconditionally.
+    systemProperty("prism.order", System.getProperty("prism.order", "sw"))
+    systemProperty("prism.text", System.getProperty("prism.text", "t2k"))
+    // Empirical fallback module args — uncomment ONLY if the plan-02 smoke test
+    // throws InaccessibleObjectException / IllegalAccessError naming
+    // com.sun.glass.ui (resolved empirically in task 13-02-01). Add the
+    // com.sun.glass.utils / com.sun.prism variants only if a further access
+    // error names them.
+    // jvmArgs(
+    //     "--add-opens=javafx.graphics/com.sun.glass.ui=ALL-UNNAMED",
+    //     "--add-exports=javafx.graphics/com.sun.glass.ui=ALL-UNNAMED"
+    // )
     testLogging {
         events = setOf(
             org.gradle.api.tasks.testing.logging.TestLogEvent.PASSED,
