@@ -81,6 +81,11 @@ public abstract class AbstractFxTestCase {
      * thread rather than being silently swallowed by the FX event loop.
      */
     private static final AtomicReference<Throwable> FX_UNCAUGHT = new AtomicReference<>();
+    /**
+     * Monitor guarding the {@link #toolkitStarted} check-then-act, so that the once-per-JVM {@link Platform#startup}
+     * cannot race even if the suite is later run with JUnit parallel execution enabled.
+     */
+    private static final Object TOOLKIT_LOCK = new Object();
     //</editor-fold>
     //
     //<editor-fold desc="Private static class variables" defaultstate="collapsed">
@@ -88,7 +93,7 @@ public abstract class AbstractFxTestCase {
      * Once-per-JVM guard: {@link Platform#startup(Runnable)} may be called only once, so the toolkit is booted lazily
      * on the first {@code @BeforeAll} and this flag prevents a second start.
      */
-    private static boolean toolkitStarted = false;
+    private static volatile boolean toolkitStarted = false;
     //</editor-fold>
     //
     //<editor-fold desc="Private instance variables" defaultstate="collapsed">
@@ -122,18 +127,20 @@ public abstract class AbstractFxTestCase {
     public static void bootToolkitOnce() throws Exception {
         Locale.setDefault(Locale.of("en", "GB"));
         Configuration.getInstance();
-        if (!AbstractFxTestCase.toolkitStarted) {
-            Thread.setDefaultUncaughtExceptionHandler((aThread, aThrowable) -> {
-                AbstractFxTestCase.FX_UNCAUGHT.set(aThrowable);
-                AbstractFxTestCase.LOGGER.severe("Uncaught throwable on thread " + aThread.getName() + ": " + aThrowable);
-            });
-            CountDownLatch tmpLatch = new CountDownLatch(1);
-            Platform.startup(tmpLatch::countDown);
-            if (!tmpLatch.await(AbstractFxTestCase.FX_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                throw new IllegalStateException("JavaFX toolkit did not start within " + AbstractFxTestCase.FX_TIMEOUT_SECONDS + " seconds");
+        synchronized (AbstractFxTestCase.TOOLKIT_LOCK) {
+            if (!AbstractFxTestCase.toolkitStarted) {
+                Thread.setDefaultUncaughtExceptionHandler((aThread, aThrowable) -> {
+                    AbstractFxTestCase.FX_UNCAUGHT.set(aThrowable);
+                    AbstractFxTestCase.LOGGER.severe("Uncaught throwable on thread " + aThread.getName() + ": " + aThrowable);
+                });
+                CountDownLatch tmpLatch = new CountDownLatch(1);
+                Platform.startup(tmpLatch::countDown);
+                if (!tmpLatch.await(AbstractFxTestCase.FX_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("JavaFX toolkit did not start within " + AbstractFxTestCase.FX_TIMEOUT_SECONDS + " seconds");
+                }
+                Platform.setImplicitExit(false);
+                AbstractFxTestCase.toolkitStarted = true;
             }
-            Platform.setImplicitExit(false);
-            AbstractFxTestCase.toolkitStarted = true;
         }
     }
     //
