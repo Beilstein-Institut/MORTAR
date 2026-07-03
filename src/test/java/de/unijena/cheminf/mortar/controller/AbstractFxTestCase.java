@@ -63,6 +63,15 @@ import java.util.logging.Logger;
  * This class intentionally carries NO {@code Test} suffix so that JUnit does not treat it as an executable test class;
  * concrete controller tests extend it. The Monocle headless system properties are supplied by the Gradle
  * {@code tasks.test} block before any FX class loads (see {@code build.gradle.kts}), so the toolkit starts headless.
+ * <p>
+ * <strong>Concurrency:</strong> this harness assumes single-threaded, sequential test execution within each JVM, which
+ * is the current Gradle/JUnit default (the {@code org.gradle.parallel} flag parallelizes Gradle tasks and test forks,
+ * i.e. separate JVMs, not tests within a single JVM). It is <em>not</em> safe under JUnit parallel execution: the
+ * single shared {@link #FX_UNCAUGHT} slot cannot attribute a captured throwable to the correct test and would be
+ * cleared/overwritten by concurrent tests, and the {@code user.home} system property is JVM-global, so concurrent
+ * tests would stomp each other's temporary home and defeat the per-test isolation. Do not enable
+ * {@code junit.jupiter.execution.parallel.enabled} for these classes without first replacing that shared state with
+ * per-thread (or per-test) equivalents.
  *
  * @author Felix Baensch
  * @version 1.0.0.0
@@ -84,8 +93,12 @@ public abstract class AbstractFxTestCase {
      */
     private static final AtomicReference<Throwable> FX_UNCAUGHT = new AtomicReference<>();
     /**
-     * Monitor guarding the {@link #toolkitStarted} check-then-act, so that the once-per-JVM {@link Platform#startup}
-     * cannot race even if the suite is later run with JUnit parallel execution enabled.
+     * Monitor guarding the {@link #toolkitStarted} check-then-act, so the once-per-JVM {@link Platform#startup} boot
+     * cannot race. This lock only makes the toolkit boot itself atomic; it does <em>not</em> make the harness as a
+     * whole parallel-safe. The harness relies on JVM-global mutable state ({@link #FX_UNCAUGHT} and the
+     * {@code user.home} system property) that is not synchronized across threads, so it assumes single-threaded,
+     * sequential test execution within each JVM (the current Gradle/JUnit default). See the class Javadoc for the full
+     * parallel-execution constraint.
      */
     private static final Object TOOLKIT_LOCK = new Object();
     /**
