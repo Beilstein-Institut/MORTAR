@@ -114,7 +114,6 @@ tasks.jacocoTestReport {
                 fileTree(tmpDir) {
                     exclude(
                         "**/de/unijena/cheminf/mortar/gui/**",
-                        "**/de/unijena/cheminf/mortar/controller/**",
                         "**/de/unijena/cheminf/mortar/main/**",
                         "**/de/unijena/cheminf/mortar/message/**"
                     )
