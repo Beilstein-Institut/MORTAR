@@ -30,6 +30,7 @@ import de.unijena.cheminf.mortar.model.util.FileUtil;
 
 import javafx.application.Platform;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,8 +50,9 @@ import java.util.logging.Logger;
 
 /**
  * Shared headless base class for JavaFX controller tests. This class boots the JavaFX toolkit exactly once per JVM
- * (via a static-guarded {@link Platform#startup(Runnable)} awaited on a bounded {@link CountDownLatch}), sets the
- * mandatory {@code en-GB} default locale and bootstraps the {@link Configuration} singleton, and installs a default
+ * (via a static-guarded {@link Platform#startup(Runnable)} awaited on a bounded {@link CountDownLatch}), pins the
+ * mandatory {@code en-GB} default locale (restoring the original JVM default once each test class completes) and
+ * bootstraps the {@link Configuration} singleton, and installs a default
  * uncaught-exception handler that captures failures thrown on the JavaFX Application Thread so they can be surfaced on
  * the test thread. Per test it redirects the {@code user.home} system property to a JUnit {@link TempDir} and
  * reflectively resets the private static {@code appDirPath} cache of {@link FileUtil}, always restoring the original
@@ -86,6 +88,12 @@ public abstract class AbstractFxTestCase {
      * cannot race even if the suite is later run with JUnit parallel execution enabled.
      */
     private static final Object TOOLKIT_LOCK = new Object();
+    /**
+     * The JVM default {@link Locale} observed before this harness first pinned {@code en-GB}, captured exactly once so
+     * it can be restored after the FX test classes complete and non-FX test classes are not left running under
+     * {@code en-GB}.
+     */
+    private static final AtomicReference<Locale> ORIGINAL_DEFAULT_LOCALE = new AtomicReference<>();
     //</editor-fold>
     //
     //<editor-fold desc="Private static class variables" defaultstate="collapsed">
@@ -127,6 +135,7 @@ public abstract class AbstractFxTestCase {
      */
     @BeforeAll
     public static void bootToolkitOnce() throws Exception {
+        AbstractFxTestCase.ORIGINAL_DEFAULT_LOCALE.compareAndSet(null, Locale.getDefault());
         Locale.setDefault(Locale.of("en", "GB"));
         Configuration.getInstance();
         synchronized (AbstractFxTestCase.TOOLKIT_LOCK) {
@@ -193,6 +202,20 @@ public abstract class AbstractFxTestCase {
                 tmpHandler.close();
                 tmpRootLogger.removeHandler(tmpHandler);
             }
+        }
+    }
+    //
+    /**
+     * Restores the JVM default {@link Locale} that was captured before this harness first pinned {@code en-GB}. Because
+     * the locale is re-pinned in every {@link #bootToolkitOnce()}, restoring it once each test class has finished keeps
+     * {@code en-GB} in effect throughout the FX suite while ensuring any non-FX test class that runs afterwards in the
+     * same JVM is not silently left under {@code en-GB} (which could mask locale-sensitive bugs).
+     */
+    @AfterAll
+    public static void restoreDefaultLocale() {
+        Locale tmpOriginalLocale = AbstractFxTestCase.ORIGINAL_DEFAULT_LOCALE.get();
+        if (tmpOriginalLocale != null) {
+            Locale.setDefault(tmpOriginalLocale);
         }
     }
     //</editor-fold>
