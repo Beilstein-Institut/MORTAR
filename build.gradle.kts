@@ -37,6 +37,9 @@ dependencies {
     testImplementation(platform(libs.junit))
     testImplementation(libs.jupiter)
     testImplementation(libs.mockitoCore)
+    testImplementation(libs.testfxCore)
+    testImplementation(libs.testfxJunit5)
+    testImplementation(libs.openjfxMonocle)
     //<editor-fold desc="CDK dependencies">
     implementation(libs.cdkPdb)
     implementation(libs.cdkSilent)
