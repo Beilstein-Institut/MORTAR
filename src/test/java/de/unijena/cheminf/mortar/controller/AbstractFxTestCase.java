@@ -116,7 +116,9 @@ public abstract class AbstractFxTestCase {
     /**
      * Boots the JavaFX toolkit exactly once per JVM. Sets the default locale to {@code en-GB} (so message-bundle
      * resolution is deterministic), bootstraps the {@link Configuration} singleton, installs a default uncaught-exception
-     * handler that records FX-thread failures into {@link #FX_UNCAUGHT}, and, if not already started, calls
+     * handler that records <em>only</em> JavaFX-Application-Thread failures into {@link #FX_UNCAUGHT} (throwables from
+     * any other thread are logged and delegated to the previously installed default handler, so a foreign background
+     * failure is never misattributed to the current test), and, if not already started, calls
      * {@link Platform#startup(Runnable)} and awaits a bounded {@link CountDownLatch}. Once started,
      * {@link Platform#setImplicitExit(boolean)} is set to {@code false} so the toolkit survives across tests.
      *
@@ -129,9 +131,17 @@ public abstract class AbstractFxTestCase {
         Configuration.getInstance();
         synchronized (AbstractFxTestCase.TOOLKIT_LOCK) {
             if (!AbstractFxTestCase.toolkitStarted) {
+                Thread.UncaughtExceptionHandler tmpPreviousHandler = Thread.getDefaultUncaughtExceptionHandler();
                 Thread.setDefaultUncaughtExceptionHandler((aThread, aThrowable) -> {
-                    AbstractFxTestCase.FX_UNCAUGHT.set(aThrowable);
-                    AbstractFxTestCase.LOGGER.severe("Uncaught throwable on thread " + aThread.getName() + ": " + aThrowable);
+                    if (Platform.isFxApplicationThread()) {
+                        AbstractFxTestCase.FX_UNCAUGHT.set(aThrowable);
+                        AbstractFxTestCase.LOGGER.severe("Uncaught throwable on the JavaFX Application Thread: " + aThrowable);
+                    } else {
+                        AbstractFxTestCase.LOGGER.severe("Uncaught throwable on thread " + aThread.getName() + ": " + aThrowable);
+                        if (tmpPreviousHandler != null) {
+                            tmpPreviousHandler.uncaughtException(aThread, aThrowable);
+                        }
+                    }
                 });
                 CountDownLatch tmpLatch = new CountDownLatch(1);
                 Platform.startup(tmpLatch::countDown);
