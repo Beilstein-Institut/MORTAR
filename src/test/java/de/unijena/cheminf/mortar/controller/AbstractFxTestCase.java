@@ -42,6 +42,8 @@ import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.FileHandler;
+import java.util.logging.Handler;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
@@ -153,8 +155,12 @@ public abstract class AbstractFxTestCase {
     }
     //
     /**
-     * Always restores the original {@code user.home} system property, resets the {@link FileUtil} {@code appDirPath}
-     * cache, and resets the log manager, so no state or logger handler leaks into sibling tests.
+     * Always restores the original {@code user.home} system property and resets the {@link FileUtil} {@code appDirPath}
+     * cache. Instead of a JVM-wide {@code LogManager.reset()} (which would close and remove every handler on every
+     * logger in the entire JVM and is never restored), only {@link FileHandler}s on the root logger are closed and
+     * removed. This surgically releases any file handler that may have been rooted in the per-test temporary
+     * {@code user.home} (so the {@link TempDir} can be deleted, notably on Windows) without wiping the JVM-global
+     * logging configuration that sibling tests rely on.
      *
      * @throws Exception if the {@code appDirPath} cache field cannot be reset
      */
@@ -164,7 +170,13 @@ public abstract class AbstractFxTestCase {
             System.setProperty("user.home", this.originalUserHome);
         }
         this.resetAppDirPathCache();
-        LogManager.getLogManager().reset();
+        Logger tmpRootLogger = LogManager.getLogManager().getLogger("");
+        for (Handler tmpHandler : tmpRootLogger.getHandlers()) {
+            if (tmpHandler instanceof FileHandler) {
+                tmpHandler.close();
+                tmpRootLogger.removeHandler(tmpHandler);
+            }
+        }
     }
     //</editor-fold>
     //
