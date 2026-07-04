@@ -50,8 +50,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * and the driver — scheduled to run INSIDE the nested loop, after the controller's pre-{@code showAndWait}
  * {@code Platform.runLater} (which registers the button handlers and populates the recent-properties map) has already
  * drained — obtains the {@link SettingsView} via the modal stage's scene root ({@code (SettingsView)
- * stage.getScene().getRoot()}, no production widening) and fires exactly one handler branch. The drive is wrapped in a
- * {@code try (MockedStatic<GuiUtil> ...)} so no code path can reach a real JavaFX {@code Alert} when run headless.
+ * stage.getScene().getRoot()}, no production widening) and fires exactly one handler branch. The driver opens the
+ * {@code try (MockedStatic<GuiUtil> ...)} on the JavaFX Application Thread — where a Mockito {@code MockedStatic} must
+ * be created to intercept the FX-thread alert calls, since it is thread-local — so no code path can reach a real JavaFX
+ * {@code Alert} when run headless.
  * <p>
  * The apply, cancel, default, and stage-close-request handlers are each exercised in a fresh controller instance (so no
  * closing handler cross-contaminates a sibling), and both change-flag getters
@@ -188,10 +190,11 @@ public class SettingsViewControllerTest extends AbstractFxTestCase {
      * to the recorded recent value), and an offscreen owner {@link Stage}, then returns the controller whose constructor
      * calls {@code showAndWait}. The driver, run inside the nested event loop after the controller's pre-{@code showAndWait}
      * {@code Platform.runLater} has registered the handlers and populated the recent-properties map, resolves the
-     * {@link SettingsView} from the modal stage's scene root and delegates to the caller. The whole drive is wrapped in a
-     * {@link MockedStatic} over {@link GuiUtil} so no alert reaches a real headless {@code Alert}, and the FX event queue
-     * is drained afterwards so any {@code setRecentProperties} {@code Platform.runLater} restore work completes before the
-     * method returns.
+     * {@link SettingsView} from the modal stage's scene root and delegates to the caller. The driver opens a
+     * {@link MockedStatic} over {@link GuiUtil} on the JavaFX Application Thread (where it must be created to intercept
+     * the FX-thread alert calls, as a Mockito static mock is thread-local) so no alert reaches a real headless
+     * {@code Alert}, and the FX event queue is drained afterwards so any {@code setRecentProperties}
+     * {@code Platform.runLater} restore work completes before the method returns.
      *
      * @param aDriver the single-branch driver to run against the shown modal stage, view, container, and baseline
      * @return the constructed controller (after its {@code showAndWait} has returned)
@@ -201,21 +204,23 @@ public class SettingsViewControllerTest extends AbstractFxTestCase {
         Configuration tmpConfiguration = Configuration.getInstance();
         AtomicReference<SettingsContainer> tmpContainerReference = new AtomicReference<>();
         AtomicReference<Baseline> tmpBaselineReference = new AtomicReference<>();
-        SettingsViewController tmpController;
-        try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts()) {
-            tmpController = FxTestUtil.runAndDriveModal(
-                    () -> {
-                        SettingsContainer tmpContainer = new SettingsContainer();
-                        tmpContainerReference.set(tmpContainer);
-                        tmpBaselineReference.set(new Baseline(tmpContainer.getRowsPerPageSetting()));
-                        Stage tmpOwner = FxTestUtil.newOffscreenStage();
-                        return new SettingsViewController(tmpOwner, tmpContainer, tmpConfiguration);
-                    },
-                    aStage -> {
+        SettingsViewController tmpController = FxTestUtil.runAndDriveModal(
+                () -> {
+                    SettingsContainer tmpContainer = new SettingsContainer();
+                    tmpContainerReference.set(tmpContainer);
+                    tmpBaselineReference.set(new Baseline(tmpContainer.getRowsPerPageSetting()));
+                    Stage tmpOwner = FxTestUtil.newOffscreenStage();
+                    return new SettingsViewController(tmpOwner, tmpContainer, tmpConfiguration);
+                },
+                aStage -> {
+                    //open the GuiUtil static mock INSIDE the driver, on the JavaFX Application Thread: a Mockito
+                    //MockedStatic is thread-local and only intercepts calls made on the thread that created it, so a
+                    //mock opened on the test thread would be inert against the alert calls the handlers make here
+                    try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts()) {
                         SettingsView tmpView = (SettingsView) aStage.getScene().getRoot();
                         aDriver.drive(aStage, tmpView, tmpContainerReference.get(), tmpBaselineReference.get());
-                    });
-        }
+                    }
+                });
         AbstractFxTestCase.waitForFxEvents();
         return tmpController;
     }
