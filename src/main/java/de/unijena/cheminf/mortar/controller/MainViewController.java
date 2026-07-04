@@ -228,7 +228,7 @@ public class MainViewController {
         //<editor-fold desc="checks" defaultstate="collapsed">
         Objects.requireNonNull(aStage, "aStage (instance of Stage) is null");
         Objects.requireNonNull(aMainView, "aMainView (instance of MainView) is null");
-        Objects.requireNonNull(aMainView, "anAppDir (instance of String) is null");
+        Objects.requireNonNull(anAppDir, "anAppDir (instance of String) is null");
         Objects.requireNonNull(aConfiguration, "aConfiguration (instance of IConfiguration) is null");
         File tmpAppDirFile = new File(anAppDir);
         if (!tmpAppDirFile.isDirectory() || !tmpAppDirFile.exists()) {
