@@ -26,6 +26,7 @@
 package de.unijena.cheminf.mortar.controller;
 
 import de.unijena.cheminf.mortar.configuration.Configuration;
+import de.unijena.cheminf.mortar.gui.controls.GridTabForTableView;
 import de.unijena.cheminf.mortar.gui.util.GuiUtil;
 import de.unijena.cheminf.mortar.gui.views.MainView;
 import de.unijena.cheminf.mortar.message.Message;
@@ -42,6 +43,8 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.RadioMenuItem;
 import javafx.scene.control.TabPane;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.stage.Stage;
@@ -59,6 +62,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -682,6 +686,225 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
             MainViewControllerHarnessTest.hideStage(tmpStageReference);
         }
     }
+    //
+    /**
+     * Fires each of the seven fragment/item export menu items with the molecules tab selected after a real import, so
+     * every export menu handler lambda body runs and each delegates to {@code exportFile}, which aborts at the
+     * molecules-tab-selected precondition guard (a confirmation alert mocked to {@code OK}). Because the molecules tab is
+     * selected the native file chooser is never reached. Behavioral assertion: firing completes without a fork crash.
+     *
+     * @param aTempDir per-test temporary directory for the SMILES fixture
+     * @throws Exception if anything goes wrong on the FX thread
+     */
+    @Test
+    public void exportMenuItemHandlerLambdasFireTest(@TempDir Path aTempDir) throws Exception {
+        File tmpSmilesFile = Files.writeString(aTempDir.resolve("in.smi"),
+                MainViewControllerHarnessTest.BENZENE_SMILES_LINE).toFile();
+        AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
+        try {
+            MainViewController tmpController = this.constructController(tmpStageReference);
+            this.importFileAndDrain(tmpController, tmpSmilesFile);
+            AbstractFxTestCase.runAndWait(() -> {
+                try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts()) {
+                    MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+                    tmpMainView.getMainMenuBar().getFragmentsExportToCSVMenuItem().fire();
+                    tmpMainView.getMainMenuBar().getFragmentsExportToPDBMenuItem().fire();
+                    tmpMainView.getMainMenuBar().getFragmentsExportToPDFMenuItem().fire();
+                    tmpMainView.getMainMenuBar().getFragmentsExportToSingleSDFMenuItem().fire();
+                    tmpMainView.getMainMenuBar().getFragmentsExportToSeparateSDFsMenuItem().fire();
+                    tmpMainView.getMainMenuBar().getItemsExportToCSVMenuItem().fire();
+                    tmpMainView.getMainMenuBar().getItemsExportToPDFMenuItem().fire();
+                }
+            });
+            AbstractFxTestCase.waitForFxEvents();
+        } finally {
+            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+        }
+    }
+    //
+    /**
+     * Fires the overview-view menu item with the molecules tab selected after a real import, so the menu handler lambda
+     * takes its molecules-tab branch and opens the overview via {@link FxTestUtil#runAndDriveModal(java.util.concurrent.Callable,
+     * java.util.function.Consumer)} (which always closes it). Behavioral assertion: the drive completes without a fork
+     * crash.
+     *
+     * @param aTempDir per-test temporary directory for the SMILES fixture
+     * @throws Exception if anything goes wrong on the FX thread
+     */
+    @Test
+    public void overviewMenuItemMoleculesBranchFiresTest(@TempDir Path aTempDir) throws Exception {
+        File tmpSmilesFile = Files.writeString(aTempDir.resolve("in.smi"),
+                MainViewControllerHarnessTest.BENZENE_SMILES_LINE).toFile();
+        AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
+        try {
+            MainViewController tmpController = this.constructController(tmpStageReference);
+            this.importFileAndDrain(tmpController, tmpSmilesFile);
+            this.driveModalOpen(() -> {
+                MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+                tmpMainView.getMainMenuBar().getOverviewViewMenuItem().fire();
+            });
+        } finally {
+            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+        }
+    }
+    //
+    /**
+     * Fires the overview-view menu item with a fragments result tab selected, so the menu handler lambda takes its
+     * fragments-tab branch and opens the overview through the modal driver. A fresh controller is used because the
+     * {@code OverviewViewController} reuses one {@code OverviewView} instance across opens.
+     *
+     * @throws Exception if anything goes wrong on the FX thread
+     */
+    @Test
+    public void overviewMenuItemFragmentsBranchFiresTest() throws Exception {
+        AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
+        try {
+            MainViewController tmpController = this.constructController(tmpStageReference);
+            AbstractFxTestCase.runAndWait(() ->
+                    MainViewControllerHarnessTest.setUpSelectedFragmentsTab(tmpController, "TestFragmentation"));
+            AbstractFxTestCase.waitForFxEvents();
+            this.driveModalOpen(() -> {
+                MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+                tmpMainView.getMainMenuBar().getOverviewViewMenuItem().fire();
+            });
+        } finally {
+            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+        }
+    }
+    //
+    /**
+     * Drives the parent-molecules-sample branch of {@code openOverviewView}: with a fragments result tab selected and a
+     * single cell selected in the fragments table, {@code openOverviewView(PARENT_MOLECULES_SAMPLE)} collects the
+     * selected fragment plus its parent-molecule sample and opens the overview through the modal driver.
+     *
+     * @throws Exception if anything goes wrong on the FX thread
+     */
+    @Test
+    public void overviewParentMoleculesSampleBranchTest() throws Exception {
+        AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
+        try {
+            MainViewController tmpController = this.constructController(tmpStageReference);
+            AbstractFxTestCase.runAndWait(() -> {
+                MainViewControllerHarnessTest.setUpSelectedFragmentsTab(tmpController, "TestFragmentation");
+                MainViewControllerHarnessTest.selectFirstCellOfSelectedTab(tmpController);
+            });
+            AbstractFxTestCase.waitForFxEvents();
+            this.driveModalOpen(() ->
+                    tmpController.openOverviewView(OverviewViewController.DataSources.PARENT_MOLECULES_SAMPLE));
+        } finally {
+            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+        }
+    }
+    //
+    /**
+     * Drives the item-with-fragments-sample branch of {@code openOverviewView}: with a populated itemization result tab
+     * selected and a single cell selected in the itemization table, {@code openOverviewView(ITEM_WITH_FRAGMENTS_SAMPLE)}
+     * collects the selected molecule plus its fragment sample and opens the overview through the modal driver.
+     *
+     * @throws Exception if anything goes wrong on the FX thread
+     */
+    @Test
+    public void overviewItemWithFragmentsSampleBranchTest() throws Exception {
+        AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
+        try {
+            MainViewController tmpController = this.constructController(tmpStageReference);
+            AbstractFxTestCase.runAndWait(() -> {
+                MainViewControllerHarnessTest.setUpPopulatedItemsTab(tmpController, "TestFragmentation");
+                MainViewControllerHarnessTest.selectItemizationTab(tmpController);
+                MainViewControllerHarnessTest.selectFirstCellOfSelectedTab(tmpController);
+            });
+            AbstractFxTestCase.waitForFxEvents();
+            this.driveModalOpen(() ->
+                    tmpController.openOverviewView(OverviewViewController.DataSources.ITEM_WITH_FRAGMENTS_SAMPLE));
+        } finally {
+            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+        }
+    }
+    //
+    /**
+     * Fires the fragmentation-settings, global-settings, pipeline-settings and histogram menu items (with a fragments
+     * result tab present for the histogram) so their menu handler lambda bodies run and each opens its auxiliary view
+     * through the modal driver (which always closes it). Behavioral assertion: every drive completes without a fork
+     * crash.
+     *
+     * @throws Exception if anything goes wrong on the FX thread
+     */
+    @Test
+    public void settingsAndHistogramMenuItemHandlerLambdasFireTest() throws Exception {
+        AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
+        try {
+            MainViewController tmpController = this.constructController(tmpStageReference);
+            AbstractFxTestCase.runAndWait(() ->
+                    MainViewControllerHarnessTest.setUpSelectedFragmentsTab(tmpController, "TestFragmentation"));
+            AbstractFxTestCase.waitForFxEvents();
+            this.driveModalOpen(() -> {
+                MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+                tmpMainView.getMainMenuBar().getFragmentationSettingsMenuItem().fire();
+            });
+            this.driveModalOpen(() -> {
+                MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+                tmpMainView.getMainMenuBar().getGlobalSettingsMenuItem().fire();
+            });
+            this.driveModalOpen(() -> {
+                MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+                tmpMainView.getMainMenuBar().getPipelineSettingsMenuItem().fire();
+            });
+            this.driveModalOpen(() -> {
+                MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+                tmpMainView.getMainMenuBar().getHistogramViewerMenuItem().fire();
+            });
+        } finally {
+            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+        }
+    }
+    //
+    /**
+     * Fires a key-press event on the scene while no result tab is present (a freshly constructed controller), so the
+     * pagination key-press filter takes its null-selected-tab branch (consume and return). Behavioral assertion: the
+     * event is dispatched without a fork crash.
+     *
+     * @throws Exception if anything goes wrong on the FX thread
+     */
+    @Test
+    public void paginationKeyFilterNullTabBranchTest() throws Exception {
+        AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
+        try {
+            MainViewController tmpController = this.constructController(tmpStageReference);
+            AbstractFxTestCase.runAndWait(() -> {
+                Scene tmpScene = (Scene) MainViewControllerHarnessTest.getField(tmpController, "scene");
+                tmpScene.getRoot().fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.END,
+                        false, false, false, false));
+            });
+            AbstractFxTestCase.waitForFxEvents();
+        } finally {
+            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+        }
+    }
+    //
+    /**
+     * Directly drives the extracted {@code applyGlobalSettingsChanges} apply body (Phase 16 seam E5) with both change
+     * flags set on a fully populated fragments/itemization state, so the rows-per-page pagination recompute (over every
+     * result tab) and the keep-atom-container propagation (over every molecule and fragment) both run. Behavioral
+     * assertion: the apply completes without throwing and the two result tabs are present.
+     *
+     * @throws Exception if anything goes wrong on the FX thread
+     */
+    @Test
+    public void applyGlobalSettingsChangesAppliesToTabsAndDataModelsTest() throws Exception {
+        AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
+        try {
+            MainViewController tmpController = this.constructController(tmpStageReference);
+            AbstractFxTestCase.runAndWait(() -> {
+                MainViewControllerHarnessTest.setUpPopulatedItemsTab(tmpController, "TestFragmentation");
+                tmpController.applyGlobalSettingsChanges(true, true);
+            });
+            AbstractFxTestCase.waitForFxEvents();
+            Assertions.assertTrue(MainViewControllerHarnessTest.getTabPaneSize(tmpController) >= 2,
+                    "the fragments and itemization result tabs must be present after applying the global settings");
+        } finally {
+            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+        }
+    }
     //</editor-fold>
     //
     //<editor-fold desc="Private helper methods" defaultstate="collapsed">
@@ -914,6 +1137,59 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
         ObservableList<FragmentDataModel> tmpFragmentList = FXCollections.observableArrayList(tmpFragment);
         MainViewControllerHarnessTest.getFragmentMap(aController).put(aFragmentationName, tmpFragmentList);
         aController.addFragmentationResultTabs(aFragmentationName);
+    }
+    //
+    /**
+     * Populates a fully consistent fragments/itemization state: a molecule that has undergone the given fragmentation
+     * (with both its fragment list and its unique-SMILES-keyed fragment-frequency map set) is added to the molecule data
+     * model list and a non-empty fragment list to the fragment map BEFORE the result tabs are built, so the itemization
+     * tab is populated. The fragments tab is selected. Must be called on the JavaFX Application Thread.
+     *
+     * @param aController the controller to set up
+     * @param aFragmentationName the fragmentation name used as the tab title suffix and map key
+     */
+    private static void setUpPopulatedItemsTab(MainViewController aController, String aFragmentationName) {
+        FragmentDataModel tmpFragment = new FragmentDataModel("c1ccccc1", "Benzene", new HashMap<>());
+        tmpFragment.getParentMolecules().add(new MoleculeDataModel("c1ccccc1", "BenzeneParent", new HashMap<>()));
+        ObservableList<FragmentDataModel> tmpFragmentList = FXCollections.observableArrayList(tmpFragment);
+        MoleculeDataModel tmpMolecule = new MoleculeDataModel("c1ccccc1", "Benzene", new HashMap<>());
+        tmpMolecule.getAllFragments().put(aFragmentationName, new ArrayList<>(tmpFragmentList));
+        Map<String, Integer> tmpFragmentFrequencies = new HashMap<>();
+        tmpFragmentFrequencies.put(tmpFragment.getUniqueSmiles(), 1);
+        tmpMolecule.getFragmentFrequencies().put(aFragmentationName, tmpFragmentFrequencies);
+        MainViewControllerHarnessTest.getMoleculeList(aController).add(tmpMolecule);
+        MainViewControllerHarnessTest.getFragmentMap(aController).put(aFragmentationName, tmpFragmentList);
+        aController.addFragmentationResultTabs(aFragmentationName);
+    }
+    //
+    /**
+     * Selects the itemization result tab of the controller's main tab pane. Must be called on the JavaFX Application
+     * Thread.
+     *
+     * @param aController the controller under test
+     */
+    private static void selectItemizationTab(MainViewController aController) {
+        TabPane tmpTabPane = (TabPane) MainViewControllerHarnessTest.getField(aController, "mainTabPane");
+        tmpTabPane.getTabs().stream()
+                .filter(aTab -> TabNames.ITEMIZATION.name().equals(aTab.getId()))
+                .findFirst()
+                .ifPresent(aTab -> tmpTabPane.getSelectionModel().select(aTab));
+    }
+    //
+    /**
+     * Enables cell selection on the table of the currently selected result tab and selects the first cell of the first
+     * column, so the overview parent/item-sample branches (which read a single selected cell) can be driven. Must be
+     * called on the JavaFX Application Thread.
+     *
+     * @param aController the controller under test
+     */
+    private static void selectFirstCellOfSelectedTab(MainViewController aController) {
+        TabPane tmpTabPane = (TabPane) MainViewControllerHarnessTest.getField(aController, "mainTabPane");
+        TableView<?> tmpTableView = (TableView<?>)
+                ((GridTabForTableView) tmpTabPane.getSelectionModel().getSelectedItem()).getTableView();
+        tmpTableView.getSelectionModel().setCellSelectionEnabled(true);
+        tmpTableView.getSelectionModel().clearSelection();
+        tmpTableView.getSelectionModel().select(0, (TableColumn) tmpTableView.getColumns().getFirst());
     }
     //</editor-fold>
 }
