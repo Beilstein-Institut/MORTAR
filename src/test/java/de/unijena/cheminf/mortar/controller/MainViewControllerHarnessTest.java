@@ -30,12 +30,10 @@ import de.unijena.cheminf.mortar.gui.controls.GridTabForTableView;
 import de.unijena.cheminf.mortar.gui.util.GuiUtil;
 import de.unijena.cheminf.mortar.gui.views.MainView;
 import de.unijena.cheminf.mortar.message.Message;
-import de.unijena.cheminf.mortar.model.data.FragmentDataModel;
 import de.unijena.cheminf.mortar.model.data.MoleculeDataModel;
 import de.unijena.cheminf.mortar.model.fragmentation.FragmentationService;
 
 import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
@@ -57,15 +55,11 @@ import org.mockito.Mockito;
 
 import java.awt.Desktop;
 import java.io.File;
-import java.io.IOException;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -105,11 +99,6 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
      * the empty-import warning branch is exercised.
      */
     private static final String INVALID_SMILES_LINE = "this-is-not-a-valid-smiles-token\n";
-    /**
-     * Bounded wait (in milliseconds) applied when joining the background importer thread, mirroring the harness's own
-     * 10-second bound so a stuck import fails fast instead of hanging the CI build.
-     */
-    private static final long IMPORT_JOIN_TIMEOUT_MILLIS = 10_000L;
     //</editor-fold>
     //
     //<editor-fold desc="Constructor" defaultstate="collapsed">
@@ -186,13 +175,13 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
                 MainViewControllerHarnessTest.BENZENE_SMILES_LINE).toFile();
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
-            this.importFileAndDrain(tmpController, tmpSmilesFile);
-            Assertions.assertFalse(MainViewControllerHarnessTest.getMoleculeList(tmpController).isEmpty(),
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
+            MainViewControllerTestSupport.importFileAndDrain(tmpController, tmpSmilesFile);
+            Assertions.assertFalse(MainViewControllerTestSupport.getMoleculeList(tmpController).isEmpty(),
                     "the molecule list must be populated after a successful import");
             //fire the pagination key-press filter against the now-present, selected molecules tab (all four branches)
             AbstractFxTestCase.runAndWait(() -> {
-                Scene tmpScene = (Scene) MainViewControllerHarnessTest.getField(tmpController, "scene");
+                Scene tmpScene = (Scene) MainViewControllerTestSupport.getField(tmpController, "scene");
                 for (KeyCode tmpKeyCode : new KeyCode[]{KeyCode.END, KeyCode.HOME, KeyCode.RIGHT, KeyCode.LEFT,
                         KeyCode.PAGE_UP, KeyCode.PAGE_DOWN}) {
                     tmpScene.getRoot().fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED, "", "", tmpKeyCode,
@@ -201,7 +190,7 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
             });
             AbstractFxTestCase.waitForFxEvents();
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -218,12 +207,12 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
                 MainViewControllerHarnessTest.INVALID_SMILES_LINE).toFile();
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
-            this.importFileAndDrain(tmpController, tmpSmilesFile);
-            Assertions.assertTrue(MainViewControllerHarnessTest.getMoleculeList(tmpController).isEmpty(),
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
+            MainViewControllerTestSupport.importFileAndDrain(tmpController, tmpSmilesFile);
+            Assertions.assertTrue(MainViewControllerTestSupport.getMoleculeList(tmpController).isEmpty(),
                     "the molecule list must stay empty when no molecule can be parsed");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -242,15 +231,15 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
                 MainViewControllerHarnessTest.BENZENE_SMILES_LINE).toFile();
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
-            this.importFileAndDrain(tmpController, tmpSmilesFile);
-            Assertions.assertFalse(MainViewControllerHarnessTest.getMoleculeList(tmpController).isEmpty(),
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
+            MainViewControllerTestSupport.importFileAndDrain(tmpController, tmpSmilesFile);
+            Assertions.assertFalse(MainViewControllerTestSupport.getMoleculeList(tmpController).isEmpty(),
                     "the molecule list must be populated after the first import");
-            this.importFileAndDrain(tmpController, tmpSmilesFile);
-            Assertions.assertFalse(MainViewControllerHarnessTest.getMoleculeList(tmpController).isEmpty(),
+            MainViewControllerTestSupport.importFileAndDrain(tmpController, tmpSmilesFile);
+            Assertions.assertFalse(MainViewControllerTestSupport.getMoleculeList(tmpController).isEmpty(),
                     "the molecule list must be populated again after the confirmed second import");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -267,10 +256,10 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     public void openAndCancelHandlersRunTest() throws Exception {
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
             AbstractFxTestCase.runAndWait(() -> {
                 try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts()) {
-                    MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+                    MainView tmpMainView = (MainView) MainViewControllerTestSupport.getField(tmpController, "mainView");
                     //Open: the native chooser returns null (or is unsupported) headless -> early return; tolerate either
                     try {
                         tmpMainView.getMainMenuBar().getOpenMenuItem().fire();
@@ -278,17 +267,27 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
                         //the native file chooser is a documented-unreachable OS boundary; the delegation up to it ran
                     }
                     //set unstarted task/thread stand-ins so the interrupt handlers do not dereference null
-                    MainViewControllerHarnessTest.setField(tmpController, "importTask", MainViewControllerHarnessTest.noOpTask());
-                    MainViewControllerHarnessTest.setField(tmpController, "importerThread", new Thread(() -> { }));
-                    MainViewControllerHarnessTest.setField(tmpController, "exportTask", MainViewControllerHarnessTest.noOpTask());
-                    MainViewControllerHarnessTest.setField(tmpController, "exporterThread", new Thread(() -> { }));
+                    MainViewControllerTestSupport.setField(tmpController, "importTask", MainViewControllerHarnessTest.noOpTask());
+                    MainViewControllerTestSupport.setField(tmpController, "importerThread", new Thread(() -> { }));
+                    MainViewControllerTestSupport.setField(tmpController, "exportTask", MainViewControllerHarnessTest.noOpTask());
+                    MainViewControllerTestSupport.setField(tmpController, "exporterThread", new Thread(() -> { }));
                     tmpMainView.getMainMenuBar().getCancelImportMenuItem().fire();
                     tmpMainView.getMainMenuBar().getCancelExportMenuItem().fire();
                 }
             });
             AbstractFxTestCase.waitForFxEvents();
+            //the Open handler hit its headless early-return, so nothing was imported
+            Assertions.assertTrue(MainViewControllerTestSupport.getMoleculeList(tmpController).isEmpty(),
+                    "the headless Open early-return must not import any molecule");
+            //the cancel-import/cancel-export handlers ran interruptImport/interruptExport, cancelling the stand-in tasks
+            Assertions.assertTrue(
+                    ((Task<?>) MainViewControllerTestSupport.getField(tmpController, "importTask")).isCancelled(),
+                    "the cancel-import handler must cancel the import task");
+            Assertions.assertTrue(
+                    ((Task<?>) MainViewControllerTestSupport.getField(tmpController, "exportTask")).isCancelled(),
+                    "the cancel-export handler must cancel the export task");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -307,10 +306,10 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
                 MainViewControllerHarnessTest.BENZENE_SMILES_LINE).toFile();
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
-            this.importFileAndDrain(tmpController, tmpSmilesFile);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
+            MainViewControllerTestSupport.importFileAndDrain(tmpController, tmpSmilesFile);
             AbstractFxTestCase.runAndWait(() -> {
-                MainViewControllerHarnessTest.setField(tmpController, "parallelFragmentationMainTask",
+                MainViewControllerTestSupport.setField(tmpController, "parallelFragmentationMainTask",
                         MainViewControllerHarnessTest.noOpTask());
                 try {
                     Method tmpMethod = MainViewController.class.getDeclaredMethod("interruptFragmentation");
@@ -322,13 +321,13 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
             });
             AbstractFxTestCase.waitForFxEvents();
             Button tmpCancelButton = (Button)
-                    MainViewControllerHarnessTest.getField(tmpController, "cancelFragmentationButton");
+                    MainViewControllerTestSupport.getField(tmpController, "cancelFragmentationButton");
             Button tmpFragmentButton = (Button)
-                    MainViewControllerHarnessTest.getField(tmpController, "fragmentationButton");
+                    MainViewControllerTestSupport.getField(tmpController, "fragmentationButton");
             Assertions.assertFalse(tmpCancelButton.isVisible(), "the cancel-fragmentation button must be hidden");
             Assertions.assertFalse(tmpFragmentButton.isDisabled(), "the fragmentation button must be re-enabled");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -343,7 +342,7 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     public void statusBarAndStatusMessageBranchesTest() throws Exception {
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
             AbstractFxTestCase.runAndWait(() -> {
                 Assertions.assertEquals(Message.get("Status.running"),
                         tmpController.getStatusMessageByThreadType(MainViewController.ThreadType.FRAGMENTATION_THREAD));
@@ -365,7 +364,7 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
             });
             AbstractFxTestCase.waitForFxEvents();
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -379,20 +378,20 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     public void isFragmentationStopAndDataLossConfirmedBothBranchesTest() throws Exception {
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
             AbstractFxTestCase.runAndWait(() -> {
                 try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts()) {
                     //data-loss branch (fragmentation not running)
                     Assertions.assertTrue(tmpController.isFragmentationStopAndDataLossConfirmed(),
                             "an OK-confirmed data-loss dialog must return true");
                     //fragmentation-running branch
-                    MainViewControllerHarnessTest.setField(tmpController, "isFragmentationRunning", Boolean.TRUE);
+                    MainViewControllerTestSupport.setField(tmpController, "isFragmentationRunning", Boolean.TRUE);
                     Assertions.assertTrue(tmpController.isFragmentationStopAndDataLossConfirmed(),
                             "an OK-confirmed fragmentation-running dialog must return true");
                 }
             });
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -409,10 +408,10 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     public void closeApplicationGuardedCancelEarlyReturnTest() throws Exception {
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
             AbstractFxTestCase.runAndWait(() -> {
                 //make the molecule list non-empty so the guard's first operand is true
-                MainViewControllerHarnessTest.getMoleculeList(tmpController)
+                MainViewControllerTestSupport.getMoleculeList(tmpController)
                         .add(new MoleculeDataModel("c1ccccc1", "Benzene", new HashMap<>()));
                 try (MockedStatic<GuiUtil> tmpGuiUtilMock = MainViewControllerHarnessTest.mockGuiAlertsConfirmCancel()) {
                     Method tmpMethod = MainViewController.class.getDeclaredMethod("closeApplication", int.class);
@@ -423,10 +422,10 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
                 }
             });
             //the fork is still alive: the list is unchanged (persist/exit tail was not reached)
-            Assertions.assertEquals(1, MainViewControllerHarnessTest.getMoleculeList(tmpController).size(),
+            Assertions.assertEquals(1, MainViewControllerTestSupport.getMoleculeList(tmpController).size(),
                     "the guarded closeApplication must return early, leaving state untouched");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -445,22 +444,22 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
                 MainViewControllerHarnessTest.BENZENE_SMILES_LINE).toFile();
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
-            this.importFileAndDrain(tmpController, tmpSmilesFile);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
+            MainViewControllerTestSupport.importFileAndDrain(tmpController, tmpSmilesFile);
             AbstractFxTestCase.runAndWait(() -> {
                 try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts()) {
-                    MainViewControllerHarnessTest.getMoleculeList(tmpController).get(0).setSelection(true);
+                    MainViewControllerTestSupport.getMoleculeList(tmpController).get(0).setSelection(true);
                     tmpController.startFragmentation();
                 }
             });
-            this.joinThreadField(tmpController, "fragmentationThread");
+            MainViewControllerTestSupport.joinThreadField(tmpController, "fragmentationThread");
             AbstractFxTestCase.waitForFxEvents();
             AbstractFxTestCase.waitForFxEvents();
             AbstractFxTestCase.runAndWait(() -> { });
-            Assertions.assertFalse(MainViewControllerHarnessTest.getFragmentMap(tmpController).isEmpty(),
+            Assertions.assertFalse(MainViewControllerTestSupport.getFragmentMap(tmpController).isEmpty(),
                     "a fragmentation result list must be present after a completed fragmentation");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -478,22 +477,22 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
                 MainViewControllerHarnessTest.BENZENE_SMILES_LINE).toFile();
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
-            this.importFileAndDrain(tmpController, tmpSmilesFile);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
+            MainViewControllerTestSupport.importFileAndDrain(tmpController, tmpSmilesFile);
             AbstractFxTestCase.runAndWait(() -> {
                 try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts()) {
-                    MainViewControllerHarnessTest.getMoleculeList(tmpController).get(0).setSelection(true);
+                    MainViewControllerTestSupport.getMoleculeList(tmpController).get(0).setSelection(true);
                     tmpController.startFragmentation(true);
                 }
             });
-            this.joinThreadField(tmpController, "fragmentationThread");
+            MainViewControllerTestSupport.joinThreadField(tmpController, "fragmentationThread");
             AbstractFxTestCase.waitForFxEvents();
             AbstractFxTestCase.waitForFxEvents();
             AbstractFxTestCase.runAndWait(() -> { });
-            Assertions.assertFalse(MainViewControllerHarnessTest.getFragmentMap(tmpController).isEmpty(),
+            Assertions.assertFalse(MainViewControllerTestSupport.getFragmentMap(tmpController).isEmpty(),
                     "a fragmentation result list must be present after a completed pipeline fragmentation");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -508,17 +507,17 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     public void emptyFragmentListDisablesResultTabButtonsTest() throws Exception {
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
             AbstractFxTestCase.runAndWait(() -> {
-                MainViewControllerHarnessTest.getFragmentMap(tmpController)
+                MainViewControllerTestSupport.getFragmentMap(tmpController)
                         .put("EmptyFragmentation", FXCollections.observableArrayList());
                 tmpController.addFragmentationResultTabs("EmptyFragmentation");
             });
             AbstractFxTestCase.waitForFxEvents();
-            int tmpTabCount = MainViewControllerHarnessTest.getTabPaneSize(tmpController);
+            int tmpTabCount = MainViewControllerTestSupport.getTabPaneSize(tmpController);
             Assertions.assertTrue(tmpTabCount >= 2, "the fragments and itemization result tabs must be added");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -533,10 +532,10 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     public void fragmentationAlgorithmToggleUpdatesSelectedFragmenterTest() throws Exception {
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
             AtomicReference<String> tmpToggledText = new AtomicReference<>();
             AbstractFxTestCase.runAndWait(() -> {
-                MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+                MainView tmpMainView = (MainView) MainViewControllerTestSupport.getField(tmpController, "mainView");
                 List<MenuItem> tmpItems = tmpMainView.getMainMenuBar().getFragmentationAlgorithmMenu().getItems();
                 for (MenuItem tmpItem : tmpItems) {
                     RadioMenuItem tmpRadioItem = (RadioMenuItem) tmpItem;
@@ -549,12 +548,12 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
             });
             AbstractFxTestCase.waitForFxEvents();
             FragmentationService tmpService =
-                    (FragmentationService) MainViewControllerHarnessTest.getField(tmpController, "fragmentationService");
+                    (FragmentationService) MainViewControllerTestSupport.getField(tmpController, "fragmentationService");
             Assertions.assertEquals(tmpToggledText.get(),
                     tmpService.getSelectedFragmenter().getFragmentationAlgorithmDisplayName(),
                     "the selected fragmenter must match the toggled algorithm menu item");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -574,15 +573,20 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
                 MainViewControllerHarnessTest.BENZENE_SMILES_LINE).toFile();
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
             this.driveModalOpen(tmpController::openFragmentationSettingsView);
             this.driveModalOpen(tmpController::openPipelineSettingsView);
             //import first so the global-settings apply body iterates the populated molecules tab
-            this.importFileAndDrain(tmpController, tmpSmilesFile);
+            MainViewControllerTestSupport.importFileAndDrain(tmpController, tmpSmilesFile);
             this.driveModalOpen(tmpController::openGlobalSettingsView);
             AbstractFxTestCase.waitForFxEvents();
+            //the settings views do not surface a window detectable by the modal driver headlessly, so the observable
+            //post-state asserted here is that the preceding import populated the molecule list the global-settings
+            //apply body then iterated over (the three opens are otherwise covered by completing without throwing)
+            Assertions.assertFalse(MainViewControllerTestSupport.getMoleculeList(tmpController).isEmpty(),
+                    "the import preceding the global-settings open must have populated the molecule list");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -596,13 +600,18 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     public void openHistogramViewModalTest() throws Exception {
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
             AbstractFxTestCase.runAndWait(() ->
-                    MainViewControllerHarnessTest.setUpSelectedFragmentsTab(tmpController, "TestFragmentation"));
+                    MainViewControllerTestSupport.setUpSelectedFragmentsTab(tmpController, "TestFragmentation"));
             AbstractFxTestCase.waitForFxEvents();
             this.driveModalOpen(tmpController::openHistogramView);
+            //the histogram view does not surface a window detectable by the modal driver headlessly, so the observable
+            //post-state asserted here is that the fixture built the fragments and itemization result tabs the histogram
+            //open reads from (the open itself is otherwise covered by completing without throwing)
+            Assertions.assertTrue(MainViewControllerTestSupport.getTabPaneSize(tmpController) >= 2,
+                    "the fragments and itemization result tabs must be present for the histogram open");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -617,20 +626,22 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     public void openAboutViewModalTest() throws Exception {
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
+            AtomicReference<Stage> tmpAboutModal = new AtomicReference<>();
             FxTestUtil.runAndDriveModal(
                     () -> {
                         try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts();
                                 MockedStatic<Desktop> tmpDesktopMock = FxTestUtil.mockDesktop()) {
-                            MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+                            MainView tmpMainView = (MainView) MainViewControllerTestSupport.getField(tmpController, "mainView");
                             tmpMainView.getMainMenuBar().getAboutViewMenuItem().fire();
                         }
                         return null;
                     },
-                    aStage -> { });
+                    tmpAboutModal::set);
             AbstractFxTestCase.waitForFxEvents();
+            Assertions.assertNotNull(tmpAboutModal.get(), "the About view stage must have opened");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -650,17 +661,21 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
                 MainViewControllerHarnessTest.BENZENE_SMILES_LINE).toFile();
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
             //mismatched data source with the molecules tab selected -> internally-caught IllegalStateException (no modal)
-            this.importFileAndDrain(tmpController, tmpSmilesFile);
+            MainViewControllerTestSupport.importFileAndDrain(tmpController, tmpSmilesFile);
             AbstractFxTestCase.runAndWait(() ->
                     tmpController.openOverviewView(OverviewViewController.DataSources.FRAGMENTS_TAB));
             AbstractFxTestCase.waitForFxEvents();
+            //the caught IllegalStateException path returned without opening a modal, so state is untouched and populated
+            Assertions.assertFalse(MainViewControllerTestSupport.getMoleculeList(tmpController).isEmpty(),
+                    "the caught IllegalStateException path must leave the imported molecule list intact");
             //molecules tab selected -> MOLECULES_TAB branch (the single overview open for this controller)
-            this.driveModalOpen(() ->
+            Stage tmpOverviewModal = this.driveModalOpenAndCapture(() ->
                     tmpController.openOverviewView(OverviewViewController.DataSources.MOLECULES_TAB));
+            Assertions.assertNotNull(tmpOverviewModal, "the molecules-branch overview stage must have opened");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -676,14 +691,14 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     public void openOverviewViewFragmentsBranchTest() throws Exception {
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
             AbstractFxTestCase.runAndWait(() ->
-                    MainViewControllerHarnessTest.setUpSelectedFragmentsTab(tmpController, "TestFragmentation"));
+                    MainViewControllerTestSupport.setUpSelectedFragmentsTab(tmpController, "TestFragmentation"));
             AbstractFxTestCase.waitForFxEvents();
             this.driveModalOpen(() ->
                     tmpController.openOverviewView(OverviewViewController.DataSources.FRAGMENTS_TAB));
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -702,11 +717,11 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
                 MainViewControllerHarnessTest.BENZENE_SMILES_LINE).toFile();
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
-            this.importFileAndDrain(tmpController, tmpSmilesFile);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
+            MainViewControllerTestSupport.importFileAndDrain(tmpController, tmpSmilesFile);
             AbstractFxTestCase.runAndWait(() -> {
                 try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts()) {
-                    MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+                    MainView tmpMainView = (MainView) MainViewControllerTestSupport.getField(tmpController, "mainView");
                     tmpMainView.getMainMenuBar().getFragmentsExportToCSVMenuItem().fire();
                     tmpMainView.getMainMenuBar().getFragmentsExportToPDBMenuItem().fire();
                     tmpMainView.getMainMenuBar().getFragmentsExportToPDFMenuItem().fire();
@@ -717,8 +732,11 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
                 }
             });
             AbstractFxTestCase.waitForFxEvents();
+            //every export aborted at the molecules-tab-selected precondition guard, so no export task was ever launched
+            Assertions.assertNull(MainViewControllerTestSupport.getField(tmpController, "exportTask"),
+                    "an export fired with the molecules tab selected must abort at the guard without launching a task");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -737,14 +755,15 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
                 MainViewControllerHarnessTest.BENZENE_SMILES_LINE).toFile();
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
-            this.importFileAndDrain(tmpController, tmpSmilesFile);
-            this.driveModalOpen(() -> {
-                MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
+            MainViewControllerTestSupport.importFileAndDrain(tmpController, tmpSmilesFile);
+            Stage tmpOverviewModal = this.driveModalOpenAndCapture(() -> {
+                MainView tmpMainView = (MainView) MainViewControllerTestSupport.getField(tmpController, "mainView");
                 tmpMainView.getMainMenuBar().getOverviewViewMenuItem().fire();
             });
+            Assertions.assertNotNull(tmpOverviewModal, "the molecules-branch overview stage must have opened");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -759,16 +778,17 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     public void overviewMenuItemFragmentsBranchFiresTest() throws Exception {
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
             AbstractFxTestCase.runAndWait(() ->
-                    MainViewControllerHarnessTest.setUpSelectedFragmentsTab(tmpController, "TestFragmentation"));
+                    MainViewControllerTestSupport.setUpSelectedFragmentsTab(tmpController, "TestFragmentation"));
             AbstractFxTestCase.waitForFxEvents();
-            this.driveModalOpen(() -> {
-                MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+            Stage tmpOverviewModal = this.driveModalOpenAndCapture(() -> {
+                MainView tmpMainView = (MainView) MainViewControllerTestSupport.getField(tmpController, "mainView");
                 tmpMainView.getMainMenuBar().getOverviewViewMenuItem().fire();
             });
+            Assertions.assertNotNull(tmpOverviewModal, "the fragments-branch overview stage must have opened");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -783,16 +803,17 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     public void overviewParentMoleculesSampleBranchTest() throws Exception {
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
             AbstractFxTestCase.runAndWait(() -> {
-                MainViewControllerHarnessTest.setUpSelectedFragmentsTab(tmpController, "TestFragmentation");
+                MainViewControllerTestSupport.setUpSelectedFragmentsTab(tmpController, "TestFragmentation");
                 MainViewControllerHarnessTest.selectFirstCellOfSelectedTab(tmpController);
             });
             AbstractFxTestCase.waitForFxEvents();
-            this.driveModalOpen(() ->
+            Stage tmpOverviewModal = this.driveModalOpenAndCapture(() ->
                     tmpController.openOverviewView(OverviewViewController.DataSources.PARENT_MOLECULES_SAMPLE));
+            Assertions.assertNotNull(tmpOverviewModal, "the parent-molecules-sample overview stage must have opened");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -807,17 +828,20 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     public void overviewItemWithFragmentsSampleBranchTest() throws Exception {
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
             AbstractFxTestCase.runAndWait(() -> {
-                MainViewControllerHarnessTest.setUpPopulatedItemsTab(tmpController, "TestFragmentation");
+                MainViewControllerTestSupport.setUpPopulatedFragmentsAndItems(tmpController, "TestFragmentation");
                 MainViewControllerHarnessTest.selectItemizationTab(tmpController);
                 MainViewControllerHarnessTest.selectFirstCellOfSelectedTab(tmpController);
             });
             AbstractFxTestCase.waitForFxEvents();
-            this.driveModalOpen(() ->
+            Stage tmpOverviewModal = this.driveModalOpenAndCapture(() ->
                     tmpController.openOverviewView(OverviewViewController.DataSources.ITEM_WITH_FRAGMENTS_SAMPLE));
+            Assertions.assertNotNull(tmpOverviewModal, "the item-with-fragments-sample overview stage must have opened");
+            Assertions.assertFalse(MainViewControllerTestSupport.getMoleculeList(tmpController).isEmpty(),
+                    "the populated itemization fixture must have added a molecule to the molecule list");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -833,28 +857,33 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     public void settingsAndHistogramMenuItemHandlerLambdasFireTest() throws Exception {
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
             AbstractFxTestCase.runAndWait(() ->
-                    MainViewControllerHarnessTest.setUpSelectedFragmentsTab(tmpController, "TestFragmentation"));
+                    MainViewControllerTestSupport.setUpSelectedFragmentsTab(tmpController, "TestFragmentation"));
             AbstractFxTestCase.waitForFxEvents();
             this.driveModalOpen(() -> {
-                MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+                MainView tmpMainView = (MainView) MainViewControllerTestSupport.getField(tmpController, "mainView");
                 tmpMainView.getMainMenuBar().getFragmentationSettingsMenuItem().fire();
             });
             this.driveModalOpen(() -> {
-                MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+                MainView tmpMainView = (MainView) MainViewControllerTestSupport.getField(tmpController, "mainView");
                 tmpMainView.getMainMenuBar().getGlobalSettingsMenuItem().fire();
             });
             this.driveModalOpen(() -> {
-                MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+                MainView tmpMainView = (MainView) MainViewControllerTestSupport.getField(tmpController, "mainView");
                 tmpMainView.getMainMenuBar().getPipelineSettingsMenuItem().fire();
             });
             this.driveModalOpen(() -> {
-                MainView tmpMainView = (MainView) MainViewControllerHarnessTest.getField(tmpController, "mainView");
+                MainView tmpMainView = (MainView) MainViewControllerTestSupport.getField(tmpController, "mainView");
                 tmpMainView.getMainMenuBar().getHistogramViewerMenuItem().fire();
             });
+            //the settings and histogram views do not surface a window detectable by the modal driver headlessly, so the
+            //observable post-state asserted here is that the fixture built the result tabs those menu handlers read from
+            //(the four menu-handler lambdas are otherwise covered by firing and completing without throwing)
+            Assertions.assertTrue(MainViewControllerTestSupport.getTabPaneSize(tmpController) >= 2,
+                    "the fragments and itemization result tabs must be present for the settings/histogram menu handlers");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -869,15 +898,18 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     public void paginationKeyFilterNullTabBranchTest() throws Exception {
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
             AbstractFxTestCase.runAndWait(() -> {
-                Scene tmpScene = (Scene) MainViewControllerHarnessTest.getField(tmpController, "scene");
+                Scene tmpScene = (Scene) MainViewControllerTestSupport.getField(tmpController, "scene");
                 tmpScene.getRoot().fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.END,
                         false, false, false, false));
             });
             AbstractFxTestCase.waitForFxEvents();
+            //a freshly constructed controller has no result tab, so the key filter took its null-selected-tab branch
+            Assertions.assertEquals(0, MainViewControllerTestSupport.getTabPaneSize(tmpController),
+                    "no result tab must be present, exercising the null-selected-tab branch of the key filter");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //
@@ -893,91 +925,21 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     public void applyGlobalSettingsChangesAppliesToTabsAndDataModelsTest() throws Exception {
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
-            MainViewController tmpController = this.constructController(tmpStageReference);
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
             AbstractFxTestCase.runAndWait(() -> {
-                MainViewControllerHarnessTest.setUpPopulatedItemsTab(tmpController, "TestFragmentation");
+                MainViewControllerTestSupport.setUpPopulatedFragmentsAndItems(tmpController, "TestFragmentation");
                 tmpController.applyGlobalSettingsChanges(true, true);
             });
             AbstractFxTestCase.waitForFxEvents();
-            Assertions.assertTrue(MainViewControllerHarnessTest.getTabPaneSize(tmpController) >= 2,
+            Assertions.assertTrue(MainViewControllerTestSupport.getTabPaneSize(tmpController) >= 2,
                     "the fragments and itemization result tabs must be present after applying the global settings");
         } finally {
-            MainViewControllerHarnessTest.hideStage(tmpStageReference);
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
         }
     }
     //</editor-fold>
     //
     //<editor-fold desc="Private helper methods" defaultstate="collapsed">
-    /**
-     * Constructs a {@link MainViewController} on the JavaFX Application Thread over a fresh, caller-owned {@link Stage}
-     * (stored into the given reference so the caller can hide it in a {@code finally} block) via the shared
-     * {@link FxTestUtil#newMainViewController(Stage, String)} seam. The application directory is the per-test isolated
-     * {@code user.home} (redirected to a {@code @TempDir} by {@link AbstractFxTestCase}), which is guaranteed to exist.
-     *
-     * @param aStageReference sink that receives the created primary stage so it can be hidden after the test
-     * @return the constructed root controller
-     * @throws Exception if construction fails on the FX thread
-     */
-    private MainViewController constructController(AtomicReference<Stage> aStageReference) throws Exception {
-        AtomicReference<MainViewController> tmpControllerReference = new AtomicReference<>();
-        AbstractFxTestCase.runAndWait(() -> {
-            Stage tmpPrimaryStage = new Stage();
-            aStageReference.set(tmpPrimaryStage);
-            try {
-                tmpControllerReference.set(FxTestUtil.newMainViewController(tmpPrimaryStage, System.getProperty("user.home")));
-            } catch (IOException anException) {
-                throw new RuntimeException(anException);
-            }
-        });
-        return tmpControllerReference.get();
-    }
-    //
-    /**
-     * Drives {@code importMoleculeFile(File)} for the given file on the FX thread (alerts mocked), joins the background
-     * importer thread for determinism, then drains the nested {@code Platform.runLater} success/failure callbacks.
-     *
-     * @param aController the controller under test
-     * @param aFile the molecule file to import
-     * @throws Exception if anything goes wrong on the FX thread
-     */
-    private void importFileAndDrain(MainViewController aController, File aFile) throws Exception {
-        AbstractFxTestCase.runAndWait(() -> {
-            try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts()) {
-                aController.importMoleculeFile(aFile);
-            }
-        });
-        this.joinImporterThread(aController);
-        AbstractFxTestCase.waitForFxEvents();
-        AbstractFxTestCase.waitForFxEvents();
-        AbstractFxTestCase.runAndWait(() -> { });
-    }
-    //
-    /**
-     * Reflectively obtains the controller's background importer thread and joins it (bounded), so the import work is
-     * complete before the FX-thread success callback is drained (removes the async-callback race).
-     *
-     * @param aController the controller whose importer thread should be joined
-     * @throws Exception if the field cannot be accessed or the join is interrupted
-     */
-    private void joinImporterThread(MainViewController aController) throws Exception {
-        Thread tmpImporterThread = (Thread) MainViewControllerHarnessTest.getField(aController, "importerThread");
-        if (tmpImporterThread != null) {
-            tmpImporterThread.join(MainViewControllerHarnessTest.IMPORT_JOIN_TIMEOUT_MILLIS);
-        }
-    }
-    //
-    /**
-     * Reflectively reads the controller's private {@code moleculeDataModelList} field (no production code is widened),
-     * so a test can assert or manipulate the imported-molecule invariant.
-     *
-     * @param aController the controller instance
-     * @return the controller's observable molecule data model list
-     */
-    @SuppressWarnings("unchecked")
-    private static List<MoleculeDataModel> getMoleculeList(MainViewController aController) {
-        return (List<MoleculeDataModel>) MainViewControllerHarnessTest.getField(aController, "moleculeDataModelList");
-    }
-    //
     /**
      * Builds a static mock of {@link GuiUtil} identical to {@link FxTestUtil#mockGuiAlerts()} except that
      * {@code guiConfirmationAlert} returns {@link ButtonType#CANCEL}, so a guarded confirmation is declined. This is
@@ -1011,58 +973,6 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     }
     //
     /**
-     * Reflectively reads the value of a private field of the given controller (no production code is widened).
-     *
-     * @param aController the controller under test
-     * @param aFieldName the name of the field to read
-     * @return the current field value
-     */
-    private static Object getField(MainViewController aController, String aFieldName) {
-        try {
-            Field tmpField = MainViewController.class.getDeclaredField(aFieldName);
-            tmpField.setAccessible(true);
-            return tmpField.get(aController);
-        } catch (ReflectiveOperationException anException) {
-            throw new RuntimeException("Could not read field " + aFieldName + " via reflection", anException);
-        }
-    }
-    //
-    /**
-     * Reflectively sets the value of a private field of the given controller (no production code is widened), so the
-     * interrupt/close paths can be driven with prepared stand-in state.
-     *
-     * @param aController the controller under test
-     * @param aFieldName the name of the field to write
-     * @param aValue the value to set
-     */
-    private static void setField(MainViewController aController, String aFieldName, Object aValue) {
-        try {
-            Field tmpField = MainViewController.class.getDeclaredField(aFieldName);
-            tmpField.setAccessible(true);
-            tmpField.set(aController, aValue);
-        } catch (ReflectiveOperationException anException) {
-            throw new RuntimeException("Could not write field " + aFieldName + " via reflection", anException);
-        }
-    }
-    //
-    /**
-     * Hides the primary stage held by the given reference on the JavaFX Application Thread. {@code Stage.hide()} does
-     * NOT fire the window close-request handler, so the controller's {@code closeApplication}/{@code System.exit} path
-     * is never reached.
-     *
-     * @param aStageReference reference to the primary stage to hide (may hold null if construction failed)
-     * @throws Exception if hiding fails on the FX thread
-     */
-    private static void hideStage(AtomicReference<Stage> aStageReference) throws Exception {
-        AbstractFxTestCase.runAndWait(() -> {
-            Stage tmpStage = aStageReference.get();
-            if (tmpStage != null) {
-                tmpStage.hide();
-            }
-        });
-    }
-    //
-    /**
      * Opens an auxiliary view through {@link FxTestUtil#runAndDriveModal(java.util.concurrent.Callable,
      * java.util.function.Consumer)} so it is opened on the FX thread and ALWAYS closed (no orphan window, no hang). The
      * {@link GuiUtil} alerts and the {@link Desktop} static are mocked INSIDE the driver (thread-confined) so no real
@@ -1084,82 +994,26 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
     }
     //
     /**
-     * Reflectively joins a named background thread field of the controller (bounded), so a started import/fragmentation
-     * is complete before the FX-thread success callback is drained.
+     * Like {@link #driveModalOpen(Runnable)}, but captures and returns the modal {@link Stage} that
+     * {@link FxTestUtil#runAndDriveModal(java.util.concurrent.Callable, java.util.function.Consumer)} detected and drove
+     * to close, so a test can assert a view stage was actually shown (non-null) rather than merely that the open handler
+     * ran without throwing. Returns {@code null} if no window became visible during the open.
      *
-     * @param aController the controller under test
-     * @param aFieldName the name of the {@link Thread} field to join
-     * @throws Exception if the join is interrupted
+     * @param aOpenAction the controller open call to drive
+     * @return the modal stage that was shown and closed, or {@code null} if none opened
      */
-    private void joinThreadField(MainViewController aController, String aFieldName) throws Exception {
-        Thread tmpThread = (Thread) MainViewControllerHarnessTest.getField(aController, aFieldName);
-        if (tmpThread != null) {
-            tmpThread.join(MainViewControllerHarnessTest.IMPORT_JOIN_TIMEOUT_MILLIS);
-        }
-    }
-    //
-    /**
-     * Reflectively reads the controller's private {@code mapOfFragmentDataModelLists} field (no production code is
-     * widened), so a test can assert on or populate the fragmentation results.
-     *
-     * @param aController the controller instance
-     * @return the controller's map of fragmentation-name to fragment list
-     */
-    @SuppressWarnings("unchecked")
-    private static Map<String, ObservableList<FragmentDataModel>> getFragmentMap(MainViewController aController) {
-        return (Map<String, ObservableList<FragmentDataModel>>)
-                MainViewControllerHarnessTest.getField(aController, "mapOfFragmentDataModelLists");
-    }
-    //
-    /**
-     * Reflectively reads the number of tabs in the controller's private {@code mainTabPane} (no production code is
-     * widened).
-     *
-     * @param aController the controller instance
-     * @return the current tab count of the main tab pane
-     */
-    private static int getTabPaneSize(MainViewController aController) {
-        return ((TabPane) MainViewControllerHarnessTest.getField(aController, "mainTabPane")).getTabs().size();
-    }
-    //
-    /**
-     * Populates the controller's fragment map with a single real fragment (carrying a parent molecule, which the
-     * fragments-tab width listener dereferences) under the given fragmentation name and builds/selects the fragments
-     * and itemization tabs via {@code addFragmentationResultTabs}. Must be called on the JavaFX Application Thread. This
-     * provides the selected fragments-tab state the histogram/overview drives read, without a live fragmentation run.
-     *
-     * @param aController the controller to set up
-     * @param aFragmentationName the fragmentation name used as the tab title suffix and map key
-     */
-    private static void setUpSelectedFragmentsTab(MainViewController aController, String aFragmentationName) {
-        FragmentDataModel tmpFragment = new FragmentDataModel("c1ccccc1", "Benzene", new HashMap<>());
-        tmpFragment.getParentMolecules().add(new MoleculeDataModel("c1ccccc1", "BenzeneParent", new HashMap<>()));
-        ObservableList<FragmentDataModel> tmpFragmentList = FXCollections.observableArrayList(tmpFragment);
-        MainViewControllerHarnessTest.getFragmentMap(aController).put(aFragmentationName, tmpFragmentList);
-        aController.addFragmentationResultTabs(aFragmentationName);
-    }
-    //
-    /**
-     * Populates a fully consistent fragments/itemization state: a molecule that has undergone the given fragmentation
-     * (with both its fragment list and its unique-SMILES-keyed fragment-frequency map set) is added to the molecule data
-     * model list and a non-empty fragment list to the fragment map BEFORE the result tabs are built, so the itemization
-     * tab is populated. The fragments tab is selected. Must be called on the JavaFX Application Thread.
-     *
-     * @param aController the controller to set up
-     * @param aFragmentationName the fragmentation name used as the tab title suffix and map key
-     */
-    private static void setUpPopulatedItemsTab(MainViewController aController, String aFragmentationName) {
-        FragmentDataModel tmpFragment = new FragmentDataModel("c1ccccc1", "Benzene", new HashMap<>());
-        tmpFragment.getParentMolecules().add(new MoleculeDataModel("c1ccccc1", "BenzeneParent", new HashMap<>()));
-        ObservableList<FragmentDataModel> tmpFragmentList = FXCollections.observableArrayList(tmpFragment);
-        MoleculeDataModel tmpMolecule = new MoleculeDataModel("c1ccccc1", "Benzene", new HashMap<>());
-        tmpMolecule.getAllFragments().put(aFragmentationName, new ArrayList<>(tmpFragmentList));
-        Map<String, Integer> tmpFragmentFrequencies = new HashMap<>();
-        tmpFragmentFrequencies.put(tmpFragment.getUniqueSmiles(), 1);
-        tmpMolecule.getFragmentFrequencies().put(aFragmentationName, tmpFragmentFrequencies);
-        MainViewControllerHarnessTest.getMoleculeList(aController).add(tmpMolecule);
-        MainViewControllerHarnessTest.getFragmentMap(aController).put(aFragmentationName, tmpFragmentList);
-        aController.addFragmentationResultTabs(aFragmentationName);
+    private Stage driveModalOpenAndCapture(Runnable aOpenAction) {
+        AtomicReference<Stage> tmpShownStage = new AtomicReference<>();
+        FxTestUtil.runAndDriveModal(
+                () -> {
+                    try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts();
+                            MockedStatic<Desktop> tmpDesktopMock = FxTestUtil.mockDesktop()) {
+                        aOpenAction.run();
+                    }
+                    return null;
+                },
+                tmpShownStage::set);
+        return tmpShownStage.get();
     }
     //
     /**
@@ -1169,7 +1023,7 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
      * @param aController the controller under test
      */
     private static void selectItemizationTab(MainViewController aController) {
-        TabPane tmpTabPane = (TabPane) MainViewControllerHarnessTest.getField(aController, "mainTabPane");
+        TabPane tmpTabPane = (TabPane) MainViewControllerTestSupport.getField(aController, "mainTabPane");
         tmpTabPane.getTabs().stream()
                 .filter(aTab -> TabNames.ITEMIZATION.name().equals(aTab.getId()))
                 .findFirst()
@@ -1184,7 +1038,7 @@ public class MainViewControllerHarnessTest extends AbstractFxTestCase {
      * @param aController the controller under test
      */
     private static void selectFirstCellOfSelectedTab(MainViewController aController) {
-        TabPane tmpTabPane = (TabPane) MainViewControllerHarnessTest.getField(aController, "mainTabPane");
+        TabPane tmpTabPane = (TabPane) MainViewControllerTestSupport.getField(aController, "mainTabPane");
         TableView<?> tmpTableView = (TableView<?>)
                 ((GridTabForTableView) tmpTabPane.getSelectionModel().getSelectedItem()).getTableView();
         tmpTableView.getSelectionModel().setCellSelectionEnabled(true);
