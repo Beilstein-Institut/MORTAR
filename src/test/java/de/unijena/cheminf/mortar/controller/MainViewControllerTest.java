@@ -31,6 +31,7 @@ import de.unijena.cheminf.mortar.model.data.FragmentDataModel;
 import de.unijena.cheminf.mortar.model.data.MoleculeDataModel;
 import de.unijena.cheminf.mortar.model.io.Exporter;
 import de.unijena.cheminf.mortar.model.settings.SettingsContainer;
+import de.unijena.cheminf.mortar.model.util.FileUtil;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -172,6 +173,31 @@ public class MainViewControllerTest extends AbstractFxTestCase {
                 }
             });
             Assertions.assertNotNull(tmpResultReference.get());
+        } finally {
+            MainViewControllerTest.hideStage(tmpStageReference);
+        }
+    }
+    //
+    /**
+     * Unit test for the extracted close-persist tail (seam E4): calls {@code persistSettingsAndStopTasks()} directly
+     * (never {@code closeApplication}, which would reach {@code System.exit} and kill the fork) and asserts it completes
+     * without throwing and produces the observable settings-directory side effect under the isolated temporary
+     * {@code user.home}. The whole test class still runs to completion, proving no {@code System.exit} was reached.
+     *
+     * @throws Exception if anything goes wrong on the FX thread
+     */
+    @Test
+    public void persistSettingsAndStopTasksPersistsWithoutReachingSystemExitTest() throws Exception {
+        AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
+        try {
+            MainViewController tmpController = this.constructController(tmpStageReference);
+            AbstractFxTestCase.runAndWait(() -> {
+                try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts()) {
+                    tmpController.persistSettingsAndStopTasks();
+                }
+            });
+            //observable side effect: preserveSettings created the settings directory under the isolated user.home
+            Assertions.assertTrue(new File(FileUtil.getSettingsDirPath()).isDirectory());
         } finally {
             MainViewControllerTest.hideStage(tmpStageReference);
         }

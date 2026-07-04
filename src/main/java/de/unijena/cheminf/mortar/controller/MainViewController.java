@@ -420,6 +420,18 @@ public class MainViewController {
         if (!moleculeDataModelList.isEmpty() && (!this.isFragmentationStopAndDataLossConfirmed())) {
             return;
         }
+        this.persistSettingsAndStopTasks();
+        Platform.exit();
+        System.exit(aStatus);
+    }
+    //
+    /**
+     * Persists the global, view-tools and fragmenter/pipeline settings, interrupts a running fragmentation and logs the
+     * session end. Extracted (behavior-preserving) from {@code closeApplication} so the persist/interrupt sequence is
+     * unit-testable headlessly, sequenced away from the {@code Platform.exit()}/{@code System.exit} tail that cannot be
+     * exercised in-suite. The calls and their order are unchanged.
+     */
+    void persistSettingsAndStopTasks() {
         this.settingsContainer.preserveSettings();
         this.viewToolsManager.persistViewToolsSettings();
         this.fragmentationService.persistFragmenterSettings();
@@ -428,8 +440,6 @@ public class MainViewController {
             this.interruptFragmentation();
         }
         MainViewController.LOGGER.info(BasicDefinitions.MORTAR_SESSION_END);
-        Platform.exit();
-        System.exit(aStatus);
     }
     //
     /**
