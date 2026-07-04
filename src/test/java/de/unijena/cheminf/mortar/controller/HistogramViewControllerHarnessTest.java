@@ -106,20 +106,24 @@ public class HistogramViewControllerHarnessTest extends AbstractFxTestCase {
         List<FragmentDataModel> tmpFragments = HistogramViewControllerHarnessTest.buildFragments(5);
         HistogramViewController tmpController = new HistogramViewController(Configuration.getInstance());
         this.openHistogram(tmpController, tmpFragments);
-        HistogramView tmpView = (HistogramView) HistogramViewControllerHarnessTest.getField(tmpController, "histogramView");
-        Assertions.assertNotNull(tmpView, "the histogram view must be initialized after opening");
-        Object tmpContent = tmpView.getHistogramScrollPane().getContent();
-        Assertions.assertInstanceOf(BarChart.class, tmpContent, "the scroll pane must hold the bar chart after opening");
-        BarChart<?, ?> tmpBarChart = (BarChart<?, ?>) tmpContent;
-        Assertions.assertEquals(1, tmpBarChart.getData().size(), "the histogram must hold exactly one data series");
-        Assertions.assertEquals(tmpFragments.size(), tmpBarChart.getData().get(0).getData().size(),
-                "the series must hold one bar per displayed fragment");
-        //exercise a rendered bar's hover and context-menu listeners, then close via the close button
-        AbstractFxTestCase.runAndWait(() -> {
-            HistogramViewControllerHarnessTest.fireFirstBarInteractions(tmpBarChart);
-            tmpView.getCloseButton().fire();
-        });
-        AbstractFxTestCase.waitForFxEvents();
+        try {
+            HistogramView tmpView = (HistogramView) HistogramViewControllerHarnessTest.getField(tmpController, "histogramView");
+            Assertions.assertNotNull(tmpView, "the histogram view must be initialized after opening");
+            Object tmpContent = tmpView.getHistogramScrollPane().getContent();
+            Assertions.assertInstanceOf(BarChart.class, tmpContent, "the scroll pane must hold the bar chart after opening");
+            BarChart<?, ?> tmpBarChart = (BarChart<?, ?>) tmpContent;
+            Assertions.assertEquals(1, tmpBarChart.getData().size(), "the histogram must hold exactly one data series");
+            Assertions.assertEquals(tmpFragments.size(), tmpBarChart.getData().get(0).getData().size(),
+                    "the series must hold one bar per displayed fragment");
+            //exercise a rendered bar's hover and context-menu listeners, then close via the close button
+            AbstractFxTestCase.runAndWait(() -> {
+                HistogramViewControllerHarnessTest.fireFirstBarInteractions(tmpBarChart);
+                tmpView.getCloseButton().fire();
+            });
+            AbstractFxTestCase.waitForFxEvents();
+        } finally {
+            this.closeQuietly(tmpController);
+        }
     }
     //
     /**
@@ -136,39 +140,43 @@ public class HistogramViewControllerHarnessTest extends AbstractFxTestCase {
         List<FragmentDataModel> tmpFragments = HistogramViewControllerHarnessTest.buildFragments(5);
         HistogramViewController tmpController = new HistogramViewController(Configuration.getInstance());
         this.openHistogram(tmpController, tmpFragments);
-        HistogramView tmpView = (HistogramView) HistogramViewControllerHarnessTest.getField(tmpController, "histogramView");
-        AbstractFxTestCase.runAndWait(() -> {
-            //toggle the checkbox-backed settings so their listeners fire
-            tmpView.getDisplayGridLinesCheckBox().setSelected(!tmpView.getDisplayGridLinesCheckBox().isSelected());
-            tmpView.getDisplaySmilesOnYAxisCheckBox().setSelected(!tmpView.getDisplaySmilesOnYAxisCheckBox().isSelected());
-            tmpView.getDisplayBarLabelsCheckBox().setSelected(!tmpView.getDisplayBarLabelsCheckBox().isSelected());
-            tmpView.getDisplayBarShadowsCheckBox().setSelected(!tmpView.getDisplayBarShadowsCheckBox().isSelected());
-            //change the combo-box and text-field backed settings, then apply to rebuild the chart with fewer bars (a
-            // displayed-fragment count of 3 is <= the 5 available fragments, so no over-count warning alert is reached)
-            tmpView.getBarWidthsComboBox().setValue(HistogramViewController.BarWidthOption.SMALL.getDisplayName());
-            tmpView.getFrequencyComboBox().setValue(HistogramViewController.FrequencyOption.MOLECULE_FREQUENCY.getDisplayName());
-            tmpView.getMaximumSMILESLengthTextField().setText("5");
-            tmpView.getDisplayedFragmentsNumberTextField().setText("3");
-            tmpView.getApplyButton().fire();
-        });
-        AbstractFxTestCase.waitForFxEvents();
-        //resize the scene so the width/height listeners recompute the image dimensions
-        AbstractFxTestCase.runAndWait(() -> {
-            Stage tmpStage = (Stage) HistogramViewControllerHarnessTest.getField(tmpController, "histogramStage");
-            tmpStage.setWidth(tmpStage.getWidth() + 120.0);
-            tmpStage.setHeight(tmpStage.getHeight() + 120.0);
-        });
-        AbstractFxTestCase.waitForFxEvents();
-        Object tmpContent = tmpView.getHistogramScrollPane().getContent();
-        BarChart<?, ?> tmpBarChart = (BarChart<?, ?>) tmpContent;
-        Assertions.assertEquals(3, tmpBarChart.getData().get(0).getData().size(),
-                "after applying a displayed-fragment number of 3 the series must hold three bars");
-        //close via a fired window-close request to exercise the close-request event filter and closeWindowEvent
-        AbstractFxTestCase.runAndWait(() -> {
-            Stage tmpStage = (Stage) HistogramViewControllerHarnessTest.getField(tmpController, "histogramStage");
-            tmpStage.fireEvent(new WindowEvent(tmpStage, WindowEvent.WINDOW_CLOSE_REQUEST));
-        });
-        AbstractFxTestCase.waitForFxEvents();
+        try {
+            HistogramView tmpView = (HistogramView) HistogramViewControllerHarnessTest.getField(tmpController, "histogramView");
+            AbstractFxTestCase.runAndWait(() -> {
+                //toggle the checkbox-backed settings so their listeners fire
+                tmpView.getDisplayGridLinesCheckBox().setSelected(!tmpView.getDisplayGridLinesCheckBox().isSelected());
+                tmpView.getDisplaySmilesOnYAxisCheckBox().setSelected(!tmpView.getDisplaySmilesOnYAxisCheckBox().isSelected());
+                tmpView.getDisplayBarLabelsCheckBox().setSelected(!tmpView.getDisplayBarLabelsCheckBox().isSelected());
+                tmpView.getDisplayBarShadowsCheckBox().setSelected(!tmpView.getDisplayBarShadowsCheckBox().isSelected());
+                //change the combo-box and text-field backed settings, then apply to rebuild the chart with fewer bars (a
+                // displayed-fragment count of 3 is <= the 5 available fragments, so no over-count warning alert is reached)
+                tmpView.getBarWidthsComboBox().setValue(HistogramViewController.BarWidthOption.SMALL.getDisplayName());
+                tmpView.getFrequencyComboBox().setValue(HistogramViewController.FrequencyOption.MOLECULE_FREQUENCY.getDisplayName());
+                tmpView.getMaximumSMILESLengthTextField().setText("5");
+                tmpView.getDisplayedFragmentsNumberTextField().setText("3");
+                tmpView.getApplyButton().fire();
+            });
+            AbstractFxTestCase.waitForFxEvents();
+            //resize the scene so the width/height listeners recompute the image dimensions
+            AbstractFxTestCase.runAndWait(() -> {
+                Stage tmpStage = (Stage) HistogramViewControllerHarnessTest.getField(tmpController, "histogramStage");
+                tmpStage.setWidth(tmpStage.getWidth() + 120.0);
+                tmpStage.setHeight(tmpStage.getHeight() + 120.0);
+            });
+            AbstractFxTestCase.waitForFxEvents();
+            Object tmpContent = tmpView.getHistogramScrollPane().getContent();
+            BarChart<?, ?> tmpBarChart = (BarChart<?, ?>) tmpContent;
+            Assertions.assertEquals(3, tmpBarChart.getData().get(0).getData().size(),
+                    "after applying a displayed-fragment number of 3 the series must hold three bars");
+            //close via a fired window-close request to exercise the close-request event filter and closeWindowEvent
+            AbstractFxTestCase.runAndWait(() -> {
+                Stage tmpStage = (Stage) HistogramViewControllerHarnessTest.getField(tmpController, "histogramStage");
+                tmpStage.fireEvent(new WindowEvent(tmpStage, WindowEvent.WINDOW_CLOSE_REQUEST));
+            });
+            AbstractFxTestCase.waitForFxEvents();
+        } finally {
+            this.closeQuietly(tmpController);
+        }
     }
     //
     /**
@@ -186,27 +194,31 @@ public class HistogramViewControllerHarnessTest extends AbstractFxTestCase {
         List<FragmentDataModel> tmpFragments = HistogramViewControllerHarnessTest.buildFragments(5);
         HistogramViewController tmpController = new HistogramViewController(Configuration.getInstance());
         this.openHistogram(tmpController, tmpFragments);
-        HistogramView tmpView = (HistogramView) HistogramViewControllerHarnessTest.getField(tmpController, "histogramView");
-        //fire the over-count apply through the modal driver: the warning Alert.showAndWait is detected and closed
-        FxTestUtil.runAndDriveModal(
-                () -> {
-                    tmpView.getMaximumSMILESLengthTextField().setText("10");
-                    tmpView.getDisplayedFragmentsNumberTextField().setText("99");
-                    tmpView.getApplyButton().fire();
-                    return null;
-                },
-                aAlertStage -> {
-                    //no interaction needed; the helper's finally closes the warning alert's stage
-                });
-        AbstractFxTestCase.waitForFxEvents();
-        Assertions.assertNotNull(tmpView.getHistogramScrollPane().getContent(),
-                "the chart must still be present after an over-count apply that was rejected");
-        //close the histogram view
-        AbstractFxTestCase.runAndWait(() -> {
-            Stage tmpStage = (Stage) HistogramViewControllerHarnessTest.getField(tmpController, "histogramStage");
-            tmpStage.fireEvent(new WindowEvent(tmpStage, WindowEvent.WINDOW_CLOSE_REQUEST));
-        });
-        AbstractFxTestCase.waitForFxEvents();
+        try {
+            HistogramView tmpView = (HistogramView) HistogramViewControllerHarnessTest.getField(tmpController, "histogramView");
+            //fire the over-count apply through the modal driver: the warning Alert.showAndWait is detected and closed
+            FxTestUtil.runAndDriveModal(
+                    () -> {
+                        tmpView.getMaximumSMILESLengthTextField().setText("10");
+                        tmpView.getDisplayedFragmentsNumberTextField().setText("99");
+                        tmpView.getApplyButton().fire();
+                        return null;
+                    },
+                    aAlertStage -> {
+                        //no interaction needed; the helper's finally closes the warning alert's stage
+                    });
+            AbstractFxTestCase.waitForFxEvents();
+            Assertions.assertNotNull(tmpView.getHistogramScrollPane().getContent(),
+                    "the chart must still be present after an over-count apply that was rejected");
+            //close the histogram view
+            AbstractFxTestCase.runAndWait(() -> {
+                Stage tmpStage = (Stage) HistogramViewControllerHarnessTest.getField(tmpController, "histogramStage");
+                tmpStage.fireEvent(new WindowEvent(tmpStage, WindowEvent.WINDOW_CLOSE_REQUEST));
+            });
+            AbstractFxTestCase.waitForFxEvents();
+        } finally {
+            this.closeQuietly(tmpController);
+        }
     }
     //
     /**
@@ -241,6 +253,27 @@ public class HistogramViewControllerHarnessTest extends AbstractFxTestCase {
     //</editor-fold>
     //
     //<editor-fold desc="Private helper methods" defaultstate="collapsed">
+    /**
+     * Closes the controller's histogram stage on the FX thread if it is still showing, so no window leaks into a sibling
+     * test even when an assertion earlier in the test body threw before the in-body close ran. Reached via the same
+     * reflection the tests use for the private {@code histogramStage} field, so no production code is widened.
+     *
+     * @param aController the controller whose histogram stage should be closed; may be null
+     * @throws Exception if the stage cannot be reached or closed on the FX thread
+     */
+    private void closeQuietly(HistogramViewController aController) throws Exception {
+        if (aController == null) {
+            return;
+        }
+        AbstractFxTestCase.runAndWait(() -> {
+            Stage tmpStage = (Stage) HistogramViewControllerHarnessTest.getField(aController, "histogramStage");
+            if (tmpStage != null && tmpStage.isShowing()) {
+                tmpStage.close();
+            }
+        });
+        AbstractFxTestCase.waitForFxEvents();
+    }
+    //
     /**
      * Opens the histogram view for the given controller and fragment list on the JavaFX Application Thread and drains
      * the FX event queue so the chart is built and the listeners are registered before the caller asserts. No static
