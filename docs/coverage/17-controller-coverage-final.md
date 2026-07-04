@@ -1,0 +1,81 @@
+# Controller Package — Final Aggregate Coverage Proof (Milestone Close)
+
+Single-run, per-class coverage snapshot of the `de.unijena.cheminf.mortar.controller`
+package, captured **after** the Phases 12–16 controller-test work. It is the milestone's
+closing, reproducible proof that **all 10 `controller/` classes reached the ≥80%-per-class
+line-coverage target** (QUAL-01 / v1.1 milestone completeness). Unlike the Phase 16 register
+(which documents `MainViewController`'s residual unreachable lines) this doc is the single
+aggregate proof for the whole package, produced from **one fresh** `sh gradlew test
+jacocoTestReport` run — the numbers are not stitched together from the individual phase docs.
+
+Coverage remains **report-only**: no `jacocoTestCoverageVerification` / build-failing coverage
+gate is wired into the build or CI (GATE-01/02 are deferred to v2).
+
+## Reproducibility
+
+| Field | Value |
+|-------|-------|
+| Date captured | 2026-07-04 |
+| Coverage tool | JaCoCo 0.8.15 (`gradle/libs.versions.toml` → `jacoco = "0.8.15"`) |
+| CDK release pin | 2.12 (`gradle/libs.versions.toml` → `cdk-version = "2.12"`) |
+| Capture commit | `9170db7a` (clean working tree at the start of Phase 17 Plan 1) |
+| Source of numbers | `build/reports/jacoco/test/jacocoTestReport.xml`, `<package name="de/unijena/cheminf/mortar/controller">` |
+| Extraction method | Deterministic parse of each `<sourcefile>`'s `<counter>` elements via `python3` `xml.etree.ElementTree` (per-class numbers read at the `<sourcefile>` level, never by summing `<class>` nodes) |
+
+**How to reproduce:** regenerate the report with `sh gradlew test jacocoTestReport`, then for the
+`controller` package read each `<sourcefile name="X.java">`'s `<counter type="LINE|INSTRUCTION|BRANCH">`
+(`missed`/`covered`). Line % = `covered / (missed + covered)`; a self-closing sourcefile with no
+LINE counter has no coverable lines (recorded as `n/a`). This is the identical method used for the
+Phase 12 baseline (`docs/coverage/12-controller-coverage-baseline.md`).
+
+## Per-class final coverage
+
+Line % is the primary metric (what the ≥80%-per-class target is measured against);
+Instruction % and Branch % are secondary context. Line counts are shown as `covered/total`.
+
+| Class (sourcefile) | Lines (cov/total) | Line % | Instruction % | Branch % | Result |
+|--------------------|-------------------|--------|---------------|----------|--------|
+| AboutViewController | 77/89 | 86.52% | 87.05% (336/386) | 62.50% (5/8) | Met |
+| FragmentationSettingsViewController | 58/58 | 100.00% | 100.00% (322/322) | 90.00% (18/20) | Met |
+| HistogramViewController | 449/488 | 92.01% | 91.78% (1976/2153) | 84.95% (79/93) | Met |
+| IViewToolController | 0/0 | n/a (no coverable lines) | n/a | n/a | vacuous (excepted) |
+| MainViewController | 639/788 | 81.09% | 84.65% (3188/3766) | 62.84% (137/218) | Met |
+| OverviewViewController | 423/498 | 84.94% | 86.65% (1875/2164) | 58.46% (114/195) | Met |
+| PipelineSettingsViewController | 171/190 | 90.00% | 86.75% (799/921) | 73.21% (41/56) | Met |
+| SettingsViewController | 55/55 | 100.00% | 99.58% (239/240) | 70.00% (7/10) | Met |
+| TabNames | 4/4 | 100.00% | 100.00% (21/21) | n/a (no branches) | Met (enum) |
+| ViewToolsManager | 68/77 | 88.31% | 87.61% (290/331) | 73.08% (19/26) | Met |
+| **`controller/**` (aggregate)** | **1944/2247** | **86.52%** | — | — | — |
+
+The aggregate line row is the sum of the per-`<sourcefile>` LINE counters (the zero-line interface
+contributes nothing); it matches JaCoCo's own package-level `<counter type="LINE">` aggregate.
+
+### Note on measured vs. expected reference values
+
+Every measured class matches the planning reference within rounding **except `ViewToolsManager`**,
+measured here at **88.31%** (68/77) versus a ~83.1% planning reference. The measured value is
+recorded as-is — the divergence is upward (more coverage, well above the ≥80% target), so it is
+reported rather than forced to the reference number. All other classes land on their references:
+`MainViewController` 81.09%, `OverviewViewController` 84.94%, `HistogramViewController` 92.01%,
+`PipelineSettingsViewController` 90.00%, `AboutViewController` 86.52%, `SettingsViewController` 100%,
+`FragmentationSettingsViewController` 100%, `TabNames` 100%.
+
+## Notes on the two special-case rows
+
+- **`IViewToolController`** — a bodyless interface (only abstract method signatures, no default
+  methods, no initialized constants, no static initializer). JaCoCo emits it as a self-closing
+  `<sourcefile>` with **no LINE counter**, so it has no coverable lines. Recorded as
+  `n/a (no coverable lines)`, **not** 0%, and **not** counted against the ≥80% target (there is
+  nothing to cover, and division by zero is guarded against). The class name *is* present in the
+  report.
+- **`TabNames`** — an enum at `4/4 = 100%` line coverage, loaded transitively by existing
+  model/integration and controller tests that reference the enum. It has no branch counter (no
+  branching bytecode), so Branch % is `n/a`.
+
+## Milestone statement
+
+In this single fresh `sh gradlew test jacocoTestReport` run, **all 10 `controller/` classes meet the
+≥80% line-coverage target** — the vacuous interface (`IViewToolController`) excepted as having no
+coverable lines. The lowest LINE-counted class is `MainViewController` at 81.09% (its residual
+uncovered lines are the genuinely headless-unreachable set documented in
+`docs/coverage/16-mainviewcontroller-unreachable.md`); the package aggregate is 1944/2247 = 86.52%.
