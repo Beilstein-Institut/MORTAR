@@ -63,9 +63,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@code Platform.runLater} (which builds the grid, registers the button handlers, adds the initial choice row and sets
  * the fragment-button disable state) has already drained — resolves the {@link PipelineSettingsView} from the modal
  * stage's scene root ({@code (PipelineSettingsView) stage.getScene().getRoot()}, so no production code is widened) and
- * fires exactly one handler group. The whole drive is wrapped in a {@code try (MockedStatic<GuiUtil> ...)} so no code
- * path can reach a real JavaFX {@code Alert} when run headless, and after the modal returns a no-op
- * {@code runAndWait} surfaces any throwable the driver raised on the FX thread.
+ * fires exactly one handler group. The driver opens a {@code try (MockedStatic<GuiUtil> ...)} on the JavaFX Application
+ * Thread — where a Mockito {@code MockedStatic} must be created to intercept the FX-thread alert calls, since it is
+ * thread-local — so no code path can reach a real JavaFX {@code Alert} when run headless, and after the modal returns a
+ * no-op {@code runAndWait} surfaces any throwable the driver raised on the FX thread.
  * <p>
  * Because {@code Stage.close()} (invoked by the harness driver's {@code finally}) does not fire the window's
  * close-request handler, the controller's private {@code selectedPipelineFragmentersList} and {@code algorithmCounter}
@@ -293,9 +294,10 @@ public class PipelineSettingsViewControllerTest extends AbstractFxTestCase {
      * {@code showAndWait}. The driver, run inside the nested event loop after the controller's pre-{@code showAndWait}
      * {@code Platform.runLater} has built the grid and registered the handlers, resolves the {@link PipelineSettingsView}
      * from the modal stage's scene root and delegates to the caller (checked exceptions are rethrown unchecked so the
-     * harness's FX-uncaught capture surfaces them). The whole drive is wrapped in a {@link MockedStatic} over
-     * {@link GuiUtil} so no alert reaches a real headless {@code Alert}; the FX event queue is drained afterwards and a
-     * no-op {@code runAndWait} surfaces any throwable the driver raised on the FX thread.
+     * harness's FX-uncaught capture surfaces them). The driver opens a {@link MockedStatic} over {@link GuiUtil} on the
+     * JavaFX Application Thread (where it must be created to intercept the FX-thread alert calls, as a Mockito static
+     * mock is thread-local) so no alert reaches a real headless {@code Alert}; the FX event queue is drained afterwards
+     * and a no-op {@code runAndWait} surfaces any throwable the driver raised on the FX thread.
      *
      * @param anIsMoleculeDataLoaded whether molecule data is loaded (controls the fragment-button enable state)
      * @param anIsFragmentationRunning whether a fragmentation is running (also disables the fragment button)
@@ -309,27 +311,27 @@ public class PipelineSettingsViewControllerTest extends AbstractFxTestCase {
                                                       AtomicReference<FragmentationService> aServiceReference,
                                                       ModalDriver aDriver) throws Exception {
         Configuration tmpConfiguration = Configuration.getInstance();
-        PipelineSettingsViewController tmpController;
-        try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts()) {
-            tmpController = FxTestUtil.runAndDriveModal(
-                    () -> {
-                        FragmentationService tmpService = new FragmentationService();
-                        aServiceReference.set(tmpService);
-                        Stage tmpOwner = FxTestUtil.newOffscreenStage();
-                        return new PipelineSettingsViewController(
-                                tmpOwner, tmpService, anIsMoleculeDataLoaded, anIsFragmentationRunning, tmpConfiguration);
-                    },
-                    aStage -> {
-                        if (aDriver != null) {
+        PipelineSettingsViewController tmpController = FxTestUtil.runAndDriveModal(
+                () -> {
+                    FragmentationService tmpService = new FragmentationService();
+                    aServiceReference.set(tmpService);
+                    Stage tmpOwner = FxTestUtil.newOffscreenStage();
+                    return new PipelineSettingsViewController(
+                            tmpOwner, tmpService, anIsMoleculeDataLoaded, anIsFragmentationRunning, tmpConfiguration);
+                },
+                aStage -> {
+                    if (aDriver != null) {
+                        //open the GuiUtil static mock INSIDE the driver, on the JavaFX Application Thread: a Mockito
+                        //MockedStatic is thread-local and only intercepts calls made on the thread that created it, so a
+                        //mock opened on the test thread would be inert against the alert calls the handlers make here
+                        try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts()) {
                             PipelineSettingsView tmpView = (PipelineSettingsView) aStage.getScene().getRoot();
-                            try {
-                                aDriver.drive(aStage, tmpView);
-                            } catch (Exception anException) {
-                                throw new RuntimeException(anException);
-                            }
+                            aDriver.drive(aStage, tmpView);
+                        } catch (Exception anException) {
+                            throw new RuntimeException(anException);
                         }
-                    });
-        }
+                    }
+                });
         AbstractFxTestCase.waitForFxEvents();
         //surface any throwable the driver raised on the JavaFX Application Thread
         AbstractFxTestCase.runAndWait(() -> { });
