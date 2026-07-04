@@ -204,8 +204,13 @@ public class OverviewViewControllerHarnessTest extends AbstractFxTestCase {
             OverviewViewControllerHarnessTest.fireStructureClick(aView, 1);
             OverviewViewControllerHarnessTest.fireStructureClick(aView, 2);
         });
-        //the controller instance survives (only its GUI caches are cleared on close); the cached index reflects the click
-        Assertions.assertNotNull(tmpControllerRef.get());
+        //the controller instance survives (only its GUI caches are cleared on close); because the return-to-structure
+        //double click sets returnToStructureEventOccurred before closing, closeOverviewViewEvent does NOT reset the
+        //cached index, so it must read back as the clicked structure's index (0) rather than the -1 marker
+        int tmpCachedIndex = (int) OverviewViewControllerHarnessTest.getField(
+                tmpControllerRef.get(), "cachedIndexOfStructureInMoleculeDataModelList");
+        Assertions.assertEquals(0, tmpCachedIndex,
+                "the return-to-structure double click must cache the clicked structure's index (0), not the -1 marker");
     }
     //
     /**
