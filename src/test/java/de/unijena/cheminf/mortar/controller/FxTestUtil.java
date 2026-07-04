@@ -39,8 +39,10 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import java.awt.Desktop;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,9 +52,10 @@ import java.util.function.Consumer;
  * Static helper utility for headless JavaFX controller tests. Provides an offscreen {@link Stage} factory (constructed
  * but never shown, so it must be invoked on the FX thread) and a factory that returns a {@link MockedStatic} over
  * {@link GuiUtil} in which every alert entry point is neutralized, so no code path reaches a real JavaFX {@code Alert}
- * (which throws or blocks when run headless). The static mock is created with {@link Mockito#CALLS_REAL_METHODS} so
- * the non-alert {@link GuiUtil} helpers stay functional; callers use the returned {@link MockedStatic} in a
- * try-with-resources block. It further offers {@link #runAndDriveModal(Callable, Consumer)}, the single shared seam that
+ * (which throws or blocks when run headless). The static mock's default answer returns the neutralized value for the
+ * alert entry points and delegates every other {@link GuiUtil} helper to its real implementation, so those stay
+ * functional; callers use the returned {@link MockedStatic} in a try-with-resources block. It further offers
+ * {@link #runAndDriveModal(Callable, Consumer)}, the single shared seam that
  * drives a blocking {@code showAndWait} construct to completion headlessly (fire handlers, then always close), and
  * {@link #mockDesktop()}, a {@link MockedStatic} over {@link Desktop} so OS-launch handlers do not throw when run
  * headless.
@@ -103,30 +106,31 @@ public final class FxTestUtil {
     }
     //
     /**
-     * Creates a {@link MockedStatic} over {@link GuiUtil} with {@link Mockito#CALLS_REAL_METHODS} default answer and
-     * stubs every alert entry point so none reaches a real JavaFX {@code Alert}: {@code guiMessageAlert} and
-     * {@code guiMessageAlertWithHyperlink} return {@link Optional#empty()}; {@code guiConfirmationAlert} and
-     * {@code guiYesNoCancelConfirmationAlert} return {@link ButtonType#OK}; the void {@code guiExceptionAlert} and
-     * {@code guiExpandableAlert} are stubbed to do nothing. All non-alert {@link GuiUtil} helpers remain functional.
+     * Creates a {@link MockedStatic} over {@link GuiUtil} whose default answer neutralizes every alert entry point so
+     * none reaches a real JavaFX {@code Alert}: {@code guiMessageAlert} and {@code guiMessageAlertWithHyperlink} yield
+     * {@link Optional#empty()}; {@code guiConfirmationAlert} and {@code guiYesNoCancelConfirmationAlert} yield
+     * {@link ButtonType#OK}; the void {@code guiExceptionAlert} and {@code guiExpandableAlert} yield nothing. Every
+     * non-alert {@link GuiUtil} helper is delegated to its real implementation via
+     * {@link org.mockito.invocation.InvocationOnMock#callRealMethod()}, so those stay functional.
+     * <p>
+     * The neutralization is expressed as the mock's default {@link org.mockito.stubbing.Answer} rather than as a set of
+     * {@code when(() -> GuiUtil.someAlert(...))} stubs over a {@link Mockito#CALLS_REAL_METHODS} mock. That stubbing form
+     * is unsafe here: with {@code CALLS_REAL_METHODS}, evaluating the {@code when(...)} verification lambda invokes the
+     * real alert method during setup, and {@code guiExpandableAlert} (a hardcoded {@code ERROR} alert type with a
+     * null-tolerant body) then reaches {@code Alert.showAndWait()}, opening a stray modal dialog on the JavaFX
+     * Application Thread — which the modal-driving window listener would in turn re-enter and mis-cast. Returning the
+     * neutralized value directly from the default answer never calls the real alert methods, so no stray dialog opens.
      * The caller is responsible for closing the returned mock, typically via try-with-resources.
      *
-     * @return a static mock of {@link GuiUtil} with all alert entry points neutralized
+     * @return a static mock of {@link GuiUtil} with all alert entry points neutralized and every other helper real
      */
     public static MockedStatic<GuiUtil> mockGuiAlerts() {
-        MockedStatic<GuiUtil> tmpMock = Mockito.mockStatic(GuiUtil.class, Mockito.CALLS_REAL_METHODS);
-        tmpMock.when(() -> GuiUtil.guiMessageAlert(Mockito.any(), Mockito.anyString(), Mockito.anyString(), Mockito.anyString()))
-                .thenReturn(Optional.empty());
-        tmpMock.when(() -> GuiUtil.guiMessageAlertWithHyperlink(Mockito.any(), Mockito.anyString(), Mockito.anyString(), Mockito.any()))
-                .thenReturn(Optional.empty());
-        tmpMock.when(() -> GuiUtil.guiConfirmationAlert(Mockito.anyString(), Mockito.anyString(), Mockito.anyString()))
-                .thenReturn(ButtonType.OK);
-        tmpMock.when(() -> GuiUtil.guiYesNoCancelConfirmationAlert(Mockito.anyString(), Mockito.anyString(), Mockito.anyString()))
-                .thenReturn(ButtonType.OK);
-        tmpMock.when(() -> GuiUtil.guiExceptionAlert(Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.any()))
-                .thenAnswer(anInvocation -> null);
-        tmpMock.when(() -> GuiUtil.guiExpandableAlert(Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.anyString()))
-                .thenAnswer(anInvocation -> null);
-        return tmpMock;
+        return Mockito.mockStatic(GuiUtil.class, anInvocation -> switch (anInvocation.getMethod().getName()) {
+            case "guiMessageAlert", "guiMessageAlertWithHyperlink" -> Optional.empty();
+            case "guiConfirmationAlert", "guiYesNoCancelConfirmationAlert" -> ButtonType.OK;
+            case "guiExceptionAlert", "guiExpandableAlert" -> null;
+            default -> anInvocation.callRealMethod();
+        });
     }
     //
     /**
@@ -139,8 +143,14 @@ public final class FxTestUtil {
      * that first invokes {@code aDriver} on the stage (if non-null) so button and close handlers can be fired, and then
      * ALWAYS closes the stage in a {@code finally} block so no orphan window leaks into a sibling test. The construct is
      * invoked on the FX thread and blocks until that close returns; the window listener is always removed in a
-     * {@code finally}. The outer wait is bounded at {@link #FX_TIMEOUT_SECONDS} seconds (the same bound the harness
-     * applies) so a stuck modal fails fast with an {@link IllegalStateException} rather than hanging the CI build.
+     * {@code finally}. A throwable raised by {@code aDriver} on the JavaFX Application Thread is captured and rethrown to
+     * the caller (wrapped in a {@link RuntimeException}) so a failing driver can never produce a false-green result by
+     * escaping unnoticed into the FX event loop. The outer wait is bounded at {@link #FX_TIMEOUT_SECONDS} seconds (the
+     * same bound the harness applies) so a stuck modal fails fast with an {@link IllegalStateException} rather than
+     * hanging the CI build; on timeout a best-effort recovery is scheduled on the FX thread (the still-pumping nested
+     * {@code showAndWait} loop) that removes the window listener and closes any still-showing stage the listener
+     * detected, which unblocks the parked FX thread so a single stuck modal does not poison every sibling test in the
+     * fork.
      *
      * @param <T> the type produced by the construct (e.g. the controller instance; may be null for void opens)
      * @param aConstruct the blocking construct to invoke on the JavaFX Application Thread; must not be null
@@ -148,22 +158,30 @@ public final class FxTestUtil {
      * @return the value produced by the construct (may be null)
      * @throws IllegalStateException if the construct does not complete within the bounded timeout, or the waiting thread
      *                               is interrupted
-     * @throws RuntimeException if the construct throws on the JavaFX Application Thread
+     * @throws RuntimeException if the construct or the driver throws on the JavaFX Application Thread
      */
     public static <T> T runAndDriveModal(Callable<T> aConstruct, Consumer<Stage> aDriver) {
         AtomicReference<T> tmpResult = new AtomicReference<>();
         AtomicReference<Throwable> tmpError = new AtomicReference<>();
+        AtomicReference<Throwable> tmpDriverError = new AtomicReference<>();
+        AtomicReference<ListChangeListener<Window>> tmpListenerReference = new AtomicReference<>();
+        //stages the listener detected, so a timeout recovery can close a still-showing modal; only touched on the FX
+        //thread (the listener adds, the recovery reads), a CopyOnWriteArrayList keeps that access safe regardless
+        List<Stage> tmpDetectedStages = new CopyOnWriteArrayList<>();
         CountDownLatch tmpDone = new CountDownLatch(1);
         Platform.runLater(() -> {
             ListChangeListener<Window> tmpListener = aChange -> {
                 while (aChange.next()) {
                     for (Window tmpWindow : aChange.getAddedSubList()) {
                         if (tmpWindow instanceof Stage tmpStage && tmpWindow.isShowing()) {
+                            tmpDetectedStages.add(tmpStage);
                             Platform.runLater(() -> {
                                 try {
                                     if (aDriver != null) {
                                         aDriver.accept(tmpStage);
                                     }
+                                } catch (Throwable anError) {
+                                    tmpDriverError.set(anError);
                                 } finally {
                                     tmpStage.close();
                                 }
@@ -172,6 +190,7 @@ public final class FxTestUtil {
                     }
                 }
             };
+            tmpListenerReference.set(tmpListener);
             Window.getWindows().addListener(tmpListener);
             try {
                 tmpResult.set(aConstruct.call());
@@ -184,6 +203,20 @@ public final class FxTestUtil {
         });
         try {
             if (!tmpDone.await(FxTestUtil.FX_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                //best-effort recovery so a single stuck modal does not poison every sibling test in the fork: on the FX
+                //thread (whose nested showAndWait loop still pumps runLater tasks) remove the window listener and close
+                //any still-showing stage the listener detected, which unblocks the parked showAndWait, before failing.
+                Platform.runLater(() -> {
+                    ListChangeListener<Window> tmpRegistered = tmpListenerReference.get();
+                    if (tmpRegistered != null) {
+                        Window.getWindows().removeListener(tmpRegistered);
+                    }
+                    for (Stage tmpStage : tmpDetectedStages) {
+                        if (tmpStage.isShowing()) {
+                            tmpStage.close();
+                        }
+                    }
+                });
                 throw new IllegalStateException("Modal construct did not complete within the bounded timeout");
             }
         } catch (InterruptedException anInterruptedException) {
@@ -192,6 +225,9 @@ public final class FxTestUtil {
         }
         if (tmpError.get() != null) {
             throw new RuntimeException("Modal construct failed on the JavaFX Application Thread", tmpError.get());
+        }
+        if (tmpDriverError.get() != null) {
+            throw new RuntimeException("Modal driver failed on the JavaFX Application Thread", tmpDriverError.get());
         }
         return tmpResult.get();
     }
