@@ -449,7 +449,8 @@ public class MainViewController {
      *
      * @return true if "OK" was clicked, false for "Cancel"
      */
-    private boolean isFragmentationStopAndDataLossConfirmed() {
+    //Note: package-private (not private) so same-package headless tests can drive both confirmation branches.
+    boolean isFragmentationStopAndDataLossConfirmed() {
         ButtonType tmpConfirmationResult;
         if (this.isFragmentationRunning) {
             tmpConfirmationResult = GuiUtil.guiConfirmationAlert(
@@ -506,7 +507,8 @@ public class MainViewController {
      *
      * @param aFile File that contains molecular data
      */
-    private void importMoleculeFile(File aFile, Importer anImporter) {
+    //Note: package-private (not private) so same-package headless tests can drive import with a resolved file/importer.
+    void importMoleculeFile(File aFile, Importer anImporter) {
         if (Objects.isNull(aFile)) {
             return;
         }
@@ -1146,7 +1148,8 @@ public class MainViewController {
     /**
      * Cancels import task and interrupts the corresponding thread.
      */
-    private void interruptImport() {
+    //Note: package-private (not private) so same-package headless tests can drive the interrupt.
+    void interruptImport() {
         this.importTask.cancel();
         this.importerThread.interrupt();
     }
@@ -1154,7 +1157,8 @@ public class MainViewController {
     /**
      * Cancels export task and interrupts the corresponding thread.
      */
-    private void interruptExport() {
+    //Note: package-private (not private) so same-package headless tests can drive the interrupt.
+    void interruptExport() {
         this.exportTask.cancel();
         this.exporterThread.interrupt();
     }
@@ -1162,7 +1166,8 @@ public class MainViewController {
     /**
      * Gets called by the cancel fragmentation button.
      */
-    private void interruptFragmentation() {
+    //Note: package-private (not private) so same-package headless tests can drive the interrupt.
+    void interruptFragmentation() {
         //cancel() of the task was overridden to shut down the executor service in FragmentationService
         this.parallelFragmentationMainTask.cancel(true);
         this.cancelFragmentationButton.setVisible(false);
@@ -1457,7 +1462,8 @@ public class MainViewController {
      * @param aThread  Thread which was started or ended
      * @param aMessage String message to display in StatusBar
      */
-    private void updateStatusBar(Thread aThread, String aMessage) {
+    //Note: package-private (not private) so same-package headless tests can drive the add/remove/last-thread branches.
+    void updateStatusBar(Thread aThread, String aMessage) {
         if (!this.threadList.contains(aThread)) {
             this.threadList.add(aThread);
             this.mainView.getStatusBar().getStatusLabel().setText(aMessage);
@@ -1487,7 +1493,8 @@ public class MainViewController {
      * @param aThreadType ThreadType
      * @return String status message
      */
-    private String getStatusMessageByThreadType(ThreadType aThreadType) {
+    //Note: package-private (not private) so same-package headless tests can unit-test this pure switch.
+    String getStatusMessageByThreadType(ThreadType aThreadType) {
         return switch (aThreadType) {
             case FRAGMENTATION_THREAD -> Message.get("Status.running");
             case IMPORT_THREAD -> Message.get("Status.importing");
