@@ -34,6 +34,7 @@ import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.Property;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedStatic;
@@ -289,6 +290,10 @@ public class ViewToolsManagerTest {
             Files.createDirectories(tmpViewToolsDir.toPath());
             Assertions.assertTrue(tmpViewToolsDir.setWritable(false, false),
                     "Precondition: the settings directory must be made non-writable for this test.");
+            //when running as root, File.canWrite() ignores the cleared write bit, so the canWrite() guard never fires;
+            //skip rather than falsely fail in that environment
+            Assumptions.assumeFalse(tmpViewToolsDir.canWrite(),
+                    "Directory still writable (likely running as root); cannot exercise the non-writable guard.");
             try (MockedStatic<GuiUtil> tmpGuiUtilMock = Mockito.mockStatic(GuiUtil.class)) {
                 tmpManager.persistViewToolsSettings();
                 tmpGuiUtilMock.verify(() -> GuiUtil.guiMessageAlert(
