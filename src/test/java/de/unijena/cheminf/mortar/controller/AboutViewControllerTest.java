@@ -173,8 +173,9 @@ public class AboutViewControllerTest extends AbstractFxTestCase {
      * @param aConfiguration the configuration passed to the controller (real or a delegating variant)
      * @param aViewDriver the callback fired on the resolved {@link AboutView} inside the nested loop; must not be null
      * @return the constructed controller (after its {@code showAndWait} has returned)
+     * @throws Exception if the trailing {@code runAndWait} surfaces a throwable raised on the JavaFX Application Thread
      */
-    private AboutViewController driveAbout(IConfiguration aConfiguration, Consumer<AboutView> aViewDriver) {
+    private AboutViewController driveAbout(IConfiguration aConfiguration, Consumer<AboutView> aViewDriver) throws Exception {
         AboutViewController tmpController = FxTestUtil.runAndDriveModal(
                 () -> new AboutViewController(FxTestUtil.newOffscreenStage(), aConfiguration),
                 aStage -> {
@@ -182,6 +183,9 @@ public class AboutViewControllerTest extends AbstractFxTestCase {
                     aViewDriver.accept(tmpView);
                 });
         AbstractFxTestCase.waitForFxEvents();
+        //surface any throwable an async Platform.runLater raised on the JavaFX Application Thread —
+        //waitForFxEvents drains the queue but does not read FX_UNCAUGHT, so a trailing runAndWait rethrows it
+        AbstractFxTestCase.runAndWait(() -> { });
         return tmpController;
     }
     //</editor-fold>
