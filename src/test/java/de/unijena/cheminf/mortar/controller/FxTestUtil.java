@@ -25,7 +25,9 @@
 
 package de.unijena.cheminf.mortar.controller;
 
+import de.unijena.cheminf.mortar.configuration.Configuration;
 import de.unijena.cheminf.mortar.gui.util.GuiUtil;
+import de.unijena.cheminf.mortar.gui.views.MainView;
 
 import javafx.application.Platform;
 import javafx.collections.ListChangeListener;
@@ -39,6 +41,7 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import java.awt.Desktop;
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -251,6 +254,26 @@ public final class FxTestUtil {
         tmpMock.when(Desktop::isDesktopSupported).thenReturn(true);
         tmpMock.when(Desktop::getDesktop).thenReturn(tmpDesktop);
         return tmpMock;
+    }
+    //
+    /**
+     * Constructs a {@link MainViewController} over the given (real, caller-owned) primary {@link Stage} and application
+     * directory, wiring a fresh {@link MainView} and the {@link Configuration} singleton exactly as the production
+     * entry point does. This is the single shared construction seam reused by every {@code MainViewController} headless
+     * test (the root controller's constructor ends in a NON-blocking {@code primaryStage.show()}, so it is invoked
+     * inside a plain {@code AbstractFxTestCase.runAndWait}, NOT {@link #runAndDriveModal(Callable, Consumer)}). This
+     * method MUST be called on the JavaFX Application Thread. The caller retains the passed stage and is responsible for
+     * hiding it (via {@code stage.hide()}, which does not fire the window close-request handler) once the test is done,
+     * so the controller's {@code closeApplication}/{@code System.exit} path is never reached.
+     *
+     * @param aPrimaryStage the real, caller-owned primary stage the controller will show; must not be null
+     * @param anAppDirPath path to an existing application directory (e.g. the per-test temporary {@code user.home})
+     * @return the constructed root controller
+     * @throws IOException if the {@link Configuration} singleton or the {@link MainView} cannot be initialized
+     */
+    public static MainViewController newMainViewController(Stage aPrimaryStage, String anAppDirPath) throws IOException {
+        MainView tmpMainView = new MainView(Configuration.getInstance());
+        return new MainViewController(aPrimaryStage, tmpMainView, anAppDirPath, Configuration.getInstance());
     }
     //</editor-fold>
 }
