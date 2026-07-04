@@ -841,7 +841,8 @@ public class MainViewController {
     /**
      * Opens settings view for fragmentation settings.
      */
-    private void openFragmentationSettingsView() {
+    //Note: package-private (not private) so same-package headless tests can drive the modal open.
+    void openFragmentationSettingsView() {
         new FragmentationSettingsViewController(this.primaryStage,
                 this.fragmentationService.getFragmenters(),
                 this.fragmentationService.getSelectedFragmenter().getFragmentationAlgorithmDisplayName(),
@@ -851,7 +852,8 @@ public class MainViewController {
     /**
      * Opens PipelineSettingsView.
      */
-    private void openPipelineSettingsView() {
+    //Note: package-private (not private) so same-package headless tests can drive the modal open.
+    void openPipelineSettingsView() {
         PipelineSettingsViewController tmpPipelineSettingsViewController =
                 new PipelineSettingsViewController(this.primaryStage, this.fragmentationService, !this.moleculeDataModelList.isEmpty(), this.isFragmentationRunning, this.configuration);
         if (tmpPipelineSettingsViewController.isFragmentationStarted()) {
@@ -862,7 +864,8 @@ public class MainViewController {
     /**
      * Opens HistogramView.
      */
-    private void openHistogramView()  {
+    //Note: package-private (not private) so same-package headless tests can drive the modal open.
+    void openHistogramView()  {
         List<MoleculeDataModel> tmpMoleculesList = this.getItemsListOfSelectedFragmentationByTabId(TabNames.FRAGMENTS);
         List<FragmentDataModel> tmpFragmentsList = new ArrayList<>(tmpMoleculesList.size());
         for (MoleculeDataModel tmpMolecule : tmpMoleculesList) {
@@ -874,7 +877,8 @@ public class MainViewController {
     /**
      * Adds CheckMenuItems for fragmentation algorithms to MainMenuBar.
      */
-    private void addFragmentationAlgorithmCheckMenuItems() {
+    //Note: package-private (not private) so same-package headless tests can assert the algorithm-toggle listener.
+    void addFragmentationAlgorithmCheckMenuItems() {
         ToggleGroup tmpToggleGroup = new ToggleGroup();
         for (IMoleculeFragmenter tmpFragmenter : this.fragmentationService.getFragmenters()) {
             RadioMenuItem tmpRadioMenuItem = new RadioMenuItem(tmpFragmenter.getFragmentationAlgorithmDisplayName());
@@ -897,7 +901,8 @@ public class MainViewController {
     /**
      * Opens settings view for global settings.
      */
-    private void openGlobalSettingsView() {
+    //Note: package-private (not private) so same-package headless tests can drive the modal open and apply body.
+    void openGlobalSettingsView() {
         SettingsViewController tmpSettingsViewController = new SettingsViewController(this.primaryStage, this.settingsContainer, this.configuration);
         Platform.runLater(() -> {
             if (tmpSettingsViewController.hasRowsPerPageChanged()) {
@@ -945,7 +950,8 @@ public class MainViewController {
      *
      * @param aDataSource Source of the data to be shown in the overview view
      */
-    private void openOverviewView(OverviewViewController.DataSources aDataSource) {
+    //Note: package-private (not private) so same-package headless tests can drive each data-source branch.
+    void openOverviewView(OverviewViewController.DataSources aDataSource) {
         try {
             switch (aDataSource) {
                 case OverviewViewController.DataSources.MOLECULES_TAB -> {
@@ -1064,7 +1070,8 @@ public class MainViewController {
     /**
      * Opens molecules tab.
      */
-    private void openMoleculesTab() {
+    //Note: package-private (not private) so same-package headless tests can build the molecules tab directly.
+    void openMoleculesTab() {
         this.moleculesDataTableView = new MoleculesDataTableView(this.configuration);
         this.moleculesDataTableView.setItemsList(this.moleculeDataModelList);
         GridTabForTableView tmpMoleculesTab = new GridTabForTableView(Message.get("MainTabPane.moleculesTab.title"), TabNames.MOLECULES.name(), this.moleculesDataTableView);
@@ -1135,7 +1142,8 @@ public class MainViewController {
      * @param aListSize number of molecules/fragments to display
      * @return configured pagination control instance
      */
-    private Pagination createPaginationWithSuitablePageCount(int aListSize) {
+    //Note: package-private (not private) so same-package headless tests can reach it via the tab builders.
+    Pagination createPaginationWithSuitablePageCount(int aListSize) {
         int tmpRowsPerPage = this.settingsContainer.getRowsPerPageSetting();
         int tmpPageCount = PaginationUtil.calculatePageCount(aListSize, tmpRowsPerPage);
         Pagination tmpPagination = new Pagination(tmpPageCount, 0);
@@ -1177,14 +1185,16 @@ public class MainViewController {
     /**
      * Starts fragmentation for only one algorithm.
      */
-    private void startFragmentation() {
+    //Note: package-private (not private) so same-package headless tests can drive the fragmentation flow.
+    void startFragmentation() {
         this.startFragmentation(false);
     }
     //
     /**
      * Starts fragmentation task and opens fragment and itemization tabs.
      */
-    private void startFragmentation(boolean isPipelining) {
+    //Note: package-private (not private) so same-package headless tests can drive the fragmentation flow.
+    void startFragmentation(boolean isPipelining) {
         long tmpStartTime = System.nanoTime();
         MainViewController.LOGGER.info("Start of method startFragmentation");
         List<MoleculeDataModel> tmpSelectedMolecules = this.moleculeDataModelList.stream().filter(MoleculeDataModel::isSelected).toList();
@@ -1286,7 +1296,8 @@ public class MainViewController {
      *
      * @param aFragmentationName name of the fragmentation process
      */
-    private void addFragmentationResultTabs(String aFragmentationName) {
+    //Note: package-private (not private) so same-package headless tests can build the result tabs directly.
+    void addFragmentationResultTabs(String aFragmentationName) {
         //fragments tab
         Tab tmpFragmentsTab = this.createFragmentsTab(aFragmentationName);
         //itemization tab
@@ -1300,7 +1311,8 @@ public class MainViewController {
      * @param aFragmentationName String, unique name for fragmentation job
      * @return Tab
      */
-    private Tab createFragmentsTab(String aFragmentationName){
+    //Note: package-private (not private) so same-package headless tests can reach it via the result-tab builder.
+    Tab createFragmentsTab(String aFragmentationName){
         FragmentsDataTableView tmpFragmentsDataTableView = new FragmentsDataTableView(this.configuration);
         GridTabForTableView tmpFragmentsTab = new GridTabForTableView(Message.get("MainTabPane.fragmentsTab.title") + " - " + aFragmentationName, TabNames.FRAGMENTS.name(), tmpFragmentsDataTableView);
         this.mainTabPane.getTabs().add(tmpFragmentsTab);
@@ -1371,7 +1383,8 @@ public class MainViewController {
      * @param aFragmentationName String, unique name for the fragmentation job
      * @return Tab
      */
-    private Tab createItemsTab(String aFragmentationName){
+    //Note: package-private (not private) so same-package headless tests can reach it via the result-tab builder.
+    Tab createItemsTab(String aFragmentationName){
         ItemizationDataTableView tmpItemizationDataTableView = new ItemizationDataTableView(aFragmentationName, this.configuration);
         tmpItemizationDataTableView.setItemsList(
                 //developers note: a modifiable list is needed for sorting, so don't let SonarCloud tell you that the Collectors are not needed here!
@@ -1431,7 +1444,8 @@ public class MainViewController {
     /**
      * Clears the gui and all collections.
      */
-    private void clearGuiAndCollections() {
+    //Note: package-private (not private) so same-package headless tests can drive it directly.
+    void clearGuiAndCollections() {
         this.moleculeDataModelList.clear();
         this.mapOfFragmentDataModelLists.clear();
         this.moleculesDataTableView = null;
@@ -1444,7 +1458,8 @@ public class MainViewController {
      * @param aTabName Enum which specifies which kind of tab
      * @return List {@literal <}MoleculeDataModel{@literal >}
      */
-    private List<MoleculeDataModel> getItemsListOfSelectedFragmentationByTabId(TabNames aTabName) {
+    //Note: package-private (not private) so same-package headless tests can assert the selected-tab items list.
+    List<MoleculeDataModel> getItemsListOfSelectedFragmentationByTabId(TabNames aTabName) {
         GridTabForTableView tmpSelectedTab =  (GridTabForTableView) (this.mainTabPane.getTabs().stream().filter(tab ->
                 ((GridTabForTableView) this.mainTabPane.getSelectionModel().getSelectedItem()).getFragmentationNameOutOfTitle()
                         .equals(((GridTabForTableView) tab).getFragmentationNameOutOfTitle()) && tab.getId().equals(aTabName.name())
