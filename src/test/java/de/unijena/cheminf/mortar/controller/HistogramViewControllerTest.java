@@ -28,6 +28,7 @@ package de.unijena.cheminf.mortar.controller;
 import de.unijena.cheminf.mortar.configuration.Configuration;
 import de.unijena.cheminf.mortar.gui.util.GuiDefinitions;
 import de.unijena.cheminf.mortar.message.Message;
+import de.unijena.cheminf.mortar.model.util.SimpleIDisplayEnumConstantProperty;
 
 import javafx.beans.property.Property;
 
@@ -325,13 +326,14 @@ public class HistogramViewControllerTest {
         Assertions.assertTrue(tmpController.canBeUsedOnTab(TabNames.FRAGMENTS));
         Assertions.assertTrue(tmpController.canBeUsedOnTab(TabNames.ITEMIZATION));
         Assertions.assertFalse(tmpController.canBeUsedOnTab(TabNames.MOLECULES));
+        //mutate then restore: defaults are LARGE bar width / ABSOLUTE_FREQUENCY (settings list order: [1] bar width, [2] frequency)
+        SimpleIDisplayEnumConstantProperty tmpBarWidthSetting = (SimpleIDisplayEnumConstantProperty) tmpSettings.get(1);
+        SimpleIDisplayEnumConstantProperty tmpDisplayFrequencySetting = (SimpleIDisplayEnumConstantProperty) tmpSettings.get(2);
+        tmpBarWidthSetting.set(HistogramViewController.BarWidthOption.SMALL);
+        tmpDisplayFrequencySetting.set(HistogramViewController.FrequencyOption.MOLECULE_FREQUENCY);
         tmpController.restoreDefaultSettings();
-        Assertions.assertEquals(HistogramViewController.DEFAULT_BAR_WIDTH,
-                tmpController.getBarWidthOptionEnumConstantFromDisplayName(
-                        HistogramViewController.DEFAULT_BAR_WIDTH.getDisplayName()));
-        Assertions.assertEquals(HistogramViewController.DEFAULT_DISPLAY_FREQUENCY,
-                tmpController.getFrequencyOptionEnumConstantFromDisplayName(
-                        HistogramViewController.DEFAULT_DISPLAY_FREQUENCY.getDisplayName()));
+        Assertions.assertEquals(HistogramViewController.DEFAULT_BAR_WIDTH, tmpBarWidthSetting.get());
+        Assertions.assertEquals(HistogramViewController.DEFAULT_DISPLAY_FREQUENCY, tmpDisplayFrequencySetting.get());
     }
     //
     /**
