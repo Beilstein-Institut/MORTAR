@@ -79,3 +79,40 @@ In this single fresh `sh gradlew test jacocoTestReport` run, **all 10 `controlle
 coverable lines. The lowest LINE-counted class is `MainViewController` at 81.09% (its residual
 uncovered lines are the genuinely headless-unreachable set documented in
 `docs/coverage/16-mainviewcontroller-unreachable.md`); the package aggregate is 1944/2247 = 86.52%.
+
+## CI Hardening / Bounded Wall-Clock (QUAL-03)
+
+The headless controller suite is protected from hanging CI by two independent layers, so a wedged
+test fails CI within a bounded wall-clock instead of consuming the runner indefinitely.
+
+### 1. Job-level guard (CI config)
+
+`.github/workflows/gradle.yml` sets **`timeout-minutes: 45`** on the `build` job (a sibling of
+`runs-on:` under `jobs.build:`). This caps the total build wall-clock: if a headless fork wedges,
+GitHub Actions cancels the job at 45 minutes and fails CI rather than hanging. 45 minutes comfortably
+exceeds the real ~2–5 minute suite runtime, so it never flakes a healthy build. Coverage stays
+report-only — no coverage-verification gate was added.
+
+### 2. In-suite harness bounds (already in place, no code change)
+
+The test harness itself bounds every blocking FX interaction so a stuck fork fails fast well before
+the job-level cap:
+
+- **`AbstractFxTestCase.FX_TIMEOUT_SECONDS = 10s`** — a 10-second bound applied to the once-per-JVM
+  toolkit boot latch and to **every `runAndWait` latch**. If the FX thread stalls, `runAndWait`
+  throws `IllegalStateException("FX runnable did not complete within 10 seconds")` instead of blocking.
+- **`FxTestUtil.runAndDriveModal`** — drives a blocking `showAndWait` construct headlessly via a
+  `Window.getWindows()` `ListChangeListener` that fires the driver and **always closes the stage in a
+  `finally`**, bounded by the same **10-second** latch, with a best-effort timeout recovery that
+  removes the listener and closes any still-showing detected stage so a single stuck modal cannot
+  poison sibling tests in the fork.
+- **`AbstractFxTestCase.waitForFxEvents()`** — drains the FX event queue (via TestFX
+  `WaitForAsyncUtils.waitForFxEvents()`) so pending `runLater`/pulse work is processed before
+  assertions, avoiding indefinite waits on unflushed events.
+- **`AbstractFxTestCase.FX_UNCAUGHT`** — a slot capturing throwables raised on the JavaFX Application
+  Thread; `runAndWait` rethrows a captured throwable on the test thread, so a failing `runLater`
+  surfaces as a test failure instead of being silently swallowed by the FX event loop (which could
+  otherwise leave a test hanging or falsely green).
+
+Together the 10-second in-suite bounds catch a wedged interaction in seconds; the 45-minute job-level
+`timeout-minutes` is the outer backstop for anything the in-suite bounds cannot reach.
