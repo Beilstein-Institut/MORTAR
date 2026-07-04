@@ -222,6 +222,9 @@ public class SettingsViewControllerTest extends AbstractFxTestCase {
                     }
                 });
         AbstractFxTestCase.waitForFxEvents();
+        //surface any throwable an async Platform.runLater raised on the JavaFX Application Thread
+        //(e.g. the setRecentProperties restore) — waitForFxEvents drains but does not read FX_UNCAUGHT
+        AbstractFxTestCase.runAndWait(() -> { });
         return tmpController;
     }
     //</editor-fold>
