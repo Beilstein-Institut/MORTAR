@@ -904,45 +904,62 @@ public class MainViewController {
     //Note: package-private (not private) so same-package headless tests can drive the modal open and apply body.
     void openGlobalSettingsView() {
         SettingsViewController tmpSettingsViewController = new SettingsViewController(this.primaryStage, this.settingsContainer, this.configuration);
-        Platform.runLater(() -> {
-            if (tmpSettingsViewController.hasRowsPerPageChanged()) {
-                for (Tab tmpTab : this.mainTabPane.getTabs()) {
-                    // type of generic not given because it does not matter here, only the size of the items list
-                    TableView<?> tmpTableView = ((GridTabForTableView) tmpTab).getTableView();
-                    int tmpListSize = ((IDataTableView) tmpTableView).getItemsList().size();
-                    int tmpPageIndex = ((GridTabForTableView) tmpTab).getPagination().getCurrentPageIndex();
-                    int tmpRowsPerPage = this.settingsContainer.getRowsPerPageSetting();
-                    int tmpPageCount = tmpListSize / tmpRowsPerPage;
-                    if (tmpListSize % tmpRowsPerPage > 0) {
-                        tmpPageCount++;
-                    }
-                    if (tmpPageIndex > tmpPageCount) {
-                        tmpPageIndex = tmpPageCount;
-                    }
-                    /*
-                    the following might cause "javafx.scene.control.skin.VirtualFlow addTrailingCells
-                    INFO: index exceeds maxCellCount. Check size calculations for class javafx.scene.control.TableRow"
-                    when the new rows per page value is smaller than the older one, but it is not a real problem;
-                    the refreshed GUI just needs to "scroll" to a different position
-                    */
-                    ((GridTabForTableView) tmpTab).getPagination().setPageCount(tmpPageCount);
-                    ((GridTabForTableView) tmpTab).getPagination().setCurrentPageIndex(tmpPageIndex);
-                    ((GridTabForTableView) tmpTab).getTableView().refresh();
-                    GuiUtil.setImageStructureHeight(((GridTabForTableView) tmpTab).getTableView(), ((GridTabForTableView) tmpTab).getTableView().getHeight(), this.settingsContainer.getRowsPerPageSetting());
-                    ((GridTabForTableView) tmpTab).getTableView().refresh();
+        Platform.runLater(() -> this.applyGlobalSettingsChanges(
+                tmpSettingsViewController.hasRowsPerPageChanged(),
+                tmpSettingsViewController.hasKeepAtomContainerInDataModelChanged()));
+    }
+    //
+    /**
+     * Applies the global-settings changes to the currently open result tabs and data models: recomputes the pagination
+     * page count / current page for every tab when the rows-per-page setting changed, and propagates the
+     * keep-atom-container-in-data-model setting to every molecule and fragment when that setting changed. Extracted
+     * (behavior-preserving) from the {@code Platform.runLater} body of {@code openGlobalSettingsView} so the apply logic
+     * is unit-testable headlessly with populated tabs and explicit change flags; the loop bodies and branch conditions
+     * are unchanged.
+     *
+     * @param aRowsPerPageChanged whether the rows-per-page setting changed (triggers the pagination recompute)
+     * @param aKeepAtomContainerChanged whether the keep-atom-container-in-data-model setting changed (triggers the
+     *                                  propagation to the molecule and fragment data models)
+     */
+    //Note: package-private (not private) so same-package headless tests can drive the apply body directly.
+    void applyGlobalSettingsChanges(boolean aRowsPerPageChanged, boolean aKeepAtomContainerChanged) {
+        if (aRowsPerPageChanged) {
+            for (Tab tmpTab : this.mainTabPane.getTabs()) {
+                // type of generic not given because it does not matter here, only the size of the items list
+                TableView<?> tmpTableView = ((GridTabForTableView) tmpTab).getTableView();
+                int tmpListSize = ((IDataTableView) tmpTableView).getItemsList().size();
+                int tmpPageIndex = ((GridTabForTableView) tmpTab).getPagination().getCurrentPageIndex();
+                int tmpRowsPerPage = this.settingsContainer.getRowsPerPageSetting();
+                int tmpPageCount = tmpListSize / tmpRowsPerPage;
+                if (tmpListSize % tmpRowsPerPage > 0) {
+                    tmpPageCount++;
+                }
+                if (tmpPageIndex > tmpPageCount) {
+                    tmpPageIndex = tmpPageCount;
+                }
+                /*
+                the following might cause "javafx.scene.control.skin.VirtualFlow addTrailingCells
+                INFO: index exceeds maxCellCount. Check size calculations for class javafx.scene.control.TableRow"
+                when the new rows per page value is smaller than the older one, but it is not a real problem;
+                the refreshed GUI just needs to "scroll" to a different position
+                */
+                ((GridTabForTableView) tmpTab).getPagination().setPageCount(tmpPageCount);
+                ((GridTabForTableView) tmpTab).getPagination().setCurrentPageIndex(tmpPageIndex);
+                ((GridTabForTableView) tmpTab).getTableView().refresh();
+                GuiUtil.setImageStructureHeight(((GridTabForTableView) tmpTab).getTableView(), ((GridTabForTableView) tmpTab).getTableView().getHeight(), this.settingsContainer.getRowsPerPageSetting());
+                ((GridTabForTableView) tmpTab).getTableView().refresh();
+            }
+        }
+        if (aKeepAtomContainerChanged) {
+            for (MoleculeDataModel tmpMoleculeDataModel : this.moleculeDataModelList) {
+                tmpMoleculeDataModel.setKeepAtomContainer(this.settingsContainer.getKeepAtomContainerInDataModelSetting());
+            }
+            for (ObservableList<FragmentDataModel> tmpFragmentDataModelList : this.mapOfFragmentDataModelLists.values()) {
+                for (FragmentDataModel tmpFragmentDataModel : tmpFragmentDataModelList) {
+                    tmpFragmentDataModel.setKeepAtomContainer(this.settingsContainer.getKeepAtomContainerInDataModelSetting());
                 }
             }
-            if (tmpSettingsViewController.hasKeepAtomContainerInDataModelChanged()) {
-                for (MoleculeDataModel tmpMoleculeDataModel : this.moleculeDataModelList) {
-                    tmpMoleculeDataModel.setKeepAtomContainer(this.settingsContainer.getKeepAtomContainerInDataModelSetting());
-                }
-                for (ObservableList<FragmentDataModel> tmpFragmentDataModelList : this.mapOfFragmentDataModelLists.values()) {
-                    for (FragmentDataModel tmpFragmentDataModel : tmpFragmentDataModelList) {
-                        tmpFragmentDataModel.setKeepAtomContainer(this.settingsContainer.getKeepAtomContainerInDataModelSetting());
-                    }
-                }
-            }
-        });
+        }
     }
     //
     /**
