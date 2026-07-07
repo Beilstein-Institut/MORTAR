@@ -123,6 +123,23 @@ tasks.test {
     finalizedBy(tasks.jacocoTestReport)
 }
 
+// Shared measured-scope exclusions so the report and the coverage-verification
+// gate can never drift apart (gui/main/message are intentionally out of scope).
+val jacocoMeasuredScopeExcludes = listOf(
+    "**/de/unijena/cheminf/mortar/gui/**",
+    "**/de/unijena/cheminf/mortar/main/**",
+    "**/de/unijena/cheminf/mortar/message/**"
+)
+
+// Builds the measured class-directory set once, applying the shared exclusions.
+fun jacocoMeasuredClassDirectories() = files(
+    sourceSets.main.get().output.classesDirs.files.map { tmpDir ->
+        fileTree(tmpDir) {
+            exclude(jacocoMeasuredScopeExcludes)
+        }
+    }
+)
+
 tasks.jacocoTestReport {
     dependsOn(tasks.test)
     reports {
@@ -130,19 +147,48 @@ tasks.jacocoTestReport {
         xml.required.set(true)
         csv.required.set(false)
     }
-    classDirectories.setFrom(
-        files(
-            sourceSets.main.get().output.classesDirs.files.map { tmpDir ->
-                fileTree(tmpDir) {
-                    exclude(
-                        "**/de/unijena/cheminf/mortar/gui/**",
-                        "**/de/unijena/cheminf/mortar/main/**",
-                        "**/de/unijena/cheminf/mortar/message/**"
-                    )
-                }
+    classDirectories.setFrom(jacocoMeasuredClassDirectories())
+}
+
+// GATE-01 / GATE-02: build-failing per-package LINE coverage regression gate.
+// Wired into `check` below so `./gradlew build` (and CI) fail on a coverage regression.
+// Measures the exact same scope as jacocoTestReport (gui/main/message excluded).
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.test)
+    classDirectories.setFrom(jacocoMeasuredClassDirectories())
+    violationRules {
+        // Rule A — core packages (model.*, preference, configuration): minimum 85% LINE.
+        // element = PACKAGE evaluates each matching package independently → genuine
+        // per-package enforcement. The `model.*` wildcard matches every model sub-package.
+        rule {
+            element = "PACKAGE"
+            includes = listOf(
+                "de.unijena.cheminf.mortar.model.*",
+                "de.unijena.cheminf.mortar.preference",
+                "de.unijena.cheminf.mortar.configuration"
+            )
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.85".toBigDecimal()
             }
-        )
-    )
+        }
+        // Rule B — controller package: minimum 80% LINE.
+        rule {
+            element = "PACKAGE"
+            includes = listOf("de.unijena.cheminf.mortar.controller")
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.80".toBigDecimal()
+            }
+        }
+    }
+}
+
+// GATE-01: make the standard `check` (hence `build`, hence CI) run the coverage gate.
+tasks.named("check") {
+    dependsOn(tasks.jacocoTestCoverageVerification)
 }
 
 //<editor-fold desc="FatJar tasks">
