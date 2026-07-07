@@ -284,12 +284,10 @@ public class Importer {
                 tmpExceptionCount++;
                 continue;
             }
-            MoleculeDataModel tmpMoleculeDataModel;
-            if (this.settingsContainer.getKeepAtomContainerInDataModelSetting()) {
-                tmpMoleculeDataModel = new MoleculeDataModel(tmpAtomContainer, isRegardStereo);
-            } else {
-                tmpMoleculeDataModel = new MoleculeDataModel(tmpSmiles, tmpAtomContainer.getTitle(), tmpAtomContainer.getProperties());
-            }
+            //the keep-atom-container-in-data-model setting is deprecated and always false
+            //(SettingsContainer.getKeepAtomContainerInDataModelSetting), so molecules are always
+            //stored via their unique SMILES rather than a retained atom container
+            MoleculeDataModel tmpMoleculeDataModel = new MoleculeDataModel(tmpSmiles, tmpAtomContainer.getTitle(), tmpAtomContainer.getProperties());
             tmpMoleculeDataModel.setName(tmpAtomContainer.getProperty(Importer.MOLECULE_NAME_PROPERTY_KEY));
             tmpReturnList.add(tmpMoleculeDataModel);
         }
