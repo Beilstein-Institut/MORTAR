@@ -987,6 +987,48 @@ public class ExporterTest {
     }
     //
     /**
+     * Regression test for the ITEMIZATION-tab PDF export infinite loop: a molecule carries a fragment whose unique SMILES
+     * is unparsable, so {@code getAtomContainer} throws a CDKException on every rendering attempt inside the
+     * three-fragments-per-line inner loop of {@code createItemizationTabPdfFile}. Before the fix the outer fragment loop
+     * never advanced its counter on the exception-continue path, so the persistently-failing fragment spun the loop
+     * forever (a production hang during export). The export is run under a preemptive 30-second bound: if the loop
+     * regresses, the bound fires and this test fails fast instead of hanging CI. After the fix the export terminates,
+     * the failing fragment's SMILES is recorded in the returned failed-export list, and the accompanying valid fragment
+     * is still rendered (the success path is unchanged).
+     *
+     * @param aTempDir per-test temporary directory (auto-deleted)
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testExportPdfFileItemizationTabFragmentWithInvalidStructureTerminates(@TempDir Path aTempDir) throws Exception {
+        SmilesParser tmpParser = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        IAtomContainer tmpParentAtomContainer = tmpParser.parseSmiles("c1ccccc1CCO");
+        MoleculeDataModel tmpMolecule = new MoleculeDataModel(tmpParentAtomContainer, false);
+        tmpMolecule.setName("MoleculeWithFailingFragment");
+        //a valid fragment (renders normally) plus a fragment whose unique SMILES is unparsable so getAtomContainer throws
+        FragmentDataModel tmpValidFragment = new FragmentDataModel(tmpParser.parseSmiles("c1ccccc1"), false);
+        tmpValidFragment.setAbsoluteFrequency(1);
+        FragmentDataModel tmpInvalidFragment = new FragmentDataModel("not_a_valid_smiles", "Invalid", new HashMap<>());
+        tmpInvalidFragment.setAbsoluteFrequency(1);
+        List<FragmentDataModel> tmpMoleculeFragments =
+                new ArrayList<>(List.of(tmpValidFragment, tmpInvalidFragment));
+        tmpMolecule.getAllFragments().put("ErtlFG", tmpMoleculeFragments);
+        Map<String, Integer> tmpFrequencies = new HashMap<>();
+        tmpFrequencies.put(tmpValidFragment.getUniqueSmiles(), 1);
+        tmpFrequencies.put(tmpInvalidFragment.getUniqueSmiles(), 1);
+        tmpMolecule.getFragmentFrequencies().put("ErtlFG", tmpFrequencies);
+        List<MoleculeDataModel> tmpFragmentList = ExporterTest.buildFragmentList();
+        ObservableList<MoleculeDataModel> tmpMolecules = FXCollections.observableArrayList(tmpMolecule);
+        File tmpOut = aTempDir.resolve("items_failing_fragment.pdf").toFile();
+        List<String> tmpFailed = Assertions.assertTimeoutPreemptively(
+                java.time.Duration.ofSeconds(30L),
+                () -> this.exporter.exportPdfFile(
+                        tmpOut, tmpFragmentList, tmpMolecules, "ErtlFG", "input.smi", TabNames.ITEMIZATION));
+        Assertions.assertNotNull(tmpFailed);
+        Assertions.assertTrue(tmpFailed.contains(tmpInvalidFragment.getUniqueSmiles()));
+    }
+    //
+    /**
      * Tests that the nested enums of the Exporter ({@code ExportTypes}, {@code FileExtension}, {@code CSVSeparator})
      * load and expose non-null accessors, loading their static initializers for coverage.
      */
@@ -1238,12 +1280,11 @@ public class ExporterTest {
     //
     /**
      * Tests that the FRAGMENTS-tab PDF export hits its top-of-loop interrupt guard ({@code createFragmentsTabPdfFile})
-     * when the current thread is interrupted. Unlike the itemization variant, this method opens the iText
-     * {@code Document} but only adds its content table AFTER the export loop, so the interrupt's {@code return null} on
-     * the first iteration leaves the document with no pages; the try-with-resources {@code close()} then throws an iText
-     * {@code ExceptionConverter} ("The document has no pages."). The guard's {@code return null} line is still executed
-     * (it runs before the implicit close). This asserts the documented throw-on-interrupt behavior (see findings) rather
-     * than a clean {@code null} return.
+     * when the current thread is interrupted and returns {@code null} cleanly. Unlike the itemization variant, this
+     * method opens the iText {@code Document} but only adds its content table AFTER the export loop, so the interrupt's
+     * {@code return null} on the first iteration leaves the document with no pages. The document close is guarded so the
+     * zero-page iText {@code ExceptionConverter} ("The document has no pages.") is swallowed instead of escaping; the
+     * export therefore returns {@code null} on interrupt rather than propagating a spurious runtime exception.
      *
      * @param aTempDir per-test temporary directory (auto-deleted)
      * @throws Exception if anything goes wrong
@@ -1255,8 +1296,9 @@ public class ExporterTest {
         File tmpOut = aTempDir.resolve("frags_interrupt.pdf").toFile();
         try {
             Thread.currentThread().interrupt();
-            Assertions.assertThrows(RuntimeException.class, () -> this.exporter.exportPdfFile(
-                    tmpOut, tmpFragments, tmpMolecules, "ErtlFG", "input.smi", TabNames.FRAGMENTS));
+            List<String> tmpFailed = this.exporter.exportPdfFile(
+                    tmpOut, tmpFragments, tmpMolecules, "ErtlFG", "input.smi", TabNames.FRAGMENTS);
+            Assertions.assertNull(tmpFailed);
         } finally {
             Thread.interrupted();
         }
