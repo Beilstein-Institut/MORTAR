@@ -112,6 +112,53 @@ public class RGBColorPreferenceTest {
     }
     //
     /**
+     * Tests that setContent(int, int, int, int) normalizes every channel by dividing by 255, using non-zero,
+     * non-maximum green/blue/alpha values so the division is distinguishable from any other arithmetic (a zero or
+     * 255 input cannot tell {@code / 255} apart from {@code * 255}). Pins the per-channel normalization arithmetic.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testSetContentIntNormalizesAllChannels() throws Exception {
+        RGBColorPreference tmpPref = new RGBColorPreference("Channel normalisation", 0, 0, 0, 255);
+        tmpPref.setContent(255, 128, 64, 200);
+        Assertions.assertArrayEquals(
+                new double[]{255.0 / 255.0, 128.0 / 255.0, 64.0 / 255.0, 200.0 / 255.0},
+                tmpPref.getComponents(), 1e-9);
+    }
+    //
+    /**
+     * Tests that setAlpha(double) accepts both inclusive range boundaries (0.0 and 1.0) without throwing and stores
+     * them. The rejection condition is {@code anAlphaValue < 0.0 || anAlphaValue > 1.0}, so both boundaries must be
+     * accepted; this pins both boundary comparisons so a {@code <=} / {@code >=} mutation (which would wrongly reject
+     * a boundary value) is detected.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testSetAlphaDoubleAcceptsRangeBoundaries() throws Exception {
+        RGBColorPreference tmpPref = new RGBColorPreference("Alpha double bounds", 0.0, 0.0, 0.0, 0.5);
+        tmpPref.setAlpha(0.0);
+        Assertions.assertEquals(0.0, tmpPref.getComponents()[3], 0.0);
+        tmpPref.setAlpha(1.0);
+        Assertions.assertEquals(1.0, tmpPref.getComponents()[3], 0.0);
+    }
+    //
+    /**
+     * Tests that setAlpha(int) accepts the inclusive lower boundary of zero without throwing and stores it as 0.0.
+     * The rejection condition is {@code anAlphaValue < 0}, so zero must be accepted; this pins that boundary so a
+     * {@code <=} mutation (which would wrongly reject zero) is detected.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testSetAlphaIntAcceptsLowerBoundary() throws Exception {
+        RGBColorPreference tmpPref = new RGBColorPreference("Alpha int bounds", 0.0, 0.0, 0.0, 0.5);
+        tmpPref.setAlpha(0);
+        Assertions.assertEquals(0.0, tmpPref.getComponents()[3], 0.0);
+    }
+    //
+    /**
      * Tests setAlpha(double) for valid in-range input and the out-of-range IllegalArgumentException guard.
      *
      * @throws Exception if anything goes wrong

@@ -374,4 +374,28 @@ public class PreferenceContainerTest {
         PreferenceUtil.updatePropertiesFromPreferences(List.<Property<?>>of(tmpUnmatchedProperty), tmpContainer);
         Assertions.assertFalse(tmpUnmatchedProperty.get());
     }
+    //
+    /**
+     * Tests the exact ordering and hashing contract of PreferenceContainer. Two freshly created containers carry
+     * different, globally-unique GUIDs, so compareTo must return a non-zero value whose sign follows the GUID string
+     * ordering (this pins compareTo against a "return 0" mutation). The hashCode value is pinned to its exact formula,
+     * {@code 31 * 13 + guid.hashCode() = 403 + guid.hashCode()}, so the arithmetic mutations of the formula and a
+     * "return 0" mutation are detected. Equal-GUID copies must share both the hashCode and equality.
+     *
+     * @param aTempDir JUnit-managed temporary directory
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testCompareToAndHashCodeContract(@TempDir Path aTempDir) throws Exception {
+        PreferenceContainer tmpContainerA = new PreferenceContainer(aTempDir.resolve("containerA.txt").toString());
+        PreferenceContainer tmpContainerB = new PreferenceContainer(aTempDir.resolve("containerB.txt").toString());
+        Assertions.assertNotEquals(tmpContainerA.getGUID(), tmpContainerB.getGUID());
+        Assertions.assertNotEquals(0, tmpContainerA.compareTo(tmpContainerB));
+        Assertions.assertEquals(Integer.signum(tmpContainerA.getGUID().compareTo(tmpContainerB.getGUID())),
+                Integer.signum(tmpContainerA.compareTo(tmpContainerB)));
+        Assertions.assertEquals(31 * 13 + tmpContainerA.getGUID().hashCode(), tmpContainerA.hashCode());
+        PreferenceContainer tmpCopy = tmpContainerA.copy();
+        Assertions.assertEquals(tmpContainerA.hashCode(), tmpCopy.hashCode());
+        Assertions.assertEquals(tmpContainerA, tmpCopy);
+    }
 }

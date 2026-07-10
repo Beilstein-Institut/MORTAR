@@ -105,7 +105,60 @@ cosmetic PDF layout and logging side-effects deprioritized).
   are IO-writer configuration side effects; assert via round-trip output content where practical
   (covered partly by the deferred `integration.*` round-trip tests).
 
-## Next steps (follow-up task, not this one)
+## Second pass — assertion strengthening (2026-07-10, task 260710-ewo)
+
+The follow-up task added targeted, behaviour-pinning assertions for the ranked survivors
+(test-only; no production code changed). Same PIT scope as the first pass.
+
+### Headline before/after
+
+| Metric | First pass | After 260710-ewo |
+|--------|-----------|------------------|
+| Mutations generated | 1098 | 1098 |
+| Killed (incl. memory-error / timed-out as detected) | 790 | 819 |
+| **Test strength** (killed / (killed+survived), excl. no-coverage) | **80%** | **83%** |
+| Survivors (excl. no-coverage) | 194 | 166 |
+| Mutations with no coverage | 114 | 113 |
+
+### Per-package score before/after
+
+| Package | Score (first pass) | Score (after) |
+|---------|--------------------|---------------|
+| `model.data` | 91.0% | **98.5%** |
+| `preference` | 85.0% | **88.1%** |
+| `model.util` | 84.4% | **87.2%** |
+| `model.io` | 67.3% | **71.0%** |
+| `configuration` | 66.7% | 66.7% (untouched — tiny population) |
+
+### Ranked-row kill status
+
+| # | Class / method | Status | Notes |
+|---|----------------|--------|-------|
+| 1 | `ChemUtil.fixRadicals` | **Partial** | electron-removal loop `ConditionalsBoundary` + `NegateConditionals` (L436) killed via `getSingleElectronCount()==0`; the `Math -→+` at L436 and the `setValency/setFormalNeighbourCount/setHybridization` `VoidMethodCall`s (L424–426) remain — re-perception overwrites those atom fields, so the golden-SMILES output is unchanged (likely equivalent). |
+| 2 | `ChemUtil.fixAromaticNitrogenAndCreateSMILES` kekulise | Remaining | CDK-heavy; the kekulise `VoidMethodCall` (L506) does not alter the round-trip validation used by the existing tests. Deferred. |
+| 3 | `ChemUtil.saturateWithHydrogen` / `checkAndCorrectElectronConfiguration` guards | Remaining | Guard-branch `NegateConditionals` on empty-container early-returns; both branches leave the observable container state identical (empty in/empty out). Deferred as effectively equivalent. |
+| 4 | `CollectionUtil.calculateInitialHashCollectionCapacity` | **Killed** | load-factor `== 1.0f` boundary pinned. |
+| 5 | `StringSortWrapper.hashCode` | **Killed** | exact formula value pinned (both `Math` mutants). |
+| 6 | `FragmentDataModel` frequency/percentage setters | **Killed** | zero lower-boundary acceptance pinned (all 4). |
+| 7 | `MoleculeDataModel.setKeepAtomContainer` | **Killed** | cache-clearing effect pinned via `assertNotSame`. |
+| 8 | `PreferenceContainer.compareTo` / `hashCode` | **Killed** | compareTo sign + exact hashCode value pinned (4 mutants). |
+| 9 | `PreferenceContainer.add` / `replace` / `delete` boolean return (L454/477/500/518) | **Equivalent** | the reject paths return `false` at *earlier* lines (already asserted by existing tests); the success-return lines are provably `true` when reached (GUID uniqueness guarantees the type/name-set adds succeed), so `BooleanTrueReturn` there is an equivalent mutant. Not contorted. |
+| 10 | `RGBColorPreference.setContent` channel normalization | **Killed** | non-zero/non-max channels pin the `/255` division. |
+| 11 | `RGBColorPreference.setAlpha` range boundaries | **Killed** | 0.0/1.0 (double) and 0 (int) inclusive boundaries pinned. |
+| 12 | `Importer.importSDFile`/`importPDBFile` counters | Remaining | counter/index arithmetic; deferred (needs multi-record naming-order fixtures). |
+| 13 | `Importer.findMoleculeName` | **Partial** | title-null guard, name-key predicate and the `Database_Name` exclusion (L537/539) killed; the residual id-branch lambdas (L538/544/545) remain. |
+| 14 | `Importer.parse` empty-list return (L276) | **Equivalent** | L276 is the null/empty-set guard `return new ArrayList<>()`; replacing it with `emptyList()` is semantically identical on that path. |
+| 15 | `Exporter.convertToITextImage` null return | Remaining | not attempted this pass (private, PDF-image path). Deferred. |
+| 16 | `FileUtil.createDirectory` / `createEmptyFile` boolean return | **Killed** | failure paths pinned (mkdirs blocked by a file; createNewFile on an existing directory name). |
+
+### Remaining next steps
+
+1. `model.io` counter/naming survivors (rows 12, 15) with fixture-based round-trip assertions.
+2. Residual `findMoleculeName` id-branch lambdas (row 13).
+3. Second PIT pass adding `model.fragmentation.*` / `model.depict.*` / `model.settings.*` once a
+   runtime/CI budget is agreed (expect minutes, CDK-heavy). Keep PIT report-only and out of the gate.
+
+## Next steps (first-pass backlog, superseded by the section above)
 
 1. Strengthen assertions for triage rows 1–11 (core `model.util` / `model.data` / `preference`
    logic) — cheapest, highest-signal wins.

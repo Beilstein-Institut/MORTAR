@@ -115,6 +115,22 @@ class FileUtilTest {
     }
     //
     /**
+     * Tests that createDirectory returns false when the directory cannot actually be created: a regular file placed at
+     * an ancestor path makes {@code mkdirs()} fail, and createDirectory must propagate that false result rather than a
+     * hard-coded true. This pins the {@code return tmpDirectory.mkdirs()} return value.
+     *
+     * @param aTempDir JUnit-managed temporary directory
+     */
+    @Test
+    public void testCreateDirectoryReturnsFalseWhenCreationFails(@TempDir Path aTempDir) throws Exception {
+        File tmpBlockingFile = aTempDir.resolve("blocker").toFile();
+        Assertions.assertTrue(tmpBlockingFile.createNewFile());
+        //a directory cannot be created underneath a regular file, so mkdirs() returns false
+        String tmpUncreatableDir = new File(tmpBlockingFile, "sub").getAbsolutePath();
+        Assertions.assertFalse(FileUtil.createDirectory(tmpUncreatableDir));
+    }
+    //
+    /**
      * Tests deleteSingleFile inside a temporary directory: an existing file is deleted (true), a non-existent path
      * returns true (nothing to delete), and null/empty paths return false.
      *
@@ -171,6 +187,21 @@ class FileUtilTest {
         Assertions.assertFalse(FileUtil.createEmptyFile(tmpFilePath));
         Assertions.assertFalse(FileUtil.createEmptyFile(null));
         Assertions.assertFalse(FileUtil.createEmptyFile(""));
+    }
+    //
+    /**
+     * Tests that createEmptyFile returns false when the file is not actually created: an existing directory is not a
+     * regular file (so the {@code isFile()} guard passes) but {@code createNewFile()} cannot create a new file under
+     * that already-taken name and returns false, which createEmptyFile must propagate rather than a hard-coded true.
+     * This pins the {@code return tmpFile.createNewFile()} return value.
+     *
+     * @param aTempDir JUnit-managed temporary directory
+     */
+    @Test
+    public void testCreateEmptyFileReturnsFalseWhenFileNotCreated(@TempDir Path aTempDir) throws Exception {
+        File tmpExistingDir = aTempDir.resolve("existingDir").toFile();
+        Assertions.assertTrue(tmpExistingDir.mkdir());
+        Assertions.assertFalse(FileUtil.createEmptyFile(tmpExistingDir.getAbsolutePath()));
     }
     //
     /**
