@@ -204,25 +204,26 @@ tasks.named("check") {
 // PIT runs its own test execution and coverage internally — it does NOT invoke `test`,
 // `jacocoTestReport`, or the coverage gate, so it is fully independent of them.
 //
-// SCOPE (first pass): deterministic, fast, low-CDK core only — model.util/data,
-// preference, configuration. CDK/algorithm-heavy packages (model.fragmentation,
-// model.depict, model.settings) and model.io are DEFERRED to a later pass (PIT re-runs
-// the covering tests per mutant, so runtime is the dominant constraint). FX/controller
-// and full-pipeline integration tests are excluded (mutation-hostile + slow).
+// SCOPE (now includes model.fragmentation): the deterministic core — model.util/data/io,
+// preference, configuration — plus the CDK/algorithm-heavy fragmentation package
+// (model.fragmentation.*, added in the second pass). The remaining CDK-heavy packages
+// model.depict and model.settings are still DEFERRED to a later pass (PIT re-runs the
+// covering tests per mutant, so runtime is the dominant constraint). FX/controller and
+// full-pipeline integration tests are excluded (mutation-hostile + slow).
 pitest {
     // Engine versions (pinned for reproducibility; 1.22.1 is already the plugin default).
     pitestVersion.set("1.22.1")
     junit5PluginVersion.set("1.2.3")
 
-    // SCOPE: deterministic non-GUI core only (first pass).
+    // SCOPE: deterministic non-GUI core + fragmentation algorithms (second pass).
     targetClasses.set(listOf(
         "de.unijena.cheminf.mortar.model.util.*",
         "de.unijena.cheminf.mortar.model.data.*",
         "de.unijena.cheminf.mortar.model.io.*",
+        "de.unijena.cheminf.mortar.model.fragmentation.*",
         "de.unijena.cheminf.mortar.preference.*",
         "de.unijena.cheminf.mortar.configuration.*"
         // DEFERRED to a later pass (slower / CDK-heavy):
-        // "de.unijena.cheminf.mortar.model.fragmentation.*",
         // "de.unijena.cheminf.mortar.model.depict.*",
         // "de.unijena.cheminf.mortar.model.settings.*"
     ))
@@ -230,6 +231,7 @@ pitest {
         "de.unijena.cheminf.mortar.model.util.*",
         "de.unijena.cheminf.mortar.model.data.*",
         "de.unijena.cheminf.mortar.model.io.*",
+        "de.unijena.cheminf.mortar.model.fragmentation.*",
         "de.unijena.cheminf.mortar.preference.*",
         "de.unijena.cheminf.mortar.configuration.*"
     ))
