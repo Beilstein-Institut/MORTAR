@@ -99,7 +99,11 @@ class ChemUtilTest {
         IAtomContainer tmpMolecule = tmpReader.read(SilentChemObjectBuilder.getInstance().newAtomContainer());
         tmpReader.close();
         AtomContainerManipulator.percieveAtomTypesAndConfigureAtoms(tmpMolecule);
+        //the fixture contains radicals (single electrons) before fixing
+        Assertions.assertTrue(tmpMolecule.getSingleElectronCount() > 0);
         ChemUtil.fixRadicals(tmpMolecule);
+        //fixRadicals must remove every single electron from the molecule (pins the electron-removal loop)
+        Assertions.assertEquals(0, tmpMolecule.getSingleElectronCount());
         SmilesGenerator smiGen = new SmilesGenerator(SmiFlavor.Canonical);
         Assertions.assertEquals("N=C1N=C2C3=C(N1)CCC3CC(C)C2CCCC", smiGen.create(tmpMolecule));
     }

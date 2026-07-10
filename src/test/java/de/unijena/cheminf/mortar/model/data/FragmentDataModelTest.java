@@ -135,6 +135,26 @@ public class FragmentDataModelTest {
     }
     //
     /**
+     * Tests that the four frequency/percentage setters accept the inclusive lower boundary value of zero without
+     * throwing and store it. The rejection conditions are strictly {@code < 0} / {@code < 0.0}, so zero must be
+     * accepted; this pins that boundary so a {@code <=} mutation (which would wrongly reject zero) is detected.
+     *
+     * @throws Exception if SMILES parsing fails
+     */
+    @Test
+    public void testFrequencyAndPercentageSettersAcceptZeroBoundary() throws Exception {
+        FragmentDataModel tmpFragment = FragmentDataModelTest.buildFragment("c1ccccc1");
+        tmpFragment.setAbsoluteFrequency(0);
+        tmpFragment.setMoleculeFrequency(0);
+        tmpFragment.setAbsolutePercentage(0.0);
+        tmpFragment.setMoleculePercentage(0.0);
+        Assertions.assertEquals(0, tmpFragment.getAbsoluteFrequency());
+        Assertions.assertEquals(0, tmpFragment.getMoleculeFrequency());
+        Assertions.assertEquals(0.0, tmpFragment.getAbsolutePercentage());
+        Assertions.assertEquals(0.0, tmpFragment.getMoleculePercentage());
+    }
+    //
+    /**
      * Tests that {@code setAbsoluteFrequency(-1)} throws an {@code IllegalArgumentException} (the negative-value
      * validation branch).
      *

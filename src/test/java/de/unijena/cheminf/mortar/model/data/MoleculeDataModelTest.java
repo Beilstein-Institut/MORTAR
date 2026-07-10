@@ -203,6 +203,25 @@ public class MoleculeDataModelTest {
     }
     //
     /**
+     * Tests that {@code setKeepAtomContainer(false)} actually nulls the previously-cached atom container so that the
+     * next {@code getAtomContainer()} call returns a freshly parsed, distinct instance rather than the stale cached
+     * one. This pins the {@code if (!this.keepAtomContainer)} guard: negating it would skip the cache-clearing and
+     * keep returning the identical cached instance.
+     *
+     * @throws Exception if SMILES parsing or atom-container retrieval fails
+     */
+    @Test
+    public void testSetKeepAtomContainerFalseClearsCachedInstance() throws Exception {
+        IAtomContainer tmpAtomContainer = MoleculeDataModelTest.buildAtomContainer("c1ccccc1");
+        MoleculeDataModel tmpMolecule = new MoleculeDataModel(tmpAtomContainer, false);
+        //the atom-container constructor caches the container (keepAtomContainer == true)
+        IAtomContainer tmpCached = tmpMolecule.getAtomContainer();
+        Assertions.assertSame(tmpCached, tmpMolecule.getAtomContainer());
+        tmpMolecule.setKeepAtomContainer(false);
+        Assertions.assertNotSame(tmpCached, tmpMolecule.getAtomContainer());
+    }
+    //
+    /**
      * Tests the selection {@code BooleanProperty}: the property is non-null, the default selection state is true (set
      * in the constructor), and {@code setSelection(...)} round-trips through both {@code isSelected()} and the
      * property value.

@@ -465,6 +465,40 @@ public class ImporterTest extends Importer {
         Assertions.assertEquals("CID-12345", tmpResult);
     }
     /**
+     * Tests the name-property branch of the private {@code findMoleculeName} method (reached via reflection). When the
+     * atom container has no title but carries a property whose key contains 'name', the value of that property is
+     * returned as the molecule name. This pins the title-null guard and the name-key detection predicate.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testFindMoleculeNameReturnsNamePropertyWhenNoTitle() throws Exception {
+        IAtomContainer tmpAtomContainer = new AtomContainer();
+        tmpAtomContainer.setProperty("Molecule_Name", "Glucose");
+        Method tmpFindMoleculeName = Importer.class.getDeclaredMethod("findMoleculeName", IAtomContainer.class);
+        tmpFindMoleculeName.setAccessible(true);
+        Object tmpResult = tmpFindMoleculeName.invoke(this, tmpAtomContainer);
+        Assertions.assertEquals("Glucose", tmpResult);
+    }
+    /**
+     * Tests the 'Database_Name'-exclusion branch of the private {@code findMoleculeName} method (reached via
+     * reflection). The name-key detection explicitly excludes the 'Database_Name' key, so a container carrying only
+     * that key (no title, no id) must not resolve a name and findMoleculeName returns null. This pins the
+     * {@code !k.equalsIgnoreCase("Database_Name")} exclusion predicate: dropping it would wrongly return the
+     * database name.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testFindMoleculeNameIgnoresDatabaseNameKey() throws Exception {
+        IAtomContainer tmpAtomContainer = new AtomContainer();
+        tmpAtomContainer.setProperty("Database_Name", "ChEBI");
+        Method tmpFindMoleculeName = Importer.class.getDeclaredMethod("findMoleculeName", IAtomContainer.class);
+        tmpFindMoleculeName.setAccessible(true);
+        Object tmpResult = tmpFindMoleculeName.invoke(this, tmpAtomContainer);
+        Assertions.assertNull(tmpResult);
+    }
+    /**
      * Tests the 'None'-reset branch of the private {@code findMoleculeName} method (reached via reflection). When the
      * resolved name equals 'None' (case-insensitive) and no usable ID property is present, the method resets the returned
      * name to null.

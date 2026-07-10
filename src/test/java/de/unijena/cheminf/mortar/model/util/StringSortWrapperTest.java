@@ -144,6 +144,18 @@ public class StringSortWrapperTest {
         Assertions.assertEquals(tmpWrapperA.hashCode(), tmpWrapperA.hashCode());
         Assertions.assertEquals(tmpWrapperA.hashCode(), tmpWrapperB.hashCode());
     }
+    //
+    /**
+     * Tests that hashCode produces exactly the value defined by its formula, HASH_FACTOR_SORT_STRING (61) *
+     * HASH_SEED (5) + sortString.hashCode() = 305 + sortString.hashCode(). Pinning the exact value detects the
+     * arithmetic mutations of the formula (the {@code *} and {@code +} operators), which would otherwise go unnoticed
+     * because a mere equal-hash-code check does not constrain the concrete value.
+     */
+    @Test
+    public void hashCodePinsExactFormulaValueTest() {
+        StringSortWrapper<String> tmpWrapper = new StringSortWrapper<>("object", "alpha");
+        Assertions.assertEquals(61 * 5 + "alpha".hashCode(), tmpWrapper.hashCode());
+    }
     //</editor-fold>
     //
     //<editor-fold desc="compareTo test methods" defaultstate="collapsed">

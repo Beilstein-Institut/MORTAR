@@ -110,6 +110,18 @@ public class CollectionUtilTest {
                     () -> CollectionUtil.calculateInitialHashCollectionCapacity(10, tmpInvalidLoadFactor));
         }
     }
+    //
+    /**
+     * Tests whether a load factor of exactly 1.0 is accepted (it is the inclusive upper boundary of the valid range;
+     * the rejection condition is {@code aLoadFactor > 1.0f}) and yields the expected capacity of
+     * {@code aNumberOfElements * (1/1.0) + 2 = aNumberOfElements + 2}. This pins the {@code > 1.0f} boundary so a
+     * {@code >=} mutation (which would wrongly reject 1.0) is detected.
+     */
+    @Test
+    public void calculateInitialHashCollectionCapacityAcceptsLoadFactorOfExactlyOneTest() {
+        Assertions.assertEquals(12, CollectionUtil.calculateInitialHashCollectionCapacity(10, 1.0f));
+        Assertions.assertEquals(2, CollectionUtil.calculateInitialHashCollectionCapacity(0, 1.0f));
+    }
     //</editor-fold>
     //
     //<editor-fold desc="sortGivenFragmentListByPropertyAndSortType test methods" defaultstate="collapsed">
