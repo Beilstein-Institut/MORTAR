@@ -160,7 +160,12 @@ public class ImporterTest extends Importer {
      * Tests the end-to-end import dispatch for a multi-record SD (.sdf) file. Loading {@code MultiRecord.sdf} and
      * importing it through {@link Importer#importMoleculeFile(File, boolean, boolean)} exercises the extension dispatch
      * to {@code importSDFile}, the iterating SDF reader, and the molecule-name fallback for records lacking a title. The
-     * fixture contains three valid records, so a list with three molecules is expected.
+     * fixture contains three valid records in order: the titled {@code Ethanol}, an untitled ethane record, and the
+     * titled {@code Benzene}. A list with three molecules is expected and the exact ordered names must be
+     * {@code ["Ethanol", "MultiRecord1", "Benzene"]}: the middle record has no title, so {@code importSDFile} falls back
+     * to {@code FileUtil.getFileNameWithoutExtension(aFile) + tmpCounter}. The counter value {@code 1} is the index of
+     * that record in the file, so this assertion pins the post-increment of the molecule counter (Importer L443): a
+     * mutated (removed/incremented) counter would change the embedded index and this assertion would fail.
      *
      * @throws Exception if anything goes wrong
      */
@@ -176,6 +181,34 @@ public class ImporterTest extends Importer {
             Assertions.assertNotNull(tmpMolecule.getName());
             Assertions.assertFalse(tmpMolecule.getName().isBlank());
         }
+        //exact ordered names: the untitled middle record's fallback name embeds the counter value (its file index = 1)
+        Assertions.assertEquals("Ethanol", tmpResultList.get(0).getName());
+        Assertions.assertEquals("MultiRecord1", tmpResultList.get(1).getName());
+        Assertions.assertEquals("Benzene", tmpResultList.get(2).getName());
+    }
+    /**
+     * Tests the erroneous-entry skip-counter increment of {@code importSDFile} through molecule naming. Loading
+     * {@code MultiRecordUnnamedWithError.sdf} — an untitled valid record, a deliberately broken record, and a second
+     * untitled valid record — makes the iterating reader skip the broken middle record and continue. Both surviving
+     * records lack a title, so their names fall back to {@code FileUtil.getFileNameWithoutExtension(aFile) + tmpCounter}.
+     * The first valid record's index is {@code 0}, and the second valid record's index is {@code 2} (NOT {@code 1}):
+     * the counter was incremented once inside the erroneous-entry skip branch (Importer L433) for the skipped record.
+     * Asserting the second molecule is named {@code MultiRecordUnnamedWithError2} therefore pins that skip-branch
+     * increment — negating or removing it would yield {@code MultiRecordUnnamedWithError1} and fail this assertion.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testImportMoleculeFileWithUnnamedErroneousSDFilePinsSkipCounter() throws Exception {
+        URL tmpURL = this.getClass().getResource("MultiRecordUnnamedWithError.sdf");
+        File tmpResourceFile = Paths.get(tmpURL.toURI()).toFile();
+        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true);
+        Assertions.assertNotNull(tmpResultList);
+        Assertions.assertEquals(2, tmpResultList.size());
+        Assertions.assertEquals("MultiRecordUnnamedWithError.sdf", this.getFileName());
+        Assertions.assertEquals("MultiRecordUnnamedWithError0", tmpResultList.get(0).getName());
+        //the skipped broken record consumed index 1, so the second valid record's fallback name uses index 2
+        Assertions.assertEquals("MultiRecordUnnamedWithError2", tmpResultList.get(1).getName());
     }
     /**
      * Tests that importing a file with an unsupported extension returns null. This exercises the
