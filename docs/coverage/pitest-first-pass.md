@@ -145,18 +145,64 @@ The follow-up task added targeted, behaviour-pinning assertions for the ranked s
 | 9 | `PreferenceContainer.add` / `replace` / `delete` boolean return (L454/477/500/518) | **Equivalent** | the reject paths return `false` at *earlier* lines (already asserted by existing tests); the success-return lines are provably `true` when reached (GUID uniqueness guarantees the type/name-set adds succeed), so `BooleanTrueReturn` there is an equivalent mutant. Not contorted. |
 | 10 | `RGBColorPreference.setContent` channel normalization | **Killed** | non-zero/non-max channels pin the `/255` division. |
 | 11 | `RGBColorPreference.setAlpha` range boundaries | **Killed** | 0.0/1.0 (double) and 0 (int) inclusive boundaries pinned. |
-| 12 | `Importer.importSDFile`/`importPDBFile` counters | Remaining | counter/index arithmetic; deferred (needs multi-record naming-order fixtures). |
-| 13 | `Importer.findMoleculeName` | **Partial** | title-null guard, name-key predicate and the `Database_Name` exclusion (L537/539) killed; the residual id-branch lambdas (L538/544/545) remain. |
+| 12 | `Importer.importSDFile`/`importPDBFile` counters | **Killed** (SDF) / **Equivalent** (PDB L519, L445) | SDF counter increments — L433 (erroneous-entry skip branch) and L443 (added-molecule) — pinned via exact ordered fallback-name assertions on `MultiRecord.sdf` and the new `MultiRecordUnnamedWithError.sdf` fixture (the untitled records' fallback name embeds the counter value). PDB L519 `Increments` survives on the single-model deprecated path (the sole iteration's post-increment is never read again → equivalent, not contorted); Importer L445 `Math` feeds only a WARNING log with no observable behaviour → logging-only equivalent. |
+| 13 | `Importer.findMoleculeName` | **Killed** (residual L544 gate = equivalent) | Distractor-property tests pin the name-branch filter (L538) and the id-branch filter (L545) — all four `Boolean*Return` mutants killed. The L544 `anyMatch` is only an existence gate whose outcome is masked by the L545 filter selection, so its residual gate-predicate mutants (one `NegateConditionals`, one `BooleanTrueReturn`) are effectively equivalent. |
 | 14 | `Importer.parse` empty-list return (L276) | **Equivalent** | L276 is the null/empty-set guard `return new ArrayList<>()`; replacing it with `emptyList()` is semantically identical on that path. |
-| 15 | `Exporter.convertToITextImage` null return | Remaining | not attempted this pass (private, PDF-image path). Deferred. |
+| 15 | `Exporter.convertToITextImage` null return | **Killed** | direct reflection test asserts a non-null `com.lowagie.text.Image` is produced for a valid, PNG-encodable `BufferedImage`, killing the `NullReturnVals` mutant (L1131) that the full PDF tests swallowed (a null image simply does not appear in the PDF). |
 | 16 | `FileUtil.createDirectory` / `createEmptyFile` boolean return | **Killed** | failure paths pinned (mkdirs blocked by a file; createNewFile on an existing directory name). |
 
 ### Remaining next steps
 
-1. `model.io` counter/naming survivors (rows 12, 15) with fixture-based round-trip assertions.
-2. Residual `findMoleculeName` id-branch lambdas (row 13).
-3. Second PIT pass adding `model.fragmentation.*` / `model.depict.*` / `model.settings.*` once a
+1. Documented-equivalent `model.io` survivors (no further action, no production change): `Importer.importPDBFile`
+   counter L519 (single-model deprecated path — the sole iteration's increment is never read again),
+   `Importer.importSDFile` L445 `Math` (feeds a WARNING log only), and the `findMoleculeName` L544 `anyMatch`
+   gate-predicate mutants (masked by the L545 filter selection).
+2. Second PIT pass adding `model.fragmentation.*` / `model.depict.*` / `model.settings.*` once a
    runtime/CI budget is agreed (expect minutes, CDK-heavy). Keep PIT report-only and out of the gate.
+
+## Third pass — model.io counter / name / image survivors (2026-07-10, task 260710-ghh)
+
+Closed the three still-open ranked-triage rows (12, 13, 15) by pinning covered-but-unasserted
+`model.io` behaviour (test-only; no production code changed). Same PIT scope as the prior passes.
+
+### Headline before/after
+
+| Metric | After 260710-ewo | After 260710-ghh |
+|--------|------------------|------------------|
+| Mutations generated | 1098 | 1098 |
+| Killed (incl. memory-error / timed-out as detected) | 819 | 827 |
+| **Test strength** (killed / (killed+survived), excl. no-coverage) | **83%** | **84%** |
+| Mutations with no coverage | 113 | 113 |
+
+All eight additional kills this pass landed in `model.io`.
+
+### Per-package score before/after
+
+| Package | Score (after ewo) | Score (after ghh) |
+|---------|-------------------|-------------------|
+| `model.data` | 98.5% | 98.5% |
+| `preference` | 88.1% | 88.1% |
+| `model.util` | 87.2% | 87.2% |
+| `model.io` | 71.0% | **73.6%** |
+| `configuration` | 66.7% | 66.7% |
+
+### model.io survivor counts by class (after ghh)
+
+`Importer` 33 survivors (was 47 at first pass), `Exporter` 41 survivors (44 incl. the `CSVSeparator` /
+`FileExtension` nested-enum display-name mutants; was 42 at first pass). `DynamicSMILESFileReader` 3,
+`DynamicSMILESFileFormat` 0.
+
+### Targeted mutants flipped SURVIVED → KILLED
+
+- `Importer` L433 `Increments` (SDF erroneous-entry skip counter) — **KILLED**
+- `Importer` L443 `Increments` (SDF added-molecule counter) — **KILLED**
+- `Importer` L538 `Boolean*Return` (findMoleculeName name-branch filter, ×2) — **KILLED**
+- `Importer` L545 `Boolean*Return` (findMoleculeName id-branch filter, ×2) — **KILLED**
+- `Importer` L544 `NegateConditionals` / `BooleanFalseReturn` (id-branch, partial) — **KILLED**
+- `Exporter` L1131 `NullReturnVals` (convertToITextImage) — **KILLED**
+
+Documented-equivalent (still SURVIVED, no production change): `Importer` L519 (PDB single-model),
+`Importer` L445 (`Math`, logging-only), `Importer` L544 residual `anyMatch` gate-predicate (masked by L545).
 
 ## Next steps (first-pass backlog, superseded by the section above)
 

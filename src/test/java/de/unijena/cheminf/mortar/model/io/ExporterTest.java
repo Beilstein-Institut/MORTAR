@@ -25,6 +25,8 @@
 
 package de.unijena.cheminf.mortar.model.io;
 
+import com.lowagie.text.Image;
+
 import de.unijena.cheminf.mortar.controller.TabNames;
 import de.unijena.cheminf.mortar.message.Message;
 import de.unijena.cheminf.mortar.model.data.FragmentDataModel;
@@ -50,7 +52,9 @@ import org.openscience.cdk.smiles.SmilesParser;
 import javax.vecmath.Point2d;
 import javax.vecmath.Point3d;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -1047,6 +1051,27 @@ public class ExporterTest {
             Assertions.assertNotNull(tmpSeparator.getDisplayName());
             Assertions.assertNotNull(tmpSeparator.getTooltipText());
         }
+    }
+    //
+    /**
+     * Tests the private {@code convertToITextImage(BufferedImage)} method (reached via reflection). A valid,
+     * PNG-encodable {@link BufferedImage} is passed and the method must return a non-null {@link com.lowagie.text.Image}
+     * for use in the PDF export. This pins the {@code return Image.getInstance(bytes)} statement (Exporter L1131)
+     * directly: the full PDF export tests traverse this method but swallow a null return (the image simply does not
+     * appear in the PDF), so the {@code NullReturnVals} mutant survived without this assertion. A plain ARGB image is
+     * used because {@code ImageIO} can always PNG-encode it headlessly and deterministically.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testConvertToITextImageReturnsNonNullImage() throws Exception {
+        BufferedImage tmpBufferedImage = new BufferedImage(50, 50, BufferedImage.TYPE_INT_ARGB);
+        Method tmpConvertToITextImage =
+                Exporter.class.getDeclaredMethod("convertToITextImage", BufferedImage.class);
+        tmpConvertToITextImage.setAccessible(true);
+        Object tmpResult = tmpConvertToITextImage.invoke(this.exporter, tmpBufferedImage);
+        Assertions.assertNotNull(tmpResult);
+        Assertions.assertInstanceOf(Image.class, tmpResult);
     }
     //</editor-fold>
     //
