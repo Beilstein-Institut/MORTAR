@@ -548,6 +548,48 @@ public class ImporterTest extends Importer {
         Assertions.assertNull(tmpResult);
     }
     /**
+     * Tests the id-branch lambda predicates of the private {@code findMoleculeName} method (reached via reflection) with a
+     * distractor property. The container carries no title, exactly one key containing 'id' ({@code Compound_ID}) and
+     * exactly one distractor key containing neither 'id' nor 'name' ({@code Weight}). Both the real predicate and its
+     * negation therefore select deterministically regardless of HashMap iteration order. Asserting the returned name is
+     * the id value {@code CID-777} (not the distractor value {@code 180.16}) pins the id-branch {@code anyMatch}
+     * (Importer L544) and {@code filter} (Importer L545) lambdas: a negated predicate would select the {@code Weight}
+     * key and return {@code 180.16}, failing this assertion.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testFindMoleculeNameIdBranchIgnoresDistractorProperty() throws Exception {
+        IAtomContainer tmpAtomContainer = new AtomContainer();
+        tmpAtomContainer.setProperty("Weight", "180.16");
+        tmpAtomContainer.setProperty("Compound_ID", "CID-777");
+        Method tmpFindMoleculeName = Importer.class.getDeclaredMethod("findMoleculeName", IAtomContainer.class);
+        tmpFindMoleculeName.setAccessible(true);
+        Object tmpResult = tmpFindMoleculeName.invoke(this, tmpAtomContainer);
+        Assertions.assertEquals("CID-777", tmpResult);
+    }
+    /**
+     * Tests the name-branch filter lambda of the private {@code findMoleculeName} method (reached via reflection) with a
+     * distractor property. The container carries no title, exactly one key containing 'name' ({@code Molecule_Name}) and
+     * exactly one distractor key containing neither 'name' nor 'id' ({@code Comment}). Both the real predicate and its
+     * negation therefore select deterministically regardless of HashMap iteration order. Asserting the returned name is
+     * the name value {@code Glucose} (not the distractor value {@code note}) pins the name-branch {@code filter} lambda
+     * (Importer L538): a negated predicate would select the {@code Comment} key and return {@code note}, failing this
+     * assertion.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testFindMoleculeNameNameBranchIgnoresDistractorProperty() throws Exception {
+        IAtomContainer tmpAtomContainer = new AtomContainer();
+        tmpAtomContainer.setProperty("Comment", "note");
+        tmpAtomContainer.setProperty("Molecule_Name", "Glucose");
+        Method tmpFindMoleculeName = Importer.class.getDeclaredMethod("findMoleculeName", IAtomContainer.class);
+        tmpFindMoleculeName.setAccessible(true);
+        Object tmpResult = tmpFindMoleculeName.invoke(this, tmpAtomContainer);
+        Assertions.assertEquals("Glucose", tmpResult);
+    }
+    /**
      * Tests the deprecated, currently-unused private {@code importPDBFile} method (reached via reflection). Although it is
      * not wired into the public import dispatch, the method is still functional: it reads a small valid PDB fixture
      * ({@code Glycine.pdb}) and returns a non-empty atom container set whose first molecule carries a non-blank name
