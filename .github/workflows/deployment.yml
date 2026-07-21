@@ -36,16 +36,22 @@ jobs:
         run: echo $JAVA_HOME
       - name: Verify Gradle Wrapper
         uses: gradle/actions/wrapper-validation@v3
-      - name: Download Inno Setup installer
-        # jrsoftware only keeps the latest 6.x patch under files.jrsoftware.org/is/6/, so a
-        # pinned patch URL (e.g. innosetup-6.4.2.exe) bit-rots to a 404. Use the stable
-        # always-latest-6.x endpoint instead. NOTE: the "Add Inno Setup to PATH" step below
-        # hardcodes "Inno Setup 6" — if Inno Setup ever ships a 7.x, update both together.
-        run: Invoke-WebRequest -Uri https://jrsoftware.org/download.php/is.exe -OutFile inno-setup.exe
-      - name: Install Inno Setup
-        run: .\inno-setup.exe /SILENT
-      - name: Add Inno Setup to PATH
-        run: echo "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Install Inno Setup (Chocolatey)
+        # Chocolatey is preinstalled on windows-latest runners. The `innosetup` package runs the
+        # official installer, which lands in C:\Program Files (x86)\Inno Setup 6\ — the exact path
+        # LocalWinDeploy.kt reads from MortarBundle.properties
+        # (local.deploy.win.inno.setup.compiler.path). Left UNPINNED to match prior always-latest-6.x
+        # behavior; a future choco 7.x would install to "Inno Setup 7" and break that hardcoded path
+        # (see the guard step below).
+        run: choco install innosetup -y --no-progress
+      - name: Verify Inno Setup compiler present
+        # LocalWinDeploy.kt invokes this exact absolute path (from MortarBundle.properties). Fail here
+        # with a clear message rather than deep inside the Gradle task if choco ever changes the dir.
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\iscc.exe"
+          if (-not (Test-Path $iscc)) { throw "ISCC not found at $iscc — choco innosetup may have installed a different major version; update LocalWinDeploy path and this guard together." }
+          Write-Host "Found: $iscc"
       - name: Build and package with Gradle
         run: .\gradlew --info --stacktrace localWinDeploy
       - name: Upload artifact
