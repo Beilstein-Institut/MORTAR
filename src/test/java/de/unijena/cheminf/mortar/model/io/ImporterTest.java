@@ -461,9 +461,9 @@ public class ImporterTest extends Importer {
      */
     @Test
     public void testParseWithNullSetReturnsEmptyList() throws Exception {
-        Method tmpParse = Importer.class.getDeclaredMethod("parse", IAtomContainerSet.class, boolean.class);
+        Method tmpParse = Importer.class.getDeclaredMethod("parse", IAtomContainerSet.class, boolean.class, boolean.class);
         tmpParse.setAccessible(true);
-        Object tmpResult = tmpParse.invoke(this, null, false);
+        Object tmpResult = tmpParse.invoke(this, null, false, false);
         Assertions.assertInstanceOf(List.class, tmpResult);
         Assertions.assertTrue(((List<?>) tmpResult).isEmpty());
     }
@@ -475,9 +475,9 @@ public class ImporterTest extends Importer {
      */
     @Test
     public void testParseWithEmptySetReturnsEmptyList() throws Exception {
-        Method tmpParse = Importer.class.getDeclaredMethod("parse", IAtomContainerSet.class, boolean.class);
+        Method tmpParse = Importer.class.getDeclaredMethod("parse", IAtomContainerSet.class, boolean.class, boolean.class);
         tmpParse.setAccessible(true);
-        Object tmpResult = tmpParse.invoke(this, new AtomContainerSet(), false);
+        Object tmpResult = tmpParse.invoke(this, new AtomContainerSet(), false, false);
         Assertions.assertInstanceOf(List.class, tmpResult);
         Assertions.assertTrue(((List<?>) tmpResult).isEmpty());
     }
