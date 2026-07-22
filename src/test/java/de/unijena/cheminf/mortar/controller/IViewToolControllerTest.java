@@ -26,6 +26,7 @@
 package de.unijena.cheminf.mortar.controller;
 
 import de.unijena.cheminf.mortar.configuration.Configuration;
+import de.unijena.cheminf.mortar.model.settings.SettingsContainer;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -69,7 +70,7 @@ public class IViewToolControllerTest extends AbstractFxTestCase {
      */
     @Test
     public void bothImplementorsHonourSharedContractTest() throws Exception {
-        IViewToolController tmpOverview = new OverviewViewController(Configuration.getInstance());
+        IViewToolController tmpOverview = new OverviewViewController(Configuration.getInstance(), new SettingsContainer());
         IViewToolController tmpHistogram = new HistogramViewController(Configuration.getInstance());
         Assertions.assertNotNull(tmpOverview.settingsProperties());
         Assertions.assertNotNull(tmpHistogram.settingsProperties());
@@ -88,7 +89,7 @@ public class IViewToolControllerTest extends AbstractFxTestCase {
      */
     @Test
     public void canBeUsedOnTabDiffersPerImplementorTest() throws Exception {
-        IViewToolController tmpOverview = new OverviewViewController(Configuration.getInstance());
+        IViewToolController tmpOverview = new OverviewViewController(Configuration.getInstance(), new SettingsContainer());
         IViewToolController tmpHistogram = new HistogramViewController(Configuration.getInstance());
         Assertions.assertTrue(tmpOverview.canBeUsedOnTab(TabNames.MOLECULES));
         Assertions.assertTrue(tmpOverview.canBeUsedOnTab(TabNames.FRAGMENTS));

@@ -27,6 +27,7 @@ package de.unijena.cheminf.mortar.controller;
 
 import de.unijena.cheminf.mortar.configuration.Configuration;
 import de.unijena.cheminf.mortar.gui.util.GuiUtil;
+import de.unijena.cheminf.mortar.model.settings.SettingsContainer;
 import de.unijena.cheminf.mortar.model.util.BasicDefinitions;
 import de.unijena.cheminf.mortar.model.util.FileUtil;
 
@@ -111,7 +112,7 @@ public class ViewToolsManagerTest {
         try {
             System.setProperty("user.home", aTempHome.toString());
             this.resetAppDirPathCache();
-            ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance());
+            ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             //locate the first boolean setting of the first sub-controller and flip it to a non-default value
             IViewToolController tmpFirstTool = tmpManager.getViewToolControllers()[0];
             BooleanProperty tmpFlippedProperty = ViewToolsManagerTest.findFirstBooleanProperty(tmpFirstTool.settingsProperties());
@@ -121,7 +122,7 @@ public class ViewToolsManagerTest {
             tmpFlippedProperty.set(tmpMutatedValue);
             tmpManager.persistViewToolsSettings();
             //fresh manager reloads from the temp-dir-isolated settings directory
-            ViewToolsManager tmpReloaded = new ViewToolsManager(Configuration.getInstance());
+            ViewToolsManager tmpReloaded = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             tmpReloaded.reloadViewToolsSettings();
             BooleanProperty tmpReloadedProperty = ViewToolsManagerTest.findBooleanPropertyByName(
                     tmpReloaded.getViewToolControllers()[0].settingsProperties(), tmpFlippedName);
@@ -149,7 +150,7 @@ public class ViewToolsManagerTest {
         try {
             System.setProperty("user.home", aTempHome.toString());
             this.resetAppDirPathCache();
-            ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance());
+            ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             BooleanProperty tmpProperty = ViewToolsManagerTest.findFirstBooleanProperty(
                     tmpManager.getViewToolControllers()[0].settingsProperties());
             Assertions.assertNotNull(tmpProperty);
@@ -179,7 +180,7 @@ public class ViewToolsManagerTest {
         try {
             System.setProperty("user.home", aTempHome.toString());
             this.resetAppDirPathCache();
-            ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance());
+            ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             Assertions.assertEquals(-1, tmpManager.getCachedIndexOfStructureInMoleculeDataModelList());
             tmpManager.resetCachedIndexOfStructureInMoleculeDataModelList();
             Assertions.assertEquals(-1, tmpManager.getCachedIndexOfStructureInMoleculeDataModelList());
@@ -204,7 +205,7 @@ public class ViewToolsManagerTest {
         try {
             System.setProperty("user.home", aTempHome.toString());
             this.resetAppDirPathCache();
-            ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance());
+            ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             BooleanProperty tmpProperty = ViewToolsManagerTest.findFirstBooleanProperty(
                     tmpManager.getViewToolControllers()[0].settingsProperties());
             Assertions.assertNotNull(tmpProperty);
@@ -214,7 +215,7 @@ public class ViewToolsManagerTest {
             //first persist creates the settings subfolder, second persist takes the else (delete-existing) branch
             tmpManager.persistViewToolsSettings();
             tmpManager.persistViewToolsSettings();
-            ViewToolsManager tmpReloaded = new ViewToolsManager(Configuration.getInstance());
+            ViewToolsManager tmpReloaded = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             tmpReloaded.reloadViewToolsSettings();
             BooleanProperty tmpReloadedProperty = ViewToolsManagerTest.findBooleanPropertyByName(
                     tmpReloaded.getViewToolControllers()[0].settingsProperties(), tmpName);
@@ -243,7 +244,7 @@ public class ViewToolsManagerTest {
         try {
             System.setProperty("user.home", aTempHome.toString());
             this.resetAppDirPathCache();
-            ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance());
+            ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             tmpManager.persistViewToolsSettings();
             //corrupt the first view tool's persisted file so its reload throws and is caught/skipped
             String tmpViewToolsDirPath = FileUtil.getSettingsDirPath()
@@ -253,7 +254,7 @@ public class ViewToolsManagerTest {
                     + tmpFirstToolClassName
                     + BasicDefinitions.PREFERENCE_CONTAINER_FILE_EXTENSION);
             Files.writeString(tmpCorruptFile.toPath(), "not a valid preference container", StandardCharsets.UTF_8);
-            ViewToolsManager tmpReloaded = new ViewToolsManager(Configuration.getInstance());
+            ViewToolsManager tmpReloaded = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             //must complete without throwing despite the corrupt file
             tmpReloaded.reloadViewToolsSettings();
             Assertions.assertNotNull(tmpReloaded.getViewToolControllers());
@@ -282,7 +283,7 @@ public class ViewToolsManagerTest {
         try {
             System.setProperty("user.home", aTempHome.toString());
             this.resetAppDirPathCache();
-            ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance());
+            ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             //pre-create the settings subfolder and make it read-only so persist hits the canWrite() guard
             String tmpViewToolsDirPath = FileUtil.getSettingsDirPath()
                     + ViewToolsManager.VIEW_TOOLS_SETTINGS_SUBFOLDER_NAME;
@@ -326,7 +327,7 @@ public class ViewToolsManagerTest {
         try {
             System.setProperty("user.home", aTempHome.toString());
             this.resetAppDirPathCache();
-            ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance());
+            ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             String tmpViewToolsDirPath = FileUtil.getSettingsDirPath()
                     + ViewToolsManager.VIEW_TOOLS_SETTINGS_SUBFOLDER_NAME + File.separator;
             File tmpViewToolsDir = new File(tmpViewToolsDirPath);

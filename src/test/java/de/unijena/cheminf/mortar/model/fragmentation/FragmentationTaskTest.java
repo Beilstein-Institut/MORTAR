@@ -87,10 +87,10 @@ public class FragmentationTaskTest {
         Map<String, FragmentDataModel> tmpFragmentMap = new ConcurrentHashMap<>();
         FragmentationTask tmpTask = new FragmentationTask(
                 tmpMols, new ThrowingFragmenter(), tmpFragmentMap, "TaskTest", false);
-        Integer tmpExceptionCount = tmpTask.call();
-        Assertions.assertNotNull(tmpExceptionCount);
-        Assertions.assertTrue(tmpExceptionCount > 0);
-        Assertions.assertEquals(tmpMols.size(), tmpExceptionCount.intValue());
+        FragmentationTaskResult tmpResult = tmpTask.call();
+        Assertions.assertNotNull(tmpResult);
+        Assertions.assertTrue(tmpResult.exceptionsCount() > 0);
+        Assertions.assertEquals(tmpMols.size(), tmpResult.exceptionsCount());
     }
     //
     /**
@@ -110,9 +110,10 @@ public class FragmentationTaskTest {
         Map<String, FragmentDataModel> tmpFragmentMap = new ConcurrentHashMap<>();
         FragmentationTask tmpTask = new FragmentationTask(
                 tmpMols, new SuccessfulFragmenter(), tmpFragmentMap, "BadSmilesTask", false);
-        Integer tmpExceptionCount = tmpTask.call();
-        Assertions.assertNotNull(tmpExceptionCount);
-        Assertions.assertEquals(tmpMols.size(), tmpExceptionCount.intValue());
+        FragmentationTaskResult tmpResult = tmpTask.call();
+        Assertions.assertNotNull(tmpResult);
+        Assertions.assertEquals(tmpMols.size(), tmpResult.moleculeFailedGetAtomContainerCount());
+        Assertions.assertEquals(0, tmpResult.exceptionsCount());
         //no fragments could be produced because every molecule failed atom-container creation
         Assertions.assertTrue(tmpFragmentMap.isEmpty());
     }
@@ -133,9 +134,10 @@ public class FragmentationTaskTest {
         Map<String, FragmentDataModel> tmpFragmentMap = new ConcurrentHashMap<>();
         FragmentationTask tmpTask = new FragmentationTask(
                 tmpMols, new FilteringFragmenter(), tmpFragmentMap, "FilterTask", false);
-        Integer tmpExceptionCount = tmpTask.call();
-        Assertions.assertNotNull(tmpExceptionCount);
-        Assertions.assertEquals(0, tmpExceptionCount.intValue());
+        FragmentationTaskResult tmpResult = tmpTask.call();
+        Assertions.assertNotNull(tmpResult);
+        Assertions.assertEquals(0, tmpResult.exceptionsCount());
+        Assertions.assertEquals(tmpMols.size(), tmpResult.filteredMoleculesCount());
         Assertions.assertTrue(tmpFragmentMap.isEmpty());
         for (MoleculeDataModel tmpMolecule : tmpMols) {
             Assertions.assertTrue(tmpMolecule.getAllFragments().containsKey("FilterTask"));
@@ -160,9 +162,10 @@ public class FragmentationTaskTest {
         PreprocessingFragmenter tmpFragmenter = new PreprocessingFragmenter();
         FragmentationTask tmpTask = new FragmentationTask(
                 tmpMols, tmpFragmenter, tmpFragmentMap, "PreprocessTask", false);
-        Integer tmpExceptionCount = tmpTask.call();
-        Assertions.assertNotNull(tmpExceptionCount);
-        Assertions.assertEquals(0, tmpExceptionCount.intValue());
+        FragmentationTaskResult tmpResult = tmpTask.call();
+        Assertions.assertNotNull(tmpResult);
+        Assertions.assertEquals(0, tmpResult.exceptionsCount());
+        Assertions.assertEquals(tmpMols.size(), tmpResult.moleculeProducedFragmentsCount());
         Assertions.assertTrue(tmpFragmenter.wasPreprocessingApplied());
         Assertions.assertFalse(tmpFragmentMap.isEmpty());
     }
@@ -184,9 +187,9 @@ public class FragmentationTaskTest {
         Map<String, FragmentDataModel> tmpFragmentMap = new ConcurrentHashMap<>();
         FragmentationTask tmpTask = new FragmentationTask(
                 tmpMols, new GenericThrowingFragmenter(), tmpFragmentMap, "GenericCatchTask", false);
-        Integer tmpExceptionCount = tmpTask.call();
-        Assertions.assertNotNull(tmpExceptionCount);
-        Assertions.assertEquals(tmpMols.size(), tmpExceptionCount.intValue());
+        FragmentationTaskResult tmpResult = tmpTask.call();
+        Assertions.assertNotNull(tmpResult);
+        Assertions.assertEquals(tmpMols.size(), tmpResult.unexpectedExceptionsCount());
         for (MoleculeDataModel tmpMolecule : tmpMols) {
             Assertions.assertTrue(tmpMolecule.getAllFragments().containsKey("GenericCatchTask"));
             Assertions.assertTrue(tmpMolecule.getAllFragments().get("GenericCatchTask").isEmpty());
@@ -210,7 +213,7 @@ public class FragmentationTaskTest {
         Map<String, FragmentDataModel> tmpFragmentMap = new ConcurrentHashMap<>();
         FragmentationTask tmpTask = new FragmentationTask(
                 tmpMols, new SuccessfulFragmenter(), tmpFragmentMap, "InterruptTask", false);
-        Integer tmpResult;
+        FragmentationTaskResult tmpResult;
         try {
             //set the interrupt flag so the task returns null after the first molecule
             Thread.currentThread().interrupt();

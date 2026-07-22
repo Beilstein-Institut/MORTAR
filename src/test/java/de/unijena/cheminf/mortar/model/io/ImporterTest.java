@@ -129,7 +129,7 @@ public class ImporterTest extends Importer {
     public void testImportMoleculeFileWithSMILESFile() throws Exception {
         URL tmpURL = this.getClass().getResource("SMILESTestFileTwo.smi");
         File tmpResourceFile = Paths.get(tmpURL.toURI()).toFile();
-        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true);
+        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true, false);
         Assertions.assertNotNull(tmpResultList);
         Assertions.assertEquals(5, tmpResultList.size());
         Assertions.assertEquals("SMILESTestFileTwo.smi", this.getFileName());
@@ -149,7 +149,7 @@ public class ImporterTest extends Importer {
     public void testImportMoleculeFileWithMOLFile() throws Exception {
         URL tmpURL = this.getClass().getResource("Mirabilin_B.mol");
         File tmpResourceFile = Paths.get(tmpURL.toURI()).toFile();
-        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true);
+        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true, false);
         Assertions.assertNotNull(tmpResultList);
         Assertions.assertEquals(1, tmpResultList.size());
         Assertions.assertNotNull(tmpResultList.get(0).getUniqueSmiles());
@@ -173,7 +173,7 @@ public class ImporterTest extends Importer {
     public void testImportMoleculeFileWithSDFile() throws Exception {
         URL tmpURL = this.getClass().getResource("MultiRecord.sdf");
         File tmpResourceFile = Paths.get(tmpURL.toURI()).toFile();
-        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true);
+        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true, false);
         Assertions.assertNotNull(tmpResultList);
         Assertions.assertEquals(3, tmpResultList.size());
         Assertions.assertEquals("MultiRecord.sdf", this.getFileName());
@@ -202,7 +202,7 @@ public class ImporterTest extends Importer {
     public void testImportMoleculeFileWithUnnamedErroneousSDFilePinsSkipCounter() throws Exception {
         URL tmpURL = this.getClass().getResource("MultiRecordUnnamedWithError.sdf");
         File tmpResourceFile = Paths.get(tmpURL.toURI()).toFile();
-        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true);
+        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true, false);
         Assertions.assertNotNull(tmpResultList);
         Assertions.assertEquals(2, tmpResultList.size());
         Assertions.assertEquals("MultiRecordUnnamedWithError.sdf", this.getFileName());
@@ -223,7 +223,7 @@ public class ImporterTest extends Importer {
         Path tmpUnknownFilePath = aTempDir.resolve("unsupported.xyz");
         Files.writeString(tmpUnknownFilePath, "C\n");
         File tmpUnknownFile = tmpUnknownFilePath.toFile();
-        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpUnknownFile, false, true);
+        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpUnknownFile, false, true, false);
         Assertions.assertNull(tmpResultList);
     }
     /**
@@ -255,7 +255,7 @@ public class ImporterTest extends Importer {
     public void testImportMoleculeFileWithV3000MolFile() throws Exception {
         URL tmpURL = this.getClass().getResource("MolV3000.mol");
         File tmpResourceFile = Paths.get(tmpURL.toURI()).toFile();
-        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true);
+        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true, false);
         Assertions.assertNotNull(tmpResultList);
         Assertions.assertEquals(1, tmpResultList.size());
         Assertions.assertNotNull(tmpResultList.get(0).getUniqueSmiles());
@@ -274,7 +274,7 @@ public class ImporterTest extends Importer {
     public void testImportMoleculeFileWithUnnamedMolFileUsesNameFallback() throws Exception {
         URL tmpURL = this.getClass().getResource("UnnamedMol.mol");
         File tmpResourceFile = Paths.get(tmpURL.toURI()).toFile();
-        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true);
+        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true, false);
         Assertions.assertNotNull(tmpResultList);
         Assertions.assertEquals(1, tmpResultList.size());
         Assertions.assertNotNull(tmpResultList.get(0).getName());
@@ -292,7 +292,7 @@ public class ImporterTest extends Importer {
     public void testImportMoleculeFileWithErroneousSDFile() throws Exception {
         URL tmpURL = this.getClass().getResource("SDFwithError.sdf");
         File tmpResourceFile = Paths.get(tmpURL.toURI()).toFile();
-        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true);
+        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true, false);
         Assertions.assertNotNull(tmpResultList);
         Assertions.assertTrue(tmpResultList.size() >= 2);
         Assertions.assertEquals("SDFwithError.sdf", this.getFileName());
@@ -314,7 +314,7 @@ public class ImporterTest extends Importer {
             Importer tmpImporter = new Importer(tmpSettingsContainer);
             URL tmpURL = this.getClass().getResource("SMILESTestFileTwo.smi");
             File tmpResourceFile = Paths.get(tmpURL.toURI()).toFile();
-            List<MoleculeDataModel> tmpResultList = tmpImporter.importMoleculeFile(tmpResourceFile, false, true);
+            List<MoleculeDataModel> tmpResultList = tmpImporter.importMoleculeFile(tmpResourceFile, false, true, false);
             Assertions.assertNotNull(tmpResultList);
             Assertions.assertEquals(5, tmpResultList.size());
             for (MoleculeDataModel tmpMolecule : tmpResultList) {
@@ -395,7 +395,7 @@ public class ImporterTest extends Importer {
     public void testImportMoleculeFileWithPartiallyInvalidSmilesFile() throws Exception {
         URL tmpURL = this.getClass().getResource("SmilesWithSomeInvalid.smi");
         File tmpResourceFile = Paths.get(tmpURL.toURI()).toFile();
-        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true);
+        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true, false);
         Assertions.assertNotNull(tmpResultList);
         Assertions.assertEquals(3, tmpResultList.size());
         Assertions.assertEquals("SmilesWithSomeInvalid.smi", this.getFileName());
@@ -413,7 +413,7 @@ public class ImporterTest extends Importer {
     public void testImportMoleculeFileWithSingleColumnRelaxedSmiles() throws Exception {
         URL tmpURL = this.getClass().getResource("SingleColumnRelaxedSmiles.smi");
         File tmpResourceFile = Paths.get(tmpURL.toURI()).toFile();
-        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true);
+        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true, false);
         Assertions.assertNotNull(tmpResultList);
         Assertions.assertFalse(tmpResultList.isEmpty());
         Assertions.assertEquals("SingleColumnRelaxedSmiles.smi", this.getFileName());
@@ -429,7 +429,7 @@ public class ImporterTest extends Importer {
     public void testImportMoleculeFileWithSingleBrokenSDRecord() throws Exception {
         URL tmpURL = this.getClass().getResource("SingleBrokenRecord.sdf");
         File tmpResourceFile = Paths.get(tmpURL.toURI()).toFile();
-        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true);
+        List<MoleculeDataModel> tmpResultList = this.importMoleculeFile(tmpResourceFile, false, true, false);
         Assertions.assertNotNull(tmpResultList);
         Assertions.assertTrue(tmpResultList.isEmpty());
         Assertions.assertEquals("SingleBrokenRecord.sdf", this.getFileName());

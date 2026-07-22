@@ -26,6 +26,7 @@
 package de.unijena.cheminf.mortar.controller;
 
 import de.unijena.cheminf.mortar.configuration.Configuration;
+import de.unijena.cheminf.mortar.model.settings.SettingsContainer;
 
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.Property;
@@ -81,7 +82,7 @@ public class OverviewViewControllerTest {
      */
     @Test
     public void calculateMaxColumnsPerPageCharacterizationTest() throws Exception {
-        OverviewViewController tmpController = new OverviewViewController(Configuration.getInstance());
+        OverviewViewController tmpController = new OverviewViewController(Configuration.getInstance(), new SettingsContainer());
         //guard branch: parameter <= 0.0 must throw
         Assertions.assertThrows(IllegalArgumentException.class,
                 () -> tmpController.calculateMaxColumnsPerPage(0.0));
@@ -103,7 +104,7 @@ public class OverviewViewControllerTest {
      */
     @Test
     public void calculateMaxRowsPerPageCharacterizationTest() throws Exception {
-        OverviewViewController tmpController = new OverviewViewController(Configuration.getInstance());
+        OverviewViewController tmpController = new OverviewViewController(Configuration.getInstance(), new SettingsContainer());
         //guard branch: parameter <= 0.0 must throw
         Assertions.assertThrows(IllegalArgumentException.class,
                 () -> tmpController.calculateMaxRowsPerPage(0.0));
@@ -126,7 +127,7 @@ public class OverviewViewControllerTest {
      */
     @Test
     public void headlessViewToolMembersTest() throws Exception {
-        OverviewViewController tmpController = new OverviewViewController(Configuration.getInstance());
+        OverviewViewController tmpController = new OverviewViewController(Configuration.getInstance(), new SettingsContainer());
         List<Property<?>> tmpSettings = tmpController.settingsProperties();
         Assertions.assertNotNull(tmpSettings);
         Assertions.assertEquals(2, tmpSettings.size());
@@ -157,7 +158,7 @@ public class OverviewViewControllerTest {
      */
     @Test
     public void cachedIndexAccessorsTest() throws Exception {
-        OverviewViewController tmpController = new OverviewViewController(Configuration.getInstance());
+        OverviewViewController tmpController = new OverviewViewController(Configuration.getInstance(), new SettingsContainer());
         Assertions.assertEquals(-1, tmpController.getCachedIndexOfStructureInMoleculeDataModelList());
         tmpController.resetCachedIndexOfStructureInMoleculeDataModelList();
         Assertions.assertEquals(-1, tmpController.getCachedIndexOfStructureInMoleculeDataModelList());

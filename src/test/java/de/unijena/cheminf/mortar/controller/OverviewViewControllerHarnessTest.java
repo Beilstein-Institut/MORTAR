@@ -29,6 +29,7 @@ import de.unijena.cheminf.mortar.configuration.Configuration;
 import de.unijena.cheminf.mortar.gui.util.GuiUtil;
 import de.unijena.cheminf.mortar.gui.views.OverviewView;
 import de.unijena.cheminf.mortar.model.data.MoleculeDataModel;
+import de.unijena.cheminf.mortar.model.settings.SettingsContainer;
 
 import javafx.event.Event;
 import javafx.event.EventType;
@@ -280,7 +281,7 @@ public class OverviewViewControllerHarnessTest extends AbstractFxTestCase {
         List<MoleculeDataModel> tmpMolecules = OverviewViewControllerHarnessTest.buildMolecules(2);
         Configuration tmpConfiguration = Configuration.getInstance();
         AbstractFxTestCase.runAndWait(() -> {
-            OverviewViewController tmpController = new OverviewViewController(tmpConfiguration);
+            OverviewViewController tmpController = new OverviewViewController(tmpConfiguration, new SettingsContainer());
             try {
                 tmpController.initializeAndShowOverviewView(null, OverviewViewController.DataSources.MOLECULES_TAB,
                         "Molecules", tmpMolecules);
@@ -325,7 +326,7 @@ public class OverviewViewControllerHarnessTest extends AbstractFxTestCase {
                 OverviewViewControllerHarnessTest.MOLECULE_COUNT);
         FxTestUtil.runAndDriveModal(
                 () -> {
-                    OverviewViewController tmpController = new OverviewViewController(Configuration.getInstance());
+                    OverviewViewController tmpController = new OverviewViewController(Configuration.getInstance(), new SettingsContainer());
                     tmpControllerRef.set(tmpController);
                     tmpController.initializeAndShowOverviewView(FxTestUtil.newOffscreenStage(), aDataSource, aTabName,
                             tmpMolecules);

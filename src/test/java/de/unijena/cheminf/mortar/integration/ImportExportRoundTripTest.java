@@ -104,7 +104,7 @@ public class ImportExportRoundTripTest {
     public void roundTripSdfPreservesUniqueSmilesIdentity(@TempDir Path aTempDir) throws Exception {
         File tmpIn = Paths.get(this.getClass().getResource(
                 "/de/unijena/cheminf/mortar/model/io/MultiRecord.sdf").toURI()).toFile();
-        List<MoleculeDataModel> tmpImported = this.importer.importMoleculeFile(tmpIn, false, true);
+        List<MoleculeDataModel> tmpImported = this.importer.importMoleculeFile(tmpIn, false, true, false);
         Assertions.assertNotNull(tmpImported);
         Assertions.assertFalse(tmpImported.isEmpty());
         Set<String> tmpSetA = new HashSet<>();
@@ -117,7 +117,7 @@ public class ImportExportRoundTripTest {
         Assertions.assertNotNull(tmpFailed);
         Assertions.assertTrue(tmpFailed.isEmpty());
         Assertions.assertTrue(tmpOut.exists());
-        List<MoleculeDataModel> tmpReimported = this.importer.importMoleculeFile(tmpOut, false, true);
+        List<MoleculeDataModel> tmpReimported = this.importer.importMoleculeFile(tmpOut, false, true, false);
         Assertions.assertNotNull(tmpReimported);
         Set<String> tmpSetB = new HashSet<>();
         for (MoleculeDataModel tmpModel : tmpReimported) {
@@ -141,7 +141,7 @@ public class ImportExportRoundTripTest {
     public void roundTripSmilesPreservesUniqueSmilesIdentity(@TempDir Path aTempDir) throws Exception {
         File tmpIn = Paths.get(this.getClass().getResource(
                 "/de/unijena/cheminf/mortar/model/io/SMILESTestFileTwo.smi").toURI()).toFile();
-        List<MoleculeDataModel> tmpImported = this.importer.importMoleculeFile(tmpIn, false, true);
+        List<MoleculeDataModel> tmpImported = this.importer.importMoleculeFile(tmpIn, false, true, false);
         Assertions.assertNotNull(tmpImported);
         Assertions.assertFalse(tmpImported.isEmpty());
         Set<String> tmpSetA = new HashSet<>();
@@ -155,7 +155,7 @@ public class ImportExportRoundTripTest {
             tmpContent.append(tmpUniqueSmiles).append(System.lineSeparator());
         }
         Files.writeString(tmpOut.toPath(), tmpContent.toString(), StandardCharsets.UTF_8);
-        List<MoleculeDataModel> tmpReimported = this.importer.importMoleculeFile(tmpOut, false, true);
+        List<MoleculeDataModel> tmpReimported = this.importer.importMoleculeFile(tmpOut, false, true, false);
         Assertions.assertNotNull(tmpReimported);
         Set<String> tmpSetB = new HashSet<>();
         for (MoleculeDataModel tmpModel : tmpReimported) {
