@@ -6,6 +6,10 @@ plugins {
     id("application")
     alias(libs.plugins.javafxplugin)
     alias(libs.plugins.spotless)
+    id("jacoco")
+    // Mutation testing (report-only / advisory — NOT wired into check/build).
+    // Run explicitly via `./gradlew pitest`. See the report-only `pitest {}` block below.
+    alias(libs.plugins.pitest)
     id("mortar.deploy.linux")
     id("mortar.deploy.mac")
     id("mortar.deploy.win")
@@ -35,6 +39,12 @@ repositories {
 dependencies {
     testImplementation(platform(libs.junit))
     testImplementation(libs.jupiter)
+    testImplementation(libs.mockitoCore)
+    testImplementation(libs.testfxCore)
+    testImplementation(libs.testfxJunit5)
+    testImplementation(libs.openjfxMonocle)
+    // Teaches PIT to discover/run JUnit 5 (Jupiter) tests via the JUnit Platform.
+    pitest(libs.pitestJunit5)
     //<editor-fold desc="CDK dependencies">
     implementation(libs.cdkPdb)
     implementation(libs.cdkSilent)
@@ -82,8 +92,32 @@ javafx {
     modules = listOf("javafx.base","javafx.graphics", "javafx.controls", "javafx.swing")
 }
 
+jacoco {
+    toolVersion = libs.versions.jacoco.get()
+}
+
 tasks.test {
     useJUnitPlatform()
+    systemProperty("java.awt.headless", "true")
+    // --- headless JavaFX (TestFX + Monocle) recipe (HARN-02) ---
+    // Set BEFORE any FX class loads so Monocle registers its headless platform.
+    systemProperty("testfx.robot", "glass")
+    systemProperty("testfx.headless", "true")
+    systemProperty("glass.platform", "Monocle")
+    systemProperty("monocle.platform", "Headless")
+    // Overridable so local Mac/Windows dev can pass a real GPU pipeline
+    // (e.g. -Dprism.order=es2): do NOT hardcode "sw" unconditionally.
+    systemProperty("prism.order", System.getProperty("prism.order", "sw"))
+    systemProperty("prism.text", System.getProperty("prism.text", "t2k"))
+    // Empirical fallback module args — uncomment ONLY if the plan-02 smoke test
+    // throws InaccessibleObjectException / IllegalAccessError naming
+    // com.sun.glass.ui (resolved empirically in task 13-02-01). Add the
+    // com.sun.glass.utils / com.sun.prism variants only if a further access
+    // error names them.
+    // jvmArgs(
+    //     "--add-opens=javafx.graphics/com.sun.glass.ui=ALL-UNNAMED",
+    //     "--add-exports=javafx.graphics/com.sun.glass.ui=ALL-UNNAMED"
+    // )
     testLogging {
         events = setOf(
             org.gradle.api.tasks.testing.logging.TestLogEvent.PASSED,
@@ -91,6 +125,141 @@ tasks.test {
             org.gradle.api.tasks.testing.logging.TestLogEvent.FAILED
         )
     }
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+// Shared measured-scope exclusions so the report and the coverage-verification
+// gate can never drift apart (gui/main/message are intentionally out of scope).
+val jacocoMeasuredScopeExcludes = listOf(
+    "**/de/unijena/cheminf/mortar/gui/**",
+    "**/de/unijena/cheminf/mortar/main/**",
+    "**/de/unijena/cheminf/mortar/message/**"
+)
+
+// Builds the measured class-directory set once, applying the shared exclusions.
+fun jacocoMeasuredClassDirectories() = files(
+    sourceSets.main.get().output.classesDirs.files.map { tmpDir ->
+        fileTree(tmpDir) {
+            exclude(jacocoMeasuredScopeExcludes)
+        }
+    }
+)
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        html.required.set(true)
+        xml.required.set(true)
+        csv.required.set(false)
+    }
+    classDirectories.setFrom(jacocoMeasuredClassDirectories())
+}
+
+// GATE-01 / GATE-02: build-failing per-package LINE coverage regression gate.
+// Wired into `check` below so `./gradlew build` (and CI) fail on a coverage regression.
+// Measures the exact same scope as jacocoTestReport (gui/main/message excluded).
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.test)
+    classDirectories.setFrom(jacocoMeasuredClassDirectories())
+    violationRules {
+        // Rule A — core packages (model.*, preference, configuration): minimum 85% LINE.
+        // element = PACKAGE evaluates each matching package independently → genuine
+        // per-package enforcement. The `model.*` wildcard matches every model sub-package.
+        rule {
+            element = "PACKAGE"
+            includes = listOf(
+                "de.unijena.cheminf.mortar.model.*",
+                "de.unijena.cheminf.mortar.preference",
+                "de.unijena.cheminf.mortar.configuration"
+            )
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.85".toBigDecimal()
+            }
+        }
+        // Rule B — controller package: minimum 80% LINE.
+        rule {
+            element = "PACKAGE"
+            includes = listOf("de.unijena.cheminf.mortar.controller")
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.80".toBigDecimal()
+            }
+        }
+    }
+}
+
+// GATE-01: make the standard `check` (hence `build`, hence CI) run the coverage gate.
+tasks.named("check") {
+    dependsOn(tasks.jacocoTestCoverageVerification)
+}
+
+// Mutation testing (PITest) — REPORT-ONLY / ADVISORY.
+// Deliberately NOT wired into `check`/`build`: run it explicitly with `./gradlew pitest`.
+// It measures whether high JaCoCo line coverage is backed by tests that actually catch
+// bugs (a surviving mutant on a covered line = "covered but not asserted"). No
+// mutationThreshold/coverageThreshold is set, so it can never fail the build.
+// PIT runs its own test execution and coverage internally — it does NOT invoke `test`,
+// `jacocoTestReport`, or the coverage gate, so it is fully independent of them.
+//
+// SCOPE (now includes model.fragmentation): the deterministic core — model.util/data/io,
+// preference, configuration — plus the CDK/algorithm-heavy fragmentation package
+// (model.fragmentation.*, added in the second pass). The remaining CDK-heavy packages
+// model.depict and model.settings are still DEFERRED to a later pass (PIT re-runs the
+// covering tests per mutant, so runtime is the dominant constraint). FX/controller and
+// full-pipeline integration tests are excluded (mutation-hostile + slow).
+pitest {
+    // Engine versions (pinned for reproducibility; 1.22.1 is already the plugin default).
+    pitestVersion.set("1.22.1")
+    junit5PluginVersion.set("1.2.3")
+
+    // SCOPE: deterministic non-GUI core + fragmentation algorithms (second pass).
+    targetClasses.set(listOf(
+        "de.unijena.cheminf.mortar.model.util.*",
+        "de.unijena.cheminf.mortar.model.data.*",
+        "de.unijena.cheminf.mortar.model.io.*",
+        "de.unijena.cheminf.mortar.model.fragmentation.*",
+        "de.unijena.cheminf.mortar.preference.*",
+        "de.unijena.cheminf.mortar.configuration.*"
+        // DEFERRED to a later pass (slower / CDK-heavy):
+        // "de.unijena.cheminf.mortar.model.depict.*",
+        // "de.unijena.cheminf.mortar.model.settings.*"
+    ))
+    targetTests.set(listOf(
+        "de.unijena.cheminf.mortar.model.util.*",
+        "de.unijena.cheminf.mortar.model.data.*",
+        "de.unijena.cheminf.mortar.model.io.*",
+        "de.unijena.cheminf.mortar.model.fragmentation.*",
+        "de.unijena.cheminf.mortar.preference.*",
+        "de.unijena.cheminf.mortar.configuration.*"
+    ))
+
+    // Keep FX/controller + CDK integration tests out (belt-and-suspenders).
+    excludedTestClasses.set(listOf(
+        "de.unijena.cheminf.mortar.controller.*",
+        "de.unijena.cheminf.mortar.integration.*"
+    ))
+
+    // Report-only: HTML for humans, XML for tooling/diffing. Stable path
+    // build/reports/pitest (no timestamp subdir).
+    outputFormats.set(listOf("HTML", "XML"))
+    timestampedReports.set(false)
+
+    // Tractability: bounded parallelism + generous timeouts so slow CDK/IO code is not
+    // mis-scored as a spurious TIMED_OUT.
+    threads.set(Runtime.getRuntime().availableProcessors().coerceAtMost(4))
+    timeoutConstInMillis.set(10000)
+    timeoutFactor.set(1.5.toBigDecimal())
+
+    // JVM args for the mutant minion JVMs (they do NOT inherit tasks.test config).
+    jvmArgs.set(listOf(
+        "-Djava.awt.headless=true",
+        "-XX:+EnableDynamicAgentLoading"  // silence Mockito-5 inline/ByteBuddy self-attach warning on JDK 21
+    ))
+
+    // No mutationThreshold / coverageThreshold => advisory only, never fails the build.
 }
 
 //<editor-fold desc="FatJar tasks">

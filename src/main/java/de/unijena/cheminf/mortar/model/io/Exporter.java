@@ -29,6 +29,7 @@ import com.lowagie.text.Chunk;
 import com.lowagie.text.Document;
 import com.lowagie.text.DocumentException;
 import com.lowagie.text.Element;
+import com.lowagie.text.ExceptionConverter;
 import com.lowagie.text.Font;
 import com.lowagie.text.FontFactory;
 import com.lowagie.text.Image;
@@ -603,7 +604,8 @@ public class Exporter {
                 aFragmentationName == null || anImportedFileName == null) {
             return null;
         }
-        try (Document tmpPDFDocument = new Document(PageSize.A4)) {
+        Document tmpPDFDocument = new Document(PageSize.A4);
+        try {
             List<String> tmpFailedExportFragments = new LinkedList<>();
             tmpPDFDocument.setPageSize(tmpPDFDocument.getPageSize().rotate());
             PdfWriter.getInstance(tmpPDFDocument, new FileOutputStream(aPdfFile.getPath()));
@@ -677,6 +679,17 @@ public class Exporter {
             tmpPDFDocument.add(tmpSpace);
             tmpPDFDocument.add(tmpFragmentationTable);
             return tmpFailedExportFragments;
+        } finally {
+            //guard the close: on an interrupted/early-return path no pages were added yet (the content table is only
+            // added after the export loop), and iText's Document.close() then throws an ExceptionConverter
+            // ("The document has no pages."). Swallow that specific zero-page case so a cancelled export returns
+            // cleanly instead of propagating a spurious runtime exception. The success path adds pages, so close()
+            // there behaves exactly as before.
+            try {
+                tmpPDFDocument.close();
+            } catch (ExceptionConverter anExceptionConverter) {
+                Exporter.LOGGER.log(Level.WARNING, anExceptionConverter.toString(), anExceptionConverter);
+            }
         }
     }
     //
@@ -779,9 +792,14 @@ public class Exporter {
                         } catch (CDKException anException) {
                             Logger.getLogger(MoleculeDataModel.class.getName()).log(Level.SEVERE, String.format("%s molecule name: %s", anException.toString(), tmpMoleculeDataModel.getName()), anException);
                             tmpFailedExportFragments.add(tmpFragmentDatModel.getUniqueSmiles());
+                            //advance the fragment counter so a persistently-failing fragment is skipped instead of
+                            // spinning the outer loop forever (the failing fragment is already recorded above)
+                            tmpFragmentNumber++;
                             continue;
                         }
                         if (!tmpMoleculeDataModel.hasMoleculeUndergoneSpecificFragmentation(aFragmentationName)) {
+                            //advance the fragment counter so the outer loop still makes progress on this path
+                            tmpFragmentNumber++;
                             continue;
                         }
                         String tmpFrequency = tmpMoleculeDataModel.getFragmentFrequencyOfSpecificFragmentation(aFragmentationName).get(tmpFragmentDatModel.getUniqueSmiles()).toString();
@@ -802,7 +820,11 @@ public class Exporter {
                         if(Thread.currentThread().isInterrupted()){
                             return null;
                         }
-                        if (tmpCellIterator < tmpImagesNumbers) {
+                        //bound the padding by the number of cells actually rendered (tmpCell), not by the number of
+                        // fragment slots attempted (tmpImagesNumbers): a skipped/failed fragment increments the attempt
+                        // count without adding a cell, so reading up to tmpImagesNumbers would overrun tmpCell. On the
+                        // all-success path tmpImagesNumbers == tmpCell.size(), so this is behavior-preserving.
+                        if (tmpCellIterator < tmpCell.size()) {
                             tmpFragmentationTable2.addCell(tmpCell.get(tmpCellIterator));
                         } else {
                             tmpFragmentationTable2.addCell(new Paragraph(""));
