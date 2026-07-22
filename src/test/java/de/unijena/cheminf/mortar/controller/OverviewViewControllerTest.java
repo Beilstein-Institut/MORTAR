@@ -76,7 +76,7 @@ public class OverviewViewControllerTest {
      * throws {@link IllegalArgumentException} for a zero and a negative width, and pins two happy-path results.
      * The expected values follow the documented formula
      * {@code (int) ((width - (2 * GUI_INSETS_VALUE - GRIDLINES_WIDTH)) / (IMAGE_MIN_WIDTH + GRIDLINES_WIDTH))}
-     * = {@code (int) ((width - 12.0) / 38.0)}: width 800.0 -> 20, width 200.0 -> 4.
+     * = {@code (int) ((width - 12.0) / 58.0)}: width 800.0 -> 13, width 200.0 -> 3.
      *
      * @throws Exception if anything goes wrong
      */
@@ -88,9 +88,9 @@ public class OverviewViewControllerTest {
                 () -> tmpController.calculateMaxColumnsPerPage(0.0));
         Assertions.assertThrows(IllegalArgumentException.class,
                 () -> tmpController.calculateMaxColumnsPerPage(-5.0));
-        //happy path: (int) ((width - 12.0) / 38.0)
-        Assertions.assertEquals(20, tmpController.calculateMaxColumnsPerPage(800.0));
-        Assertions.assertEquals(4, tmpController.calculateMaxColumnsPerPage(200.0));
+        //happy path: (int) ((width - 12.0) / 58.0)
+        Assertions.assertEquals(13, tmpController.calculateMaxColumnsPerPage(800.0));
+        Assertions.assertEquals(3, tmpController.calculateMaxColumnsPerPage(200.0));
     }
     //
     /**
@@ -98,7 +98,7 @@ public class OverviewViewControllerTest {
      * throws {@link IllegalArgumentException} for a zero and a negative height, and pins two happy-path results.
      * The expected values follow the documented formula
      * {@code (int) ((height - GUI_PAGINATION_CONTROL_PANEL_HEIGHT - GRIDLINES_WIDTH) / (IMAGE_MIN_HEIGHT + GRIDLINES_WIDTH))}
-     * = {@code (int) ((height - 53.0) / 28.0)}: height 600.0 -> 19, height 200.0 -> 5.
+     * = {@code (int) ((height - 53.0) / 58.0)}: height 600.0 -> 9, height 200.0 -> 2.
      *
      * @throws Exception if anything goes wrong
      */
@@ -110,9 +110,9 @@ public class OverviewViewControllerTest {
                 () -> tmpController.calculateMaxRowsPerPage(0.0));
         Assertions.assertThrows(IllegalArgumentException.class,
                 () -> tmpController.calculateMaxRowsPerPage(-5.0));
-        //happy path: (int) ((height - 53.0) / 28.0)
-        Assertions.assertEquals(19, tmpController.calculateMaxRowsPerPage(600.0));
-        Assertions.assertEquals(5, tmpController.calculateMaxRowsPerPage(200.0));
+        //happy path: (int) ((height - 53.0) / 58.0)
+        Assertions.assertEquals(9, tmpController.calculateMaxRowsPerPage(600.0));
+        Assertions.assertEquals(2, tmpController.calculateMaxRowsPerPage(200.0));
     }
     //</editor-fold>
     //
