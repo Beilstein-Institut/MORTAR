@@ -34,7 +34,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.logging.LogManager;
 
@@ -86,8 +85,7 @@ class LogUtilTest {
         Assumptions.assumeFalse(System.getProperty("os.name").toUpperCase().contains("WIN"));
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             boolean tmpInitialized = LogUtil.initializeLoggingEnvironment();
             Assertions.assertTrue(tmpInitialized);
             String tmpLogDirPath = LogUtil.getLogFileDirectoryPath();
@@ -115,8 +113,7 @@ class LogUtilTest {
         Assumptions.assumeFalse(System.getProperty("os.name").toUpperCase().contains("WIN"));
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             Assertions.assertTrue(LogUtil.initializeLoggingEnvironment());
             boolean tmpReset = LogUtil.resetLogFile();
             Assertions.assertTrue(tmpReset);
@@ -141,8 +138,7 @@ class LogUtilTest {
         Assumptions.assumeFalse(System.getProperty("os.name").toUpperCase().contains("WIN"));
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             //early-return path: log directory does not exist yet (only the data dir is created by getLogFileDirectoryPath's parents)
             Assertions.assertDoesNotThrow(LogUtil::manageLogFilesFolderIfExists);
             //populate the log directory with a few .txt files, then call again -> no throw
@@ -169,8 +165,7 @@ class LogUtilTest {
         Assumptions.assumeFalse(System.getProperty("os.name").toUpperCase().contains("WIN"));
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             File tmpLogDir = new File(LogUtil.getLogFileDirectoryPath());
             Assertions.assertTrue(FileUtil.createDirectory(tmpLogDir.getAbsolutePath()));
             //no .lck file -> false
@@ -225,17 +220,6 @@ class LogUtilTest {
     //</editor-fold>
     //
     //<editor-fold desc="Private methods" defaultstate="collapsed">
-    /**
-     * Reflectively resets the private static {@code appDirPath} cache of FileUtil to null, so the next resolution of the
-     * data directory honors the currently configured {@code user.home} system property.
-     *
-     * @throws Exception if the field cannot be accessed
-     */
-    private void resetAppDirPathCache() throws Exception {
-        Field tmpField = FileUtil.class.getDeclaredField("appDirPath");
-        tmpField.setAccessible(true);
-        tmpField.set(null, null);
-    }
     //
     /**
      * Restores the global state mutated by an environment-coupled test: restores the original {@code user.home} system
@@ -246,8 +230,7 @@ class LogUtilTest {
      * @throws Exception if the FileUtil cache field cannot be accessed
      */
     private void restoreGlobalState(String anOldUserHome) throws Exception {
-        System.setProperty("user.home", anOldUserHome);
-        this.resetAppDirPathCache();
+        AppDirTestUtil.restoreAppDirPath(anOldUserHome);
         LogManager.getLogManager().reset();
     }
     //</editor-fold>

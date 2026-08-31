@@ -28,6 +28,7 @@ package de.unijena.cheminf.mortar.controller;
 import de.unijena.cheminf.mortar.configuration.Configuration;
 import de.unijena.cheminf.mortar.gui.util.GuiUtil;
 import de.unijena.cheminf.mortar.model.settings.SettingsContainer;
+import de.unijena.cheminf.mortar.model.util.AppDirTestUtil;
 import de.unijena.cheminf.mortar.model.util.BasicDefinitions;
 import de.unijena.cheminf.mortar.model.util.FileUtil;
 
@@ -42,7 +43,6 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import java.io.File;
-import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -110,8 +110,7 @@ public class ViewToolsManagerTest {
     public void persistAndReloadRoundTrip(@TempDir Path aTempHome) throws Exception {
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             //locate the first boolean setting of the first sub-controller and flip it to a non-default value
             IViewToolController tmpFirstTool = tmpManager.getViewToolControllers()[0];
@@ -129,8 +128,7 @@ public class ViewToolsManagerTest {
             Assertions.assertNotNull(tmpReloadedProperty, "Reloaded view tool must expose the same boolean setting.");
             Assertions.assertEquals(tmpMutatedValue, tmpReloadedProperty.get());
         } finally {
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -148,8 +146,7 @@ public class ViewToolsManagerTest {
     public void reloadWithoutPersistedFilesKeepsDefaults(@TempDir Path aTempHome) throws Exception {
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             BooleanProperty tmpProperty = ViewToolsManagerTest.findFirstBooleanProperty(
                     tmpManager.getViewToolControllers()[0].settingsProperties());
@@ -159,8 +156,7 @@ public class ViewToolsManagerTest {
             tmpManager.reloadViewToolsSettings();
             Assertions.assertEquals(tmpDefault, tmpProperty.get());
         } finally {
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -178,15 +174,13 @@ public class ViewToolsManagerTest {
     public void cachedStructureIndexDelegationsAreHeadless(@TempDir Path aTempHome) throws Exception {
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             Assertions.assertEquals(-1, tmpManager.getCachedIndexOfStructureInMoleculeDataModelList());
             tmpManager.resetCachedIndexOfStructureInMoleculeDataModelList();
             Assertions.assertEquals(-1, tmpManager.getCachedIndexOfStructureInMoleculeDataModelList());
         } finally {
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -203,8 +197,7 @@ public class ViewToolsManagerTest {
     public void secondPersistOverwritesExistingFiles(@TempDir Path aTempHome) throws Exception {
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             BooleanProperty tmpProperty = ViewToolsManagerTest.findFirstBooleanProperty(
                     tmpManager.getViewToolControllers()[0].settingsProperties());
@@ -222,8 +215,7 @@ public class ViewToolsManagerTest {
             Assertions.assertNotNull(tmpReloadedProperty);
             Assertions.assertEquals(tmpMutatedValue, tmpReloadedProperty.get());
         } finally {
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -242,8 +234,7 @@ public class ViewToolsManagerTest {
     public void reloadWithCorruptSettingsFileIsSkipped(@TempDir Path aTempHome) throws Exception {
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             tmpManager.persistViewToolsSettings();
             //corrupt the first view tool's persisted file so its reload throws and is caught/skipped
@@ -259,8 +250,7 @@ public class ViewToolsManagerTest {
             tmpReloaded.reloadViewToolsSettings();
             Assertions.assertNotNull(tmpReloaded.getViewToolControllers());
         } finally {
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -281,16 +271,18 @@ public class ViewToolsManagerTest {
         String tmpOldHome = System.getProperty("user.home");
         File tmpViewToolsDir = null;
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             //pre-create the settings subfolder and make it read-only so persist hits the canWrite() guard
             String tmpViewToolsDirPath = FileUtil.getSettingsDirPath()
                     + ViewToolsManager.VIEW_TOOLS_SETTINGS_SUBFOLDER_NAME;
             tmpViewToolsDir = new File(tmpViewToolsDirPath);
             Files.createDirectories(tmpViewToolsDir.toPath());
-            Assertions.assertTrue(tmpViewToolsDir.setWritable(false, false),
-                    "Precondition: the settings directory must be made non-writable for this test.");
+            //Windows/NTFS ignores the POSIX write bit for directories and File.setWritable(false, false) returns
+            //false there, so the guarded branch cannot be driven at all on that platform; skip instead of failing
+            Assumptions.assumeTrue(tmpViewToolsDir.setWritable(false, false),
+                    "The settings directory could not be made non-writable (e.g. on Windows); "
+                            + "cannot exercise the non-writable guard.");
             //when running as root, File.canWrite() ignores the cleared write bit, so the canWrite() guard never fires;
             //skip rather than falsely fail in that environment
             Assumptions.assumeFalse(tmpViewToolsDir.canWrite(),
@@ -304,8 +296,7 @@ public class ViewToolsManagerTest {
             if (tmpViewToolsDir != null) {
                 tmpViewToolsDir.setWritable(true, false);
             }
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -325,8 +316,7 @@ public class ViewToolsManagerTest {
     public void persistFailureShowsExceptionAlert(@TempDir Path aTempHome) throws Exception {
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             ViewToolsManager tmpManager = new ViewToolsManager(Configuration.getInstance(), new SettingsContainer());
             String tmpViewToolsDirPath = FileUtil.getSettingsDirPath()
                     + ViewToolsManager.VIEW_TOOLS_SETTINGS_SUBFOLDER_NAME + File.separator;
@@ -344,26 +334,13 @@ public class ViewToolsManagerTest {
                         Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.any()));
             }
         } finally {
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
     //</editor-fold>
     //
     //<editor-fold desc="Private methods" defaultstate="collapsed">
-    /**
-     * Reflectively resets the private static {@code appDirPath} cache of {@link FileUtil} to null, so the next call to
-     * {@code getAppDirPath} re-resolves the data directory from the current {@code user.home} system property. Copied
-     * from the shared FX harness so this test can stay isolated without extending it.
-     *
-     * @throws Exception if the field cannot be accessed
-     */
-    private void resetAppDirPathCache() throws Exception {
-        Field tmpField = FileUtil.class.getDeclaredField("appDirPath");
-        tmpField.setAccessible(true);
-        tmpField.set(null, null);
-    }
     //
     /**
      * Returns the first {@link BooleanProperty} in the given settings list, or null if there is none.

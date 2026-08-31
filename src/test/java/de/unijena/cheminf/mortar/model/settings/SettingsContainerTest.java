@@ -28,7 +28,7 @@ package de.unijena.cheminf.mortar.model.settings;
 import de.unijena.cheminf.mortar.configuration.Configuration;
 import de.unijena.cheminf.mortar.gui.util.GuiUtil;
 import de.unijena.cheminf.mortar.model.io.Exporter;
-import de.unijena.cheminf.mortar.model.util.FileUtil;
+import de.unijena.cheminf.mortar.model.util.AppDirTestUtil;
 
 import javafx.beans.property.Property;
 
@@ -38,7 +38,6 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
@@ -76,8 +75,7 @@ public class SettingsContainerTest {
     public void testSettingsContainerBasics(@TempDir Path aTempHome) throws Exception {
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             Exporter.CSVSeparator tmpCsvExportSeparatorTest = Exporter.CSVSeparator.COMMA;
             //if there is a persisted settings container file already on the machine, it is loaded into the new SettingsContainer object
             SettingsContainer tmpSettingsContainer = new SettingsContainer();
@@ -112,8 +110,7 @@ public class SettingsContainerTest {
             tmpSecondContainer.restoreDefaultSettings();
             tmpSecondContainer.preserveSettings();
         } finally {
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -220,8 +217,7 @@ public class SettingsContainerTest {
     public void persistAndReloadRoundTrip(@TempDir Path aTempHome) throws Exception {
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             SettingsContainer tmpFirst = new SettingsContainer();
             tmpFirst.setRowsPerPageSetting(SettingsContainer.ROWS_PER_PAGE_SETTING_DEFAULT + 5);
             tmpFirst.setAlwaysMDLV3000FormatAtExportSetting(true);
@@ -233,8 +229,7 @@ public class SettingsContainerTest {
             Assertions.assertTrue(tmpSecond.getAlwaysMDLV3000FormatAtExportSetting());
             Assertions.assertEquals(Exporter.CSVSeparator.SEMICOLON, tmpSecond.getCsvExportSeparatorSetting());
         } finally {
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -296,20 +291,6 @@ public class SettingsContainerTest {
             Assertions.assertThrows(IllegalArgumentException.class,
                     () -> tmpSettingsContainer.numberOfTasksForFragmentationSettingProperty().set(0));
         }
-    }
-    //</editor-fold>
-    //
-    //<editor-fold desc="Private methods" defaultstate="collapsed">
-    /**
-     * Reflectively resets the private static appDirPath cache in FileUtil to null so a redirected user.home is
-     * re-resolved instead of read from the stale cache.
-     *
-     * @throws Exception if the reflective field access fails
-     */
-    private void resetAppDirPathCache() throws Exception {
-        Field tmpField = FileUtil.class.getDeclaredField("appDirPath");
-        tmpField.setAccessible(true);
-        tmpField.set(null, null);
     }
     //</editor-fold>
 }

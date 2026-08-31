@@ -27,6 +27,7 @@ package de.unijena.cheminf.mortar.controller;
 
 import de.unijena.cheminf.mortar.configuration.Configuration;
 import de.unijena.cheminf.mortar.model.settings.SettingsContainer;
+import de.unijena.cheminf.mortar.model.util.AppDirTestUtil;
 import de.unijena.cheminf.mortar.model.util.FileUtil;
 
 import javafx.application.Platform;
@@ -38,7 +39,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
 import org.testfx.util.WaitForAsyncUtils;
 
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -56,7 +56,7 @@ import java.util.logging.Logger;
  * bootstraps the {@link Configuration} singleton, and installs a default
  * uncaught-exception handler that captures failures thrown on the JavaFX Application Thread so they can be surfaced on
  * the test thread. Per test it redirects the {@code user.home} system property to a JUnit {@link TempDir} and
- * reflectively resets the private static {@code appDirPath} cache of {@link FileUtil}, always restoring the original
+ * pins the private static {@code appDirPath} cache of {@link FileUtil} to it, always restoring the original
  * state afterwards, so the real {@code ~/MORTAR} directory is never touched and no logger handler leaks into sibling
  * tests. It provides a bounded {@link #runAndWait(Runnable)} that executes work on the FX thread and rethrows any
  * failure on the caller thread, plus {@link #waitForFxEvents()} to drain the FX event queue.
@@ -201,8 +201,7 @@ public abstract class AbstractFxTestCase {
     @BeforeEach
     public void isolateUserHome(@TempDir Path aTempHome) throws Exception {
         this.originalUserHome = System.getProperty("user.home");
-        System.setProperty("user.home", aTempHome.toString());
-        this.resetAppDirPathCache();
+        AppDirTestUtil.redirectAppDirPath(aTempHome);
         AbstractFxTestCase.FX_UNCAUGHT.set(null);
     }
     //
@@ -218,10 +217,7 @@ public abstract class AbstractFxTestCase {
      */
     @AfterEach
     public void restoreUserHome() throws Exception {
-        if (this.originalUserHome != null) {
-            System.setProperty("user.home", this.originalUserHome);
-        }
-        this.resetAppDirPathCache();
+        AppDirTestUtil.restoreAppDirPath(this.originalUserHome);
         Logger tmpRootLogger = LogManager.getLogManager().getLogger("");
         for (Handler tmpHandler : tmpRootLogger.getHandlers()) {
             if (tmpHandler instanceof FileHandler) {
@@ -293,18 +289,6 @@ public abstract class AbstractFxTestCase {
     //</editor-fold>
     //
     //<editor-fold desc="Private methods" defaultstate="collapsed">
-    /**
-     * Reflectively resets the private static {@code appDirPath} cache of {@link FileUtil} to null, so the next call to
-     * {@code getAppDirPath} re-resolves the data directory from the current {@code user.home} system property.
-     *
-     * @throws Exception if the field cannot be accessed
-     */
-    private void resetAppDirPathCache() throws Exception {
-        Field tmpField = FileUtil.class.getDeclaredField("appDirPath");
-        tmpField.setAccessible(true);
-        tmpField.set(null, null);
-    }
-    //
     /**
      * Surfaces any throwable captured from the JavaFX Application Thread on the calling (test) thread, clearing the
      * captured reference so it is reported at most once.

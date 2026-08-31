@@ -30,11 +30,13 @@ import de.unijena.cheminf.mortar.gui.util.GuiUtil;
 import de.unijena.cheminf.mortar.model.data.FragmentDataModel;
 import de.unijena.cheminf.mortar.model.data.MoleculeDataModel;
 import de.unijena.cheminf.mortar.model.fragmentation.algorithm.IMoleculeFragmenter;
+import de.unijena.cheminf.mortar.model.util.AppDirTestUtil;
 import de.unijena.cheminf.mortar.model.util.BasicDefinitions;
 import de.unijena.cheminf.mortar.model.util.ChemUtil;
 import de.unijena.cheminf.mortar.model.util.FileUtil;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedStatic;
@@ -42,7 +44,6 @@ import org.mockito.Mockito;
 import org.openscience.cdk.interfaces.IAtomContainer;
 
 import java.io.File;
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -298,8 +299,7 @@ public class FragmentationServiceTest {
     public void persistAndReloadRoundTrip(@TempDir Path aTempHome) throws Exception {
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             FragmentationService tmpService = new FragmentationService();
             //mutate the selected fragmenter to a non-default one and set a pipeline + name
             String tmpSelectedDisplayName = tmpService.getFragmenters()[1].getFragmentationAlgorithmDisplayName();
@@ -325,8 +325,7 @@ public class FragmentationServiceTest {
                         tmpReloaded.getPipelineFragmenter()[i].getFragmentationAlgorithmName());
             }
         } finally {
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -346,8 +345,7 @@ public class FragmentationServiceTest {
     public void persistTwiceOverwritesExistingSettings(@TempDir Path aTempHome) throws Exception {
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             FragmentationService tmpService = new FragmentationService();
             tmpService.setSelectedFragmenter(tmpService.getFragmenters()[1].getFragmentationAlgorithmDisplayName());
             tmpService.setPipelineFragmenter(new IMoleculeFragmenter[] {
@@ -369,8 +367,7 @@ public class FragmentationServiceTest {
             Assertions.assertEquals("OverwritePipeline", tmpReloaded.getPipeliningFragmentationName());
             Assertions.assertEquals(2, tmpReloaded.getPipelineFragmenter().length);
         } finally {
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -389,8 +386,7 @@ public class FragmentationServiceTest {
     public void persistResetsNullAndInvalidPipelineName(@TempDir Path aTempHome) throws Exception {
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             //null pipeline name -> default-name fallback branch (693)
             FragmentationService tmpNullNameService = new FragmentationService();
             tmpNullNameService.setPipeliningFragmentationName(null);
@@ -406,8 +402,7 @@ public class FragmentationServiceTest {
             tmpReloadedFromInvalid.reloadActiveFragmenterAndPipeline();
             Assertions.assertEquals(FragmentationService.DEFAULT_PIPELINE_NAME, tmpReloadedFromInvalid.getPipeliningFragmentationName());
         } finally {
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -426,8 +421,7 @@ public class FragmentationServiceTest {
     public void reloadWithoutPersistedSettingsKeepsDefaults(@TempDir Path aTempHome) throws Exception {
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             FragmentationService tmpService = new FragmentationService();
             String tmpDefaultSelected = tmpService.getSelectedFragmenter().getFragmentationAlgorithmName();
             String tmpDefaultPipelineName = tmpService.getPipeliningFragmentationName();
@@ -439,8 +433,7 @@ public class FragmentationServiceTest {
             Assertions.assertEquals(tmpDefaultPipelineName, tmpService.getPipeliningFragmentationName());
             Assertions.assertEquals(tmpDefaultPipelineSize, tmpService.getPipelineFragmenter().length);
         } finally {
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -459,8 +452,7 @@ public class FragmentationServiceTest {
     public void reloadWithCorruptFragmenterSettingsFile(@TempDir Path aTempHome) throws Exception {
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             FragmentationService tmpService = new FragmentationService();
             String tmpFragmenterSettingsDirPath = FileUtil.getSettingsDirPath()
                     + FragmentationService.FRAGMENTER_SETTINGS_SUBFOLDER_NAME + File.separator;
@@ -476,8 +468,7 @@ public class FragmentationServiceTest {
             Assertions.assertDoesNotThrow(tmpService::reloadFragmenterSettings);
             Assertions.assertNotNull(tmpService.getFragmenters()[0].getFragmentationAlgorithmName());
         } finally {
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -496,8 +487,7 @@ public class FragmentationServiceTest {
     public void reloadWithMissingPipelineFragmenterFile(@TempDir Path aTempHome) throws Exception {
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             FragmentationService tmpService = new FragmentationService();
             tmpService.setSelectedFragmenter(tmpService.getFragmenters()[0].getFragmentationAlgorithmDisplayName());
             tmpService.setPipelineFragmenter(new IMoleculeFragmenter[] {
@@ -519,8 +509,7 @@ public class FragmentationServiceTest {
             //only the surviving pipeline fragmenter file could be reconstructed
             Assertions.assertEquals(1, tmpReloaded.getPipelineFragmenter().length);
         } finally {
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -766,17 +755,20 @@ public class FragmentationServiceTest {
         String tmpOldHome = System.getProperty("user.home");
         File tmpAppDir = null;
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             FragmentationService tmpService = new FragmentationService();
             //resolve (and thereby create) the application data directory, then make it read-only so the settings
             //subfolder mkdirs fails
             tmpAppDir = new File(FileUtil.getAppDirPath());
             Assertions.assertTrue(tmpAppDir.exists());
-            Assertions.assertTrue(tmpAppDir.setWritable(false, false));
+            //Windows/NTFS ignores the POSIX write bit for directories and File.setWritable(false, false) returns
+            //false there, so the guarded branch cannot be driven at all on that platform; skip instead of failing
+            Assumptions.assumeTrue(tmpAppDir.setWritable(false, false),
+                    "The application data directory could not be made non-writable (e.g. on Windows); "
+                            + "cannot exercise the not-writable branch.");
             //skip the test if the filesystem ignores the read-only bit (e.g. running as root) so it does not give a
             //false pass
-            org.junit.jupiter.api.Assumptions.assumeFalse(tmpAppDir.canWrite(),
+            Assumptions.assumeFalse(tmpAppDir.canWrite(),
                     "Application data directory is still writable; cannot drive the not-writable branch on this filesystem.");
             AtomicInteger tmpAlertCount = new AtomicInteger(0);
             try (MockedStatic<GuiUtil> tmpGuiUtilMock = Mockito.mockStatic(GuiUtil.class)) {
@@ -794,8 +786,7 @@ public class FragmentationServiceTest {
             if (tmpAppDir != null) {
                 tmpAppDir.setWritable(true, false);
             }
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -815,8 +806,7 @@ public class FragmentationServiceTest {
     public void reloadWithCorruptServiceSettingsFileShowsAlert(@TempDir Path aTempHome) throws Exception {
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             FragmentationService tmpService = new FragmentationService();
             //write a garbage service settings file so PreferenceContainer construction throws on reload
             String tmpServiceSettingsDirPath = FileUtil.getSettingsDirPath()
@@ -839,8 +829,7 @@ public class FragmentationServiceTest {
             }
             Assertions.assertEquals(1, tmpAlertCount.get());
         } finally {
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -860,8 +849,7 @@ public class FragmentationServiceTest {
     public void reloadWithCorruptPipelineFragmenterFileShowsAlert(@TempDir Path aTempHome) throws Exception {
         String tmpOldHome = System.getProperty("user.home");
         try {
-            System.setProperty("user.home", aTempHome.toString());
-            this.resetAppDirPathCache();
+            AppDirTestUtil.redirectAppDirPath(aTempHome);
             FragmentationService tmpService = new FragmentationService();
             tmpService.setSelectedFragmenter(tmpService.getFragmenters()[0].getFragmentationAlgorithmDisplayName());
             tmpService.setPipelineFragmenter(new IMoleculeFragmenter[] {
@@ -893,8 +881,7 @@ public class FragmentationServiceTest {
             Assertions.assertEquals(1, tmpReloaded.getPipelineFragmenter().length);
             Assertions.assertEquals("CorruptPipelineFile", tmpReloaded.getPipeliningFragmentationName());
         } finally {
-            System.setProperty("user.home", tmpOldHome);
-            this.resetAppDirPathCache();
+            AppDirTestUtil.restoreAppDirPath(tmpOldHome);
             LogManager.getLogManager().reset();
         }
     }
@@ -1019,16 +1006,5 @@ public class FragmentationServiceTest {
         return tmpFragments.size();
     }
     //
-    /**
-     * Reflectively resets the private static {@code appDirPath} cache of FileUtil to null, so the next call to
-     * getAppDirPath re-resolves the data directory from the current {@code user.home} system property.
-     *
-     * @throws Exception if the field cannot be accessed
-     */
-    private void resetAppDirPathCache() throws Exception {
-        Field tmpField = FileUtil.class.getDeclaredField("appDirPath");
-        tmpField.setAccessible(true);
-        tmpField.set(null, null);
-    }
     //</editor-fold>
 }
