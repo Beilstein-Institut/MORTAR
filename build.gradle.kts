@@ -109,6 +109,10 @@ tasks.test {
     // (e.g. -Dprism.order=es2): do NOT hardcode "sw" unconditionally.
     systemProperty("prism.order", System.getProperty("prism.order", "sw"))
     systemProperty("prism.text", System.getProperty("prism.text", "t2k"))
+    // JavaFX unpacks its native libraries into ${user.home}/.openjfx/cache and keeps them loaded. The FX tests
+    // redirect user.home to a per-test temporary directory, and Windows cannot delete a loaded DLL, so the
+    // @TempDir cleanup fails there. Pin the cache to a stable build directory instead of a temporary home.
+    systemProperty("javafx.cachedir", layout.buildDirectory.dir("javafx-cache").get().asFile.absolutePath)
     // Empirical fallback module args — uncomment ONLY if the plan-02 smoke test
     // throws InaccessibleObjectException / IllegalAccessError naming
     // com.sun.glass.ui (resolved empirically in task 13-02-01). Add the

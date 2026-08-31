@@ -38,6 +38,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
@@ -175,7 +176,9 @@ public class SettingsContainerTest {
         Assertions.assertEquals(1, tmpSettingsContainer.getNumberOfTasksForFragmentationSetting());
         tmpSettingsContainer.setRegardStereochemistrySetting(false);
         Assertions.assertFalse(tmpSettingsContainer.getRegardStereochemistrySetting());
-        String tmpExistingDirectory = System.getProperty("java.io.tmpdir");
+        //canonicalized on purpose: on Windows java.io.tmpdir can be an 8.3 short path (e.g. C:\Users\RUNNER~1\...)
+        //and the tilde is not part of the character set SingleTermPreference allows as content
+        String tmpExistingDirectory = new File(System.getProperty("java.io.tmpdir")).getCanonicalPath();
         tmpSettingsContainer.setRecentDirectoryPathSetting(tmpExistingDirectory);
         Assertions.assertEquals(tmpExistingDirectory, tmpSettingsContainer.getRecentDirectoryPathSetting());
         tmpSettingsContainer.setCsvExportSeparatorSetting(Exporter.CSVSeparator.SEMICOLON);
