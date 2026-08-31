@@ -37,6 +37,15 @@ jobs:
         run: echo $JAVA_HOME
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
+      - name: Run tests
+        run: .\gradlew test
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-test-report
+          path: build/reports/tests/test
+          retention-days: 30
       - name: Download Inno Setup installer
         run: Invoke-WebRequest -Uri https://github.com/jrsoftware/issrc/releases/download/is-6_4_2/innosetup-6.4.2.exe -OutFile inno-setup.exe
       - name: Install Inno Setup
