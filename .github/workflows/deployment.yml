@@ -50,6 +50,8 @@ jobs:
         with:
           name: MORTAR_v${{ env.APP_VERSION }}_WINx64_setup.exe
           path: build\winDeploy\out\*.exe
+          retention-days: 30
+          compression-level: 0 # no compression since it makes no difference
 
   build-macos:
     runs-on: ${{ matrix.os }}
