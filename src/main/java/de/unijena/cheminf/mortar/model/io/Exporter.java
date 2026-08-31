@@ -605,10 +605,11 @@ public class Exporter {
             return null;
         }
         Document tmpPDFDocument = new Document(PageSize.A4);
+        FileOutputStream tmpPdfFileOutputStream = new FileOutputStream(aPdfFile.getPath());
         try {
             List<String> tmpFailedExportFragments = new LinkedList<>();
             tmpPDFDocument.setPageSize(tmpPDFDocument.getPageSize().rotate());
-            PdfWriter.getInstance(tmpPDFDocument, new FileOutputStream(aPdfFile.getPath()));
+            PdfWriter.getInstance(tmpPDFDocument, tmpPdfFileOutputStream);
             tmpPDFDocument.open();
             float[] tmpCellLength = {70f, 120f, 50f, 50f, 55f, 55f}; // relative sizes, magic numbers
             PdfPTable tmpFragmentationTable = new PdfPTable(tmpCellLength);
@@ -690,6 +691,14 @@ public class Exporter {
             } catch (ExceptionConverter anExceptionConverter) {
                 Exporter.LOGGER.log(Level.WARNING, anExceptionConverter.toString(), anExceptionConverter);
             }
+            //the document close above closes the output stream on the success path; on the guarded (zero-page) path it
+            //does not, so close it here explicitly - a second close is a no-op, a leaked handle blocks deletion of the
+            //file on Windows
+            try {
+                tmpPdfFileOutputStream.close();
+            } catch (IOException anException) {
+                Exporter.LOGGER.log(Level.WARNING, anException.toString(), anException);
+            }
         }
     }
     //
@@ -717,9 +726,10 @@ public class Exporter {
                 anImportedFileName == null || anImportedFileName.isEmpty()) {
             return null;
         }
+        FileOutputStream tmpPdfFileOutputStream = new FileOutputStream(aPdfFile.getPath());
         try (Document tmpPDFDocument = new Document(PageSize.A4)) {
             List<String> tmpFailedExportFragments = new LinkedList<>();
-            PdfWriter.getInstance(tmpPDFDocument, new FileOutputStream(aPdfFile.getPath()));
+            PdfWriter.getInstance(tmpPDFDocument, tmpPdfFileOutputStream);
             tmpPDFDocument.open();
             // creates the pdf table
             Chunk tmpItemizationTabHeader = new Chunk(Message.get("Exporter.itemsTab.pdfCellHeader.header"),
@@ -835,6 +845,15 @@ public class Exporter {
                 tmpPDFDocument.newPage();
             }
             return tmpFailedExportFragments;
+        } finally {
+            //the document close closes the output stream on the regular path; on an early return (interrupt) or a
+            //failing close it does not, so close it here explicitly - a second close is a no-op, a leaked handle
+            //blocks deletion of the file on Windows
+            try {
+                tmpPdfFileOutputStream.close();
+            } catch (IOException anException) {
+                Exporter.LOGGER.log(Level.WARNING, anException.toString(), anException);
+            }
         }
     }
     //
@@ -1088,7 +1107,8 @@ public class Exporter {
                 File tmpPDBFile = new File(tmpPDBFilePathName);
                 //writing to file
                 try (
-                        PDBWriter tmpPDBWriter = new PDBWriter(new FileOutputStream(tmpPDBFile));
+                        FileOutputStream tmpPDBFileOutputStream = new FileOutputStream(tmpPDBFile);
+                        PDBWriter tmpPDBWriter = new PDBWriter(tmpPDBFileOutputStream);
                 ) {
                     try {
                         if (tmpPoint3dAvailable) {
