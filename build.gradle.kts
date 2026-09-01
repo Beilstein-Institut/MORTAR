@@ -105,10 +105,20 @@ tasks.test {
     systemProperty("testfx.headless", "true")
     systemProperty("glass.platform", "Monocle")
     systemProperty("monocle.platform", "Headless")
-    // Overridable so local Mac/Windows dev can pass a real GPU pipeline
-    // (e.g. -Dprism.order=es2): do NOT hardcode "sw" unconditionally.
-    systemProperty("prism.order", System.getProperty("prism.order", "sw"))
-    systemProperty("prism.text", System.getProperty("prism.text", "t2k"))
+    // Defaults; overridable per run by the forwarding block below (e.g. -Dprism.order=es2 to pass a real GPU
+    // pipeline on local Mac/Windows dev): do NOT hardcode "sw" unconditionally.
+    systemProperty("prism.order", "sw")
+    systemProperty("prism.text", "t2k")
+    // Gradle's -D options set a property on the *build* JVM, which the forked test JVM does not inherit. Forward
+    // the FX-relevant ones explicitly so that diagnosing the headless setup works as expected, e.g.
+    //     ./gradlew test --rerun-tasks -Dprism.verbose=true      (quote the -D on Windows PowerShell)
+    // Anything passed on the command line overrides the defaults set above.
+    for (tmpName in System.getProperties().stringPropertyNames().sorted()) {
+        if (tmpName.startsWith("prism.") || tmpName.startsWith("glass.")
+                || tmpName.startsWith("monocle.") || tmpName.startsWith("testfx.")) {
+            systemProperty(tmpName, System.getProperty(tmpName))
+        }
+    }
     // JavaFX unpacks its native libraries into ${user.home}/.openjfx/cache and keeps them loaded. The FX tests
     // redirect user.home to a per-test temporary directory, and Windows cannot delete a loaded DLL, so the
     // @TempDir cleanup fails there. Pin the cache to a stable build directory instead of a temporary home.
