@@ -159,9 +159,8 @@ tasks.jacocoTestReport {
     classDirectories.setFrom(jacocoMeasuredClassDirectories())
 }
 
-// GATE-01 / GATE-02: build-failing per-package LINE coverage regression gate.
-// Wired into `check` below so `./gradlew build` (and CI) fail on a coverage regression.
-// Measures the exact same scope as jacocoTestReport (gui/main/message excluded).
+// GATE-01 / GATE-02: per-package LINE coverage regression gate. Run explicitly (see the note below the task):
+// it is not part of `check`/`build`. Measures the exact same scope as jacocoTestReport (gui/main/message excluded).
 tasks.jacocoTestCoverageVerification {
     dependsOn(tasks.test)
     classDirectories.setFrom(jacocoMeasuredClassDirectories())
@@ -195,10 +194,12 @@ tasks.jacocoTestCoverageVerification {
     }
 }
 
-// GATE-01: make the standard `check` (hence `build`, hence CI) run the coverage gate.
-tasks.named("check") {
-    dependsOn(tasks.jacocoTestCoverageVerification)
-}
+// GATE-01: the coverage gate is deliberately NOT wired into `check`/`build`. Per-package minimums are only
+// reachable on a platform where the whole suite runs: a handful of tests are skipped on Windows because the
+// branches they drive (POSIX read-only directories, the non-Windows app-dir resolution) do not exist there, so
+// the same source would fail the gate on Windows while passing on Linux. Failing every local `./gradlew build`
+// on a platform artefact is not a useful regression signal. CI runs it explicitly on ubuntu-latest
+// (`./gradlew build jacocoTestCoverageVerification` in .github/workflows/gradle.yml); run it locally the same way.
 
 // Mutation testing (PITest) — REPORT-ONLY / ADVISORY.
 // Deliberately NOT wired into `check`/`build`: run it explicitly with `./gradlew pitest`.
