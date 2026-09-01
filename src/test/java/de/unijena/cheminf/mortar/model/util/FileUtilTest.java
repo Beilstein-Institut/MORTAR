@@ -244,7 +244,9 @@ class FileUtilTest {
      */
     @Test
     public void testGetAppDirPath(@TempDir Path aTempHome) throws Exception {
-        Assumptions.assumeFalse(System.getProperty("os.name").toUpperCase().contains("WIN"));
+        Assumptions.assumeFalse(System.getProperty("os.name").toUpperCase().contains("WIN"),
+                "Windows resolves the application data directory from the AppData environment variable, "
+                        + "which a test cannot set; the user.home branch under test does not exist there.");
         String tmpOldHome = System.getProperty("user.home");
         try {
             System.setProperty("user.home", aTempHome.toString());
@@ -288,7 +290,9 @@ class FileUtilTest {
      */
     @Test
     public void testDeleteSingleFileFailureBranch(@TempDir Path aTempDir) throws Exception {
-        Assumptions.assumeFalse(System.getProperty("os.name").toUpperCase().contains("WIN"));
+        Assumptions.assumeFalse(System.getProperty("os.name").toUpperCase().contains("WIN"),
+                "Windows/NTFS ignores the POSIX write bit for directories, so the delete cannot be made to "
+                        + "fail there; the catch branch under test cannot be driven on that platform.");
         File tmpReadOnlyDir = aTempDir.resolve("readOnlyDir").toFile();
         Assertions.assertTrue(tmpReadOnlyDir.mkdirs());
         File tmpFile = new File(tmpReadOnlyDir, "locked.txt");
@@ -310,7 +314,9 @@ class FileUtilTest {
      */
     @Test
     public void testDeleteAllFilesInDirectoryFailureBranch(@TempDir Path aTempDir) throws Exception {
-        Assumptions.assumeFalse(System.getProperty("os.name").toUpperCase().contains("WIN"));
+        Assumptions.assumeFalse(System.getProperty("os.name").toUpperCase().contains("WIN"),
+                "Windows/NTFS ignores the POSIX write bit for directories, so the delete cannot be made to "
+                        + "fail there; the catch branch under test cannot be driven on that platform.");
         File tmpReadOnlyDir = aTempDir.resolve("readOnlyDir2").toFile();
         Assertions.assertTrue(tmpReadOnlyDir.mkdirs());
         Assertions.assertTrue(new File(tmpReadOnlyDir, "a.txt").createNewFile());
@@ -331,7 +337,9 @@ class FileUtilTest {
      */
     @Test
     public void testCreateEmptyFileFailureBranch(@TempDir Path aTempDir) throws Exception {
-        Assumptions.assumeFalse(System.getProperty("os.name").toUpperCase().contains("WIN"));
+        Assumptions.assumeFalse(System.getProperty("os.name").toUpperCase().contains("WIN"),
+                "Windows/NTFS ignores the POSIX write bit for directories, so the file creation cannot be "
+                        + "made to fail there; the catch branch under test cannot be driven on that platform.");
         File tmpReadOnlyDir = aTempDir.resolve("readOnlyDir3").toFile();
         Assertions.assertTrue(tmpReadOnlyDir.mkdirs());
         try {

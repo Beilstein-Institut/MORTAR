@@ -28,7 +28,6 @@ package de.unijena.cheminf.mortar.model.util;
 import de.unijena.cheminf.mortar.configuration.Configuration;
 
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -39,14 +38,13 @@ import java.util.logging.LogManager;
 
 /**
  * Tests for the logging utilities in LogUtil. Every environment-coupled test uses the mandatory isolation technique:
- * the {@code user.home} system property is redirected to a JUnit {@link TempDir}, the private static
- * {@code FileUtil.appDirPath} cache is reflectively reset so the redirect is honored, and in a finally block the
- * original {@code user.home} is restored, the cache is nulled again, and {@link LogManager#reset()} is called to undo
- * the global logging-handler mutation. As a result no real {@code ~/MORTAR} directory is created and no global logging
- * handler leaks into other tests. Only the safe logging-only paths are exercised: the GUI / error / {@code System.exit}
- * branches of the uncaught-exception handler are never driven (they would block a headless run or kill the JVM). All
- * environment-coupled tests are skipped on Windows, where the data directory is resolved from the AppData environment
- * variable instead.
+ * {@link AppDirTestUtil#redirectAppDirPath(java.nio.file.Path)} points the application data directory at a JUnit
+ * {@link TempDir} (on every operating system, including Windows), and in a finally block the original
+ * {@code user.home} is restored, the {@code FileUtil.appDirPath} cache is cleared again, and
+ * {@link LogManager#reset()} is called to undo the global logging-handler mutation. As a result no real
+ * {@code ~/MORTAR} directory is created and no global logging handler leaks into other tests. Only the safe
+ * logging-only paths are exercised: the GUI / error / {@code System.exit} branches of the uncaught-exception handler
+ * are never driven (they would block a headless run or kill the JVM).
  *
  * @author Felix Baensch
  */
@@ -82,7 +80,6 @@ class LogUtilTest {
      */
     @Test
     public void testInitializeLoggingEnvironment(@TempDir Path aTempHome) throws Exception {
-        Assumptions.assumeFalse(System.getProperty("os.name").toUpperCase().contains("WIN"));
         String tmpOldHome = System.getProperty("user.home");
         try {
             AppDirTestUtil.redirectAppDirPath(aTempHome);
@@ -110,7 +107,6 @@ class LogUtilTest {
      */
     @Test
     public void testResetLogFile(@TempDir Path aTempHome) throws Exception {
-        Assumptions.assumeFalse(System.getProperty("os.name").toUpperCase().contains("WIN"));
         String tmpOldHome = System.getProperty("user.home");
         try {
             AppDirTestUtil.redirectAppDirPath(aTempHome);
@@ -135,7 +131,6 @@ class LogUtilTest {
      */
     @Test
     public void testManageLogFilesFolderIfExists(@TempDir Path aTempHome) throws Exception {
-        Assumptions.assumeFalse(System.getProperty("os.name").toUpperCase().contains("WIN"));
         String tmpOldHome = System.getProperty("user.home");
         try {
             AppDirTestUtil.redirectAppDirPath(aTempHome);
@@ -162,7 +157,6 @@ class LogUtilTest {
      */
     @Test
     public void testCheckForLCKFileInLogDir(@TempDir Path aTempHome) throws Exception {
-        Assumptions.assumeFalse(System.getProperty("os.name").toUpperCase().contains("WIN"));
         String tmpOldHome = System.getProperty("user.home");
         try {
             AppDirTestUtil.redirectAppDirPath(aTempHome);
