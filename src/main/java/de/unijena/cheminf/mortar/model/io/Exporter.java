@@ -1226,8 +1226,8 @@ public class Exporter {
         }
         File tmpRecentDirectory = new File(this.settingsContainer.getRecentDirectoryPathSetting());
         if (!tmpRecentDirectory.isDirectory()) {
-            tmpRecentDirectory = new File(SettingsContainer.RECENT_DIRECTORY_PATH_SETTING_DEFAULT);
-            this.settingsContainer.setRecentDirectoryPathSetting(SettingsContainer.RECENT_DIRECTORY_PATH_SETTING_DEFAULT);
+            tmpRecentDirectory = new File(SettingsContainer.getRecentDirectoryPathSettingDefault());
+            this.settingsContainer.setRecentDirectoryPathSetting(SettingsContainer.getRecentDirectoryPathSettingDefault());
             Exporter.LOGGER.log(Level.INFO, "Recent directory could not be read, resetting to default.");
         }
         tmpFileChooser.setInitialDirectory(tmpRecentDirectory);
@@ -1257,8 +1257,8 @@ public class Exporter {
         tmpDirectoryChooser.setTitle(Message.get("Exporter.directoryChooser.title"));
         File tmpRecentDirectory = new File(this.settingsContainer.getRecentDirectoryPathSetting());
         if (!tmpRecentDirectory.isDirectory()) {
-            tmpRecentDirectory = new File(SettingsContainer.RECENT_DIRECTORY_PATH_SETTING_DEFAULT);
-            this.settingsContainer.setRecentDirectoryPathSetting(SettingsContainer.RECENT_DIRECTORY_PATH_SETTING_DEFAULT);
+            tmpRecentDirectory = new File(SettingsContainer.getRecentDirectoryPathSettingDefault());
+            this.settingsContainer.setRecentDirectoryPathSetting(SettingsContainer.getRecentDirectoryPathSettingDefault());
             Exporter.LOGGER.log(Level.INFO, "Recent directory could not be read, resetting to default.");
         }
         tmpDirectoryChooser.setInitialDirectory(tmpRecentDirectory);

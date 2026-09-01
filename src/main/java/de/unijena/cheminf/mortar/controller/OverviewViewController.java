@@ -738,8 +738,8 @@ public class OverviewViewController implements IViewToolController {
     private void takeScreenshotOfStructureGridPane() {
         File tmpRecentDirectory = new File(this.settingsContainer.getRecentDirectoryPathSetting());
         if (!tmpRecentDirectory.isDirectory()) {
-            tmpRecentDirectory = new File(SettingsContainer.RECENT_DIRECTORY_PATH_SETTING_DEFAULT);
-            this.settingsContainer.setRecentDirectoryPathSetting(SettingsContainer.RECENT_DIRECTORY_PATH_SETTING_DEFAULT);
+            tmpRecentDirectory = new File(SettingsContainer.getRecentDirectoryPathSettingDefault());
+            this.settingsContainer.setRecentDirectoryPathSetting(SettingsContainer.getRecentDirectoryPathSettingDefault());
             OverviewViewController.LOGGER.log(Level.INFO, "Recent directory could not be read, resetting to default.");
         }
         //get the title of the overview without the number of molecules for the initial file name

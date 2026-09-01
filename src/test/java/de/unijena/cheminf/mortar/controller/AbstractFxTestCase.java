@@ -26,7 +26,6 @@
 package de.unijena.cheminf.mortar.controller;
 
 import de.unijena.cheminf.mortar.configuration.Configuration;
-import de.unijena.cheminf.mortar.model.settings.SettingsContainer;
 import de.unijena.cheminf.mortar.model.util.AppDirTestUtil;
 import de.unijena.cheminf.mortar.model.util.FileUtil;
 
@@ -152,18 +151,6 @@ public abstract class AbstractFxTestCase {
         AbstractFxTestCase.ORIGINAL_DEFAULT_LOCALE.compareAndSet(null, Locale.getDefault());
         Locale.setDefault(Locale.of("en", "GB"));
         Configuration.getInstance();
-        //Eagerly force SettingsContainer class-initialization here, while the real user.home is still in
-        //effect. This @BeforeAll runs before any per-test @BeforeEach (isolateUserHome) redirects user.home
-        //to a JUnit @TempDir. SettingsContainer.RECENT_DIRECTORY_PATH_SETTING_DEFAULT is a
-        //`static final String = System.getProperty("user.home")` captured exactly once at class-load. Were the
-        //class first loaded while user.home pointed at a per-test @TempDir (which happens when the controllers
-        //under test construct a SettingsContainer), that soon-deleted /tmp/junit-* path would be permanently
-        //baked into the constant. A sibling test that later calls restoreDefaultSettings() re-applies the
-        //default through the validating setter and would then throw IllegalArgumentException because the path
-        //no longer exists. Pinning the capture to the real user.home eliminates that cross-test state leak at
-        //its source. This is a headless-test isolation concern only: in production user.home never changes
-        //during a JVM run, so the one-time static capture is correct there.
-        Class.forName(SettingsContainer.class.getName(), true, AbstractFxTestCase.class.getClassLoader());
         synchronized (AbstractFxTestCase.TOOLKIT_LOCK) {
             if (!AbstractFxTestCase.toolkitStarted) {
                 Thread.UncaughtExceptionHandler tmpPreviousHandler = Thread.getDefaultUncaughtExceptionHandler();

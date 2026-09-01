@@ -92,7 +92,7 @@ public class SettingsContainerTest {
             Assertions.assertEquals(SettingsContainer.ROWS_PER_PAGE_SETTING_DEFAULT, tmpSettingsContainer.getRowsPerPageSetting());
             Assertions.assertEquals(SettingsContainer.ADD_IMPLICIT_HYDROGENS_AT_IMPORT_SETTING_DEFAULT, tmpSettingsContainer.getAddImplicitHydrogensAtImportSetting());
             Assertions.assertEquals(tmpSettingsContainer.getNumberOfTasksForFragmentationSettingDefault(), tmpSettingsContainer.getNumberOfTasksForFragmentationSetting());
-            Assertions.assertEquals(SettingsContainer.RECENT_DIRECTORY_PATH_SETTING_DEFAULT, tmpSettingsContainer.getRecentDirectoryPathSetting());
+            Assertions.assertEquals(SettingsContainer.getRecentDirectoryPathSettingDefault(), tmpSettingsContainer.getRecentDirectoryPathSetting());
             Assertions.assertEquals(SettingsContainer.ALWAYS_MDLV3000_FORMAT_AT_EXPORT_SETTING_DEFAULT, tmpSettingsContainer.getAlwaysMDLV3000FormatAtExportSetting());
             Assertions.assertEquals(SettingsContainer.CSV_EXPORT_SEPARATOR_SETTING_DEFAULT, tmpSettingsContainer.getCsvExportSeparatorSetting());
             tmpSettingsContainer.setRowsPerPageSetting(SettingsContainer.ROWS_PER_PAGE_SETTING_DEFAULT + 5);
@@ -294,6 +294,28 @@ public class SettingsContainerTest {
             Assertions.assertThrows(IllegalArgumentException.class,
                     () -> tmpSettingsContainer.numberOfTasksForFragmentationSettingProperty().set(0));
         }
+    }
+    //
+    /**
+     * Tests that the recent-directory default is resolved on every call instead of being snapshotted once at
+     * class-initialization time: it must follow a change of the {@code user.home} system property. The eager
+     * {@code static final} it replaced froze whichever value happened to be set when this class was first loaded,
+     * which made restoreDefaultSettings() throw in any later test whose redirected home had since been deleted.
+     *
+     * @param aTempHome temporary directory used as a fake user home
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testRecentDirectoryPathSettingDefaultIsResolvedLazily(@TempDir Path aTempHome) throws Exception {
+        String tmpOldHome = System.getProperty("user.home");
+        Assertions.assertEquals(tmpOldHome, SettingsContainer.getRecentDirectoryPathSettingDefault());
+        try {
+            System.setProperty("user.home", aTempHome.toString());
+            Assertions.assertEquals(aTempHome.toString(), SettingsContainer.getRecentDirectoryPathSettingDefault());
+        } finally {
+            System.setProperty("user.home", tmpOldHome);
+        }
+        Assertions.assertEquals(tmpOldHome, SettingsContainer.getRecentDirectoryPathSettingDefault());
     }
     //</editor-fold>
 }

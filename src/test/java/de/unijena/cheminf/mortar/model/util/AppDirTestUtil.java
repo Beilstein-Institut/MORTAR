@@ -27,13 +27,11 @@ package de.unijena.cheminf.mortar.model.util;
 
 import de.unijena.cheminf.mortar.configuration.Configuration;
 import de.unijena.cheminf.mortar.configuration.IConfiguration;
-import de.unijena.cheminf.mortar.model.settings.SettingsContainer;
 
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
-import java.util.Objects;
 
 /**
  * Static test helper that redirects the application data directory of {@link FileUtil} into a temporary directory, so
@@ -78,12 +76,6 @@ public final class AppDirTestUtil {
      * @throws Exception if the temporary data directory cannot be created or the cache field cannot be written
      */
     public static void redirectAppDirPath(Path aTempHome) throws Exception {
-        //SettingsContainer snapshots user.home into a static final default at class-initialization time. Reading the
-        //field here forces that initialization to happen while user.home is still the real one: otherwise the first
-        //test class that redirects before loading SettingsContainer freezes a temporary directory as the JVM-wide
-        //default, and every later restoreDefaultSettings() fails once that directory has been deleted again.
-        Objects.requireNonNull(SettingsContainer.RECENT_DIRECTORY_PATH_SETTING_DEFAULT,
-                "The real user home must be resolvable before it is redirected.");
         System.setProperty("user.home", aTempHome.toString());
         IConfiguration tmpConfiguration = Configuration.getInstance();
         Path tmpAppDirPath = aTempHome;
