@@ -92,12 +92,42 @@ javafx {
     modules = listOf("javafx.base","javafx.graphics", "javafx.controls", "javafx.swing")
 }
 
+// Every JavaFX platform classifier is on the runtime classpath above so the fat JAR runs cross-platform. That is
+// wrong for a test JVM: JavaFX extracts its native libraries by bare resource name (e.g. "/libprism_sw.dylib"), so
+// whichever classifier comes first on the classpath wins, regardless of the host architecture. On Apple Silicon the
+// -mac (x86_64) jar precedes -mac-aarch64 and the extracted dylib fails to dlopen with "incompatible architecture",
+// which brings down the whole toolkit ("No toolkit found"). Linux x64 and Windows only escape this by accident of
+// ordering and of having a single classifier. The test classpath therefore keeps the host classifier alone.
+val javafxPlatformClassifiers = listOf("win", "linux", "linux-aarch64", "mac", "mac-aarch64")
+
+val javafxHostClassifier = run {
+    val tmpOsName = System.getProperty("os.name").lowercase()
+    val tmpArch = System.getProperty("os.arch").lowercase()
+    val tmpIsAarch64 = tmpArch == "aarch64" || tmpArch == "arm64"
+    when {
+        tmpOsName.contains("win") -> "win"
+        tmpOsName.contains("mac") || tmpOsName.contains("darwin") -> if (tmpIsAarch64) "mac-aarch64" else "mac"
+        else -> if (tmpIsAarch64) "linux-aarch64" else "linux"
+    }
+}
+
+val javafxForeignClassifiers = javafxPlatformClassifiers - javafxHostClassifier
+
 jacoco {
     toolVersion = libs.versions.jacoco.get()
 }
 
 tasks.test {
     useJUnitPlatform()
+    // Drop the foreign-platform JavaFX artifacts (see javafxHostClassifier above); the host's must be the only
+    // source of a given native library name. Captured into a local first: the filter predicate is evaluated at
+    // execution time and must not close over the build script instance, which the configuration cache does not
+    // restore.
+    val tmpForeignClassifiers = javafxForeignClassifiers
+    classpath = classpath.filter { tmpFile ->
+        !(tmpFile.name.startsWith("javafx-")
+                && tmpForeignClassifiers.any { tmpClassifier -> tmpFile.name.endsWith("-$tmpClassifier.jar") })
+    }
     systemProperty("java.awt.headless", "true")
     // --- headless JavaFX (TestFX + Monocle) recipe (HARN-02) ---
     // Set BEFORE any FX class loads so Monocle registers its headless platform.
