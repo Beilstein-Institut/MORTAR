@@ -31,8 +31,12 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
@@ -278,6 +282,59 @@ class FileUtilTest {
         Assertions.assertThrows(IllegalArgumentException.class, () -> FileUtil.openFilePathInExplorer(null));
         Assertions.assertThrows(IllegalArgumentException.class, () -> FileUtil.openFilePathInExplorer(""));
         Assertions.assertThrows(IllegalArgumentException.class, () -> FileUtil.openFilePathInExplorer("   "));
+    }
+    //
+    /**
+     * Tests that openFilePathInExplorer dispatches to the launcher of the detected operating system, driving all three
+     * platform branches by temporarily overriding the {@code os.name} system property. {@link Runtime} is mocked, so no
+     * file-browser process is ever spawned: unmocked this method shells out to {@code explorer}, {@code open} or
+     * {@code gio} and opens a real window on any machine where that launcher exists.
+     *
+     * @param aTempDir JUnit-managed temporary directory used as the path to open
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testOpenFilePathInExplorerDispatchesPerOperatingSystem(@TempDir Path aTempDir) throws Exception {
+        //the mock is created before os.name is overridden on purpose: Mockito initializes its ByteBuddy mock maker
+        //lazily on first use and inspects the platform while doing so, and a faked os.name makes that initialization
+        //fail permanently for the rest of the JVM
+        Runtime tmpRuntime = Mockito.mock(Runtime.class);
+        String tmpOldOsName = System.getProperty("os.name");
+        try {
+            for (String[] tmpCase : new String[][] {
+                    {"Windows 11", "explorer"}, {"Mac OS X", "open"}, {"Linux", "gio"}}) {
+                System.setProperty("os.name", tmpCase[0]);
+                Mockito.clearInvocations(tmpRuntime);
+                try (MockedStatic<Runtime> tmpRuntimeMock = Mockito.mockStatic(Runtime.class)) {
+                    tmpRuntimeMock.when(Runtime::getRuntime).thenReturn(tmpRuntime);
+                    FileUtil.openFilePathInExplorer(aTempDir.toString());
+                    ArgumentCaptor<String[]> tmpCommandCaptor = ArgumentCaptor.forClass(String[].class);
+                    Mockito.verify(tmpRuntime).exec(tmpCommandCaptor.capture());
+                    Assertions.assertEquals(tmpCase[1], tmpCommandCaptor.getValue()[0],
+                            "Wrong launcher for os.name " + tmpCase[0]);
+                }
+            }
+        } finally {
+            System.setProperty("os.name", tmpOldOsName);
+        }
+    }
+    //
+    /**
+     * Tests that openFilePathInExplorer turns a failing launcher into a SecurityException: the mocked
+     * {@link Runtime#exec(String[])} throws an IOException, which the method catches, logs and rethrows wrapped.
+     *
+     * @param aTempDir JUnit-managed temporary directory used as the path to open
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void testOpenFilePathInExplorerWrapsLauncherFailure(@TempDir Path aTempDir) throws Exception {
+        Runtime tmpRuntime = Mockito.mock(Runtime.class);
+        Mockito.when(tmpRuntime.exec(Mockito.any(String[].class))).thenThrow(new IOException("no launcher installed"));
+        try (MockedStatic<Runtime> tmpRuntimeMock = Mockito.mockStatic(Runtime.class)) {
+            tmpRuntimeMock.when(Runtime::getRuntime).thenReturn(tmpRuntime);
+            Assertions.assertThrows(SecurityException.class,
+                    () -> FileUtil.openFilePathInExplorer(aTempDir.toString()));
+        }
     }
     //
     /**

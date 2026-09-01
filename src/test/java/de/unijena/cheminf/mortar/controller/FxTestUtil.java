@@ -28,6 +28,7 @@ package de.unijena.cheminf.mortar.controller;
 import de.unijena.cheminf.mortar.configuration.Configuration;
 import de.unijena.cheminf.mortar.gui.util.GuiUtil;
 import de.unijena.cheminf.mortar.gui.views.MainView;
+import de.unijena.cheminf.mortar.model.util.FileUtil;
 
 import javafx.application.Platform;
 import javafx.collections.ListChangeListener;
@@ -236,17 +237,27 @@ public final class FxTestUtil {
     }
     //
     /**
-     * Creates a {@link MockedStatic} over {@link Desktop} so OS-launch handlers (e.g. the About view's open-GitHub and
-     * open-tutorial actions) do not throw a {@code HeadlessException} when fired headlessly: the static
-     * {@code getDesktop()} is stubbed to return a plain {@link Mockito#mock(Class)} {@link Desktop} instance and
-     * {@code isDesktopSupported()} is stubbed to return {@code true}. The returned mock is intentionally minimal;
-     * callers add any per-test behavior (for example stubbing {@code browse}/{@code open} as a no-op, or making them
-     * throw an {@link java.io.IOException} to cover a fallback branch) on the mocked {@link Desktop} instance obtained
-     * via {@code Desktop.getDesktop()} inside the try-with-resources scope. The caller is responsible for closing the
-     * returned mock, typically via try-with-resources.
+     * Constructs a {@link MockedStatic} over {@link FileUtil} that turns
+     * {@link FileUtil#openFilePathInExplorer(String)} into a no-op and delegates every other static call to the real
+     * implementation. That method shells out through {@code Runtime.exec} to {@code explorer} (Windows), {@code open}
+     * (macOS) or {@code gio} (Linux), so a test that fires a view button wired to it launches a real file-browser
+     * window on any machine where that launcher exists. Stubbing only this one call keeps the handler under test on
+     * its real code path without spawning a GUI process.
      *
-     * @return a static mock of {@link Desktop} whose {@code getDesktop()} yields a mock instance and whose
-     *         {@code isDesktopSupported()} returns {@code true}
+     * @return the mocked static; the caller owns it and must close it (use try-with-resources)
+     */
+    public static MockedStatic<FileUtil> mockFileExplorerLaunch() {
+        return Mockito.mockStatic(FileUtil.class, anInvocation ->
+                anInvocation.getMethod().getName().equals("openFilePathInExplorer")
+                        ? null
+                        : anInvocation.callRealMethod());
+    }
+    //
+    /**
+     * Constructs a {@link MockedStatic} over {@link Desktop} whose {@code isDesktopSupported} returns true and whose
+     * {@code getDesktop} returns a Mockito mock, so OS-launch handlers do not throw when run headless.
+     *
+     * @return the mocked static; the caller owns it and must close it (use try-with-resources)
      */
     public static MockedStatic<Desktop> mockDesktop() {
         Desktop tmpDesktop = Mockito.mock(Desktop.class);

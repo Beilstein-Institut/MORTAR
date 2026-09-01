@@ -31,6 +31,7 @@ import de.unijena.cheminf.mortar.gui.util.ExternalTool;
 import de.unijena.cheminf.mortar.gui.util.GuiUtil;
 import de.unijena.cheminf.mortar.gui.views.AboutView;
 import de.unijena.cheminf.mortar.message.Message;
+import de.unijena.cheminf.mortar.model.util.FileUtil;
 
 import javafx.stage.Stage;
 
@@ -94,9 +95,9 @@ public class AboutViewControllerTest extends AbstractFxTestCase {
      * {@code getExternalToolInfoFromXml}), and fires all four view buttons under {@link MockedStatic} over
      * {@link Desktop} and {@code GuiUtil}: the GitHub button (mock {@code browse} no-op → try-success branch), the
      * tutorial button (mock {@code open} throws {@link IOException} → catch branch builds the fallback hyperlink and
-     * calls the mocked alert), the log-file button (a real {@code Runtime.exec} op under the isolated {@code user.home};
-     * wrapped so an environment-dependent launcher failure cannot abort the drive), and the close button (its
-     * stage-close lambda). Exercises the constructor, {@code showAboutView}, {@code addListeners}, the XML happy path,
+     * calls the mocked alert), the log-file button (its call to {@code FileUtil.openFilePathInExplorer} stubbed to a
+     * no-op and then verified, so the handler runs its real code path without shelling out to a file browser), and the
+     * close button (its stage-close lambda). Exercises the constructor, {@code showAboutView}, {@code addListeners}, the XML happy path,
      * and both OS-launch handlers without a {@code HeadlessException} or a hang.
      *
      * @throws Exception if anything goes wrong on the FX thread
@@ -107,17 +108,16 @@ public class AboutViewControllerTest extends AbstractFxTestCase {
         AboutViewController tmpController = this.driveAbout(Configuration.getInstance(), aView -> {
             tmpToolCount.set(aView.getTableView().getItems().size());
             try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts();
-                    MockedStatic<Desktop> tmpDesktopMock = FxTestUtil.mockDesktop()) {
+                    MockedStatic<Desktop> tmpDesktopMock = FxTestUtil.mockDesktop();
+                    MockedStatic<FileUtil> tmpFileUtilMock = FxTestUtil.mockFileExplorerLaunch()) {
                 Desktop tmpDesktop = Desktop.getDesktop();
                 Mockito.doThrow(new IOException("headless tutorial open")).when(tmpDesktop).open(Mockito.any(File.class));
                 aView.getGitHubButton().fire();
                 aView.getTutorialButton().fire();
-                try {
-                    aView.getLogFileButton().fire();
-                } catch (Throwable anIgnoredLauncherFailure) {
-                    //the log-file button shells out via Runtime.exec, which is environment-dependent (e.g. no gio on
-                    //a headless CI host); its line is still covered by firing and the failure must not abort the drive
-                }
+                aView.getLogFileButton().fire();
+                //the handler reaches FileUtil.openFilePathInExplorer, which is stubbed out above: unstubbed it shells
+                //out to explorer/open/gio and launches a real file-browser window wherever that launcher exists
+                tmpFileUtilMock.verify(() -> FileUtil.openFilePathInExplorer(Mockito.anyString()));
                 aView.getCloseButton().fire();
             } catch (IOException anException) {
                 //unreachable: the doThrow(...).when(...).open(...) stubbing call declares IOException but never throws
