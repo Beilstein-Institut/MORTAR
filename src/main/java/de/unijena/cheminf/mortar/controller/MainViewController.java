@@ -492,11 +492,10 @@ public class MainViewController {
     /**
      * Loads molecule file and opens molecules tab.
      * Convenient method to avoid using a null parameter for the importer.
-     * <p>
-     * Note: package-private (not private) so same-package headless tests can drive import with a resolved file.
      *
      * @param aFile File that contains molecular data
      */
+    //Note: package-private (not private) so same-package headless tests can drive import with a resolved file.
     void importMoleculeFile(File aFile) {
         this.importMoleculeFile(aFile, new Importer(this.settingsContainer));
     }
@@ -606,11 +605,10 @@ public class MainViewController {
     //
     /**
      * Exports the given type of file.
-     * <p>
-     * Note: package-private (not private) so same-package headless tests can drive the export precondition guards.
      *
      * @param anExportType Enum to specify what type of file to export
      */
+    //Note: package-private (not private) so same-package headless tests can drive the export precondition guards.
     void exportFile(Exporter.ExportTypes anExportType) {
         if (!this.areExportPreconditionsMet(anExportType)) {
             return;
