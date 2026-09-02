@@ -1,6 +1,7 @@
 # PITest Mutation Testing — First-Pass Triage
 
 **Date:** 2026-07-10
+**Platform:** Linux x86-64 (Linux Mint 22.3), Temurin JDK 21 — equivalent to the `ubuntu-latest` CI job; results are platform-specific (see the campaign README).
 **Tool:** PITest (PIT) via the `info.solidsoft.pitest` Gradle plugin — **report-only / advisory**, NOT wired into `check`/`build`.
 **Run:** `./gradlew pitest` (locally: `sh gradlew pitest`, the wrapper is not executable). Report: `build/reports/pitest/index.html` (+ `mutations.xml`).
 

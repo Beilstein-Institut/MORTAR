@@ -9,6 +9,7 @@ point against which progress toward the ≥80%-per-class target (Phases 14–16)
 | Field | Value |
 |-------|-------|
 | Date captured | 2026-07-03 |
+| Platform | Linux x86-64 (Linux Mint 22.3), Temurin JDK 21 — equivalent to the `ubuntu-latest` CI job. **Numbers are platform-specific:** six tests are skipped on Windows because the branches they drive do not exist there (POSIX read-only directories, the non-Windows application-data-directory resolution), so a Windows run reports lower coverage for `model.util` and `model.fragmentation`. |
 | Coverage tool | JaCoCo 0.8.15 (`gradle/libs.versions.toml` → `jacoco = "0.8.15"`) |
 | CDK release pin | 2.12 (`gradle/libs.versions.toml` → `cdk-version = "2.12"`) |
 | Capture commit | `ea98fac4` (clean working tree; commit that widened the JaCoCo report to include `controller/**`) |

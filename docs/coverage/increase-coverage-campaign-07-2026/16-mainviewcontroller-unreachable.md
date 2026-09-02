@@ -17,10 +17,11 @@ branches that no valid enum value can reach).
 | Measured LINE coverage | **639 / 788 = 81.09%** |
 | Target | ≥ 80% (COV-01 / ROADMAP success criterion 1) |
 | Result | **Met** (81.09% ≥ 80%) |
+| Platform | Linux x86-64 (Linux Mint 22.3), Temurin JDK 21 — equivalent to the `ubuntu-latest` CI job; coverage numbers are platform-specific (see the campaign README). |
 
 ### Reproducibility
 
-Per `docs/coverage/12-controller-coverage-baseline.md`:
+Per `docs/coverage/increase-coverage-campaign-07-2026/12-controller-coverage-baseline.md`:
 
 ```bash
 sh gradlew test jacocoTestReport

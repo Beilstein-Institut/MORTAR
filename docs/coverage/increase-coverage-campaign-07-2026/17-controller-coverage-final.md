@@ -16,6 +16,7 @@ gate is wired into the build or CI (GATE-01/02 are deferred to v2).
 | Field | Value |
 |-------|-------|
 | Date captured | 2026-07-04 |
+| Platform | Linux x86-64 (Linux Mint 22.3), Temurin JDK 21 — equivalent to the `ubuntu-latest` CI job. **Numbers are platform-specific:** six tests are skipped on Windows because the branches they drive do not exist there (POSIX read-only directories, the non-Windows application-data-directory resolution), so a Windows run reports lower coverage for `model.util` and `model.fragmentation`. |
 | Coverage tool | JaCoCo 0.8.15 (`gradle/libs.versions.toml` → `jacoco = "0.8.15"`) |
 | CDK release pin | 2.12 (`gradle/libs.versions.toml` → `cdk-version = "2.12"`) |
 | Capture commit | `9170db7a` (clean working tree at the start of Phase 17 Plan 1) |
@@ -26,7 +27,7 @@ gate is wired into the build or CI (GATE-01/02 are deferred to v2).
 `controller` package read each `<sourcefile name="X.java">`'s `<counter type="LINE|INSTRUCTION|BRANCH">`
 (`missed`/`covered`). Line % = `covered / (missed + covered)`; a self-closing sourcefile with no
 LINE counter has no coverable lines (recorded as `n/a`). This is the identical method used for the
-Phase 12 baseline (`docs/coverage/12-controller-coverage-baseline.md`).
+Phase 12 baseline (`docs/coverage/increase-coverage-campaign-07-2026/12-controller-coverage-baseline.md`).
 
 ## Per-class final coverage
 
@@ -78,7 +79,7 @@ In this single fresh `sh gradlew test jacocoTestReport` run, **all 10 `controlle
 ≥80% line-coverage target** — the vacuous interface (`IViewToolController`) excepted as having no
 coverable lines. The lowest LINE-counted class is `MainViewController` at 81.09% (its residual
 uncovered lines are the genuinely headless-unreachable set documented in
-`docs/coverage/16-mainviewcontroller-unreachable.md`); the package aggregate is 1944/2247 = 86.52%.
+`docs/coverage/increase-coverage-campaign-07-2026/16-mainviewcontroller-unreachable.md`); the package aggregate is 1944/2247 = 86.52%.
 
 ## CI Hardening / Bounded Wall-Clock (QUAL-03)
 
