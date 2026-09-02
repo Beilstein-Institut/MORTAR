@@ -23,24 +23,23 @@
  * SOFTWARE.
  */
 
-package de.unijena.cheminf.mortar.model.util;
+package de.unijena.cheminf.mortar.gui.util;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
- * Test class for PaginationUtil routines.
+ * Test class for the deterministic GuiUtil routines.
  *
  * @author Felix Baensch
- * @author Jonas Schaub
  * @version 1.0.0.0
  */
-public class PaginationUtilTest {
+public class GuiUtilTest {
     //<editor-fold desc="constructor" defaultstate="collapsed">
     /**
      * Constructor that needs nothing to set up.
      */
-    public PaginationUtilTest() {
+    public GuiUtilTest() {
     }
     //</editor-fold>
     //
@@ -48,18 +47,18 @@ public class PaginationUtilTest {
     /**
      * Tests that calculatePageCount returns the correct page count across all branches of its logic:
      * the empty-list zero override, a single item and other less-than-one-page sizes, an exact
-     * multiple of the rows per page, a size with a remainder (page bump), and a large list. Also
+     * multiple of the items per page, a size with a remainder (page bump), and a large list. Also
      * asserts the page count is always at least 1 for a valid non-empty input.
      */
     @Test
     public void calculatePageCountCoversAllBranchesTest() {
-        Assertions.assertEquals(1, PaginationUtil.calculatePageCount(0, 10));
-        Assertions.assertEquals(1, PaginationUtil.calculatePageCount(1, 10));
-        Assertions.assertEquals(1, PaginationUtil.calculatePageCount(5, 10));
-        Assertions.assertEquals(2, PaginationUtil.calculatePageCount(20, 10));
-        Assertions.assertEquals(3, PaginationUtil.calculatePageCount(21, 10));
-        Assertions.assertEquals(1000, PaginationUtil.calculatePageCount(10000, 10));
-        Assertions.assertTrue(PaginationUtil.calculatePageCount(7, 10) >= 1);
+        Assertions.assertEquals(1, GuiUtil.calculatePageCount(0, 10));
+        Assertions.assertEquals(1, GuiUtil.calculatePageCount(1, 10));
+        Assertions.assertEquals(1, GuiUtil.calculatePageCount(5, 10));
+        Assertions.assertEquals(2, GuiUtil.calculatePageCount(20, 10));
+        Assertions.assertEquals(3, GuiUtil.calculatePageCount(21, 10));
+        Assertions.assertEquals(1000, GuiUtil.calculatePageCount(10000, 10));
+        Assertions.assertTrue(GuiUtil.calculatePageCount(7, 10) >= 1);
     }
     //</editor-fold>
 }

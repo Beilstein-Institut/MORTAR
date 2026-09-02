@@ -49,7 +49,6 @@ import de.unijena.cheminf.mortar.model.util.ChemUtil;
 import de.unijena.cheminf.mortar.model.util.CollectionUtil;
 import de.unijena.cheminf.mortar.model.util.FileUtil;
 import de.unijena.cheminf.mortar.model.util.LogUtil;
-import de.unijena.cheminf.mortar.model.util.PaginationUtil;
 
 import javafx.application.Platform;
 import javafx.beans.Observable;
@@ -931,10 +930,7 @@ public class MainViewController {
                 int tmpListSize = ((IDataTableView) tmpTableView).getItemsList().size();
                 int tmpPageIndex = ((GridTabForTableView) tmpTab).getPagination().getCurrentPageIndex();
                 int tmpRowsPerPage = this.settingsContainer.getRowsPerPageSetting();
-                int tmpPageCount = tmpListSize / tmpRowsPerPage;
-                if (tmpListSize % tmpRowsPerPage > 0) {
-                    tmpPageCount++;
-                }
+                int tmpPageCount = GuiUtil.calculatePageCount(tmpListSize, tmpRowsPerPage);
                 if (tmpPageIndex > tmpPageCount) {
                     tmpPageIndex = tmpPageCount;
                 }
@@ -1163,7 +1159,7 @@ public class MainViewController {
     //Note: package-private (not private) so same-package headless tests can reach it via the tab builders.
     Pagination createPaginationWithSuitablePageCount(int aListSize) {
         int tmpRowsPerPage = this.settingsContainer.getRowsPerPageSetting();
-        int tmpPageCount = PaginationUtil.calculatePageCount(aListSize, tmpRowsPerPage);
+        int tmpPageCount = GuiUtil.calculatePageCount(aListSize, tmpRowsPerPage);
         Pagination tmpPagination = new Pagination(tmpPageCount, 0);
         tmpPagination.setSkin(new CustomPaginationSkin(tmpPagination));
         VBox.setVgrow(tmpPagination, Priority.ALWAYS);

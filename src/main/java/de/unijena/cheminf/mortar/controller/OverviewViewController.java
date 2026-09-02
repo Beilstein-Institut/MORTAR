@@ -475,13 +475,8 @@ public class OverviewViewController implements IViewToolController {
         this.overviewViewStage.setMinHeight(GuiDefinitions.GUI_MAIN_VIEW_HEIGHT_VALUE);
         this.overviewViewStage.setMinWidth(GuiDefinitions.GUI_MAIN_VIEW_WIDTH_VALUE);
         //
-        int tmpPageCount = this.moleculeDataModelList.size() / (this.rowsPerPageSetting.get() * this.columnsPerPageSetting.get());
-        if (this.moleculeDataModelList.size() % (this.rowsPerPageSetting.get() * this.columnsPerPageSetting.get()) > 0) {
-            tmpPageCount++;
-        }
-        if (this.moleculeDataModelList.isEmpty()) {
-            tmpPageCount = 1;
-        }
+        int tmpPageCount = GuiUtil.calculatePageCount(this.moleculeDataModelList.size(),
+                this.rowsPerPageSetting.get() * this.columnsPerPageSetting.get());
         Pagination tmpPagination = new Pagination(tmpPageCount, 0);
         tmpPagination.setSkin(new CustomPaginationSkin(tmpPagination));
         tmpPagination.setPageFactory(aPageIndex -> this.createOverviewViewPage(aPageIndex,
@@ -1221,10 +1216,8 @@ public class OverviewViewController implements IViewToolController {
         this.overviewView.configureStructureGridPane(this.columnsPerPageSetting.get(), this.rowsPerPageSetting.get());
         //
         //aftermath (adaptions to page count and current page index of the pagination node)
-        int tmpNewPageCount = this.moleculeDataModelList.size() / (this.rowsPerPageSetting.get() * this.columnsPerPageSetting.get());
-        if (this.moleculeDataModelList.size() % (this.rowsPerPageSetting.get() * this.columnsPerPageSetting.get()) > 0) {
-            tmpNewPageCount++;
-        }
+        int tmpNewPageCount = GuiUtil.calculatePageCount(this.moleculeDataModelList.size(),
+                this.rowsPerPageSetting.get() * this.columnsPerPageSetting.get());
         if (this.overviewView.getPagination().getPageCount() != tmpNewPageCount) {
             int tmpCurrentPageIndex = this.overviewView.getPagination().getCurrentPageIndex();
             this.overviewView.getPagination().setPageCount(tmpNewPageCount);
