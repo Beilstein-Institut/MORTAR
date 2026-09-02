@@ -664,7 +664,11 @@ public class MainViewController {
             return false;
         }
         switch (anExportType) {
-            case Exporter.ExportTypes.FRAGMENT_CSV_FILE, Exporter.ExportTypes.FRAGMENT_PDB_FILE, Exporter.ExportTypes.FRAGMENT_PDF_FILE, Exporter.ExportTypes.FRAGMENT_SINGLE_SD_FILE, FRAGMENT_MULTIPLE_SD_FILES:
+            case Exporter.ExportTypes.FRAGMENT_CSV_FILE,
+                    Exporter.ExportTypes.FRAGMENT_PDB_FILE,
+                    Exporter.ExportTypes.FRAGMENT_PDF_FILE,
+                    Exporter.ExportTypes.FRAGMENT_SINGLE_SD_FILE,
+                    Exporter.ExportTypes.FRAGMENT_MULTIPLE_SD_FILES:
                 if (this.getItemsListOfSelectedFragmentationByTabId(TabNames.FRAGMENTS) == null ||
                         this.getItemsListOfSelectedFragmentationByTabId(TabNames.FRAGMENTS).isEmpty() ||
                         ((GridTabForTableView) mainTabPane.getSelectionModel().getSelectedItem()).getFragmentationNameOutOfTitle() == null) {
@@ -677,7 +681,8 @@ public class MainViewController {
                     return false;
                 }
                 break;
-            case Exporter.ExportTypes.ITEM_CSV_FILE, Exporter.ExportTypes.ITEM_PDF_FILE:
+            case Exporter.ExportTypes.ITEM_CSV_FILE,
+                    Exporter.ExportTypes.ITEM_PDF_FILE:
                 if (this.getItemsListOfSelectedFragmentationByTabId(TabNames.ITEMIZATION) == null ||
                         this.getItemsListOfSelectedFragmentationByTabId(TabNames.ITEMIZATION).isEmpty() ||
                         this.moleculeDataModelList == null || this.moleculeDataModelList.isEmpty() ||
