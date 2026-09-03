@@ -135,6 +135,11 @@ tasks.test {
     systemProperty("testfx.headless", "true")
     systemProperty("glass.platform", "Monocle")
     systemProperty("monocle.platform", "Headless")
+    // Monocle's headless screen defaults to 1280x800. A stage sized or resized beyond the virtual screen makes the
+    // software pipeline's UploadingPainter copy a stage-sized texture into a screen-sized pixel buffer, which throws
+    // BufferOverflowException on the FX render thread: printed to stderr, not propagated, so tests still pass while
+    // the output fills with stack traces. Give the virtual screen enough headroom that no view can outgrow it.
+    systemProperty("headless.geometry", "1920x1200-32")
     // Defaults; overridable per run by the forwarding block below (e.g. -Dprism.order=es2 to pass a real GPU
     // pipeline on local Mac/Windows dev): do NOT hardcode "sw" unconditionally.
     systemProperty("prism.order", "sw")
@@ -145,7 +150,8 @@ tasks.test {
     // Anything passed on the command line overrides the defaults set above.
     for (tmpName in System.getProperties().stringPropertyNames().sorted()) {
         if (tmpName.startsWith("prism.") || tmpName.startsWith("glass.")
-                || tmpName.startsWith("monocle.") || tmpName.startsWith("testfx.")) {
+                || tmpName.startsWith("monocle.") || tmpName.startsWith("testfx.")
+                || tmpName.startsWith("headless.")) {
             systemProperty(tmpName, System.getProperty(tmpName))
         }
     }
