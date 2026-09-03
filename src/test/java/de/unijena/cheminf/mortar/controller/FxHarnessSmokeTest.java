@@ -55,7 +55,6 @@ public class FxHarnessSmokeTest extends AbstractFxTestCase {
      * {@link AbstractFxTestCase}.
      */
     public FxHarnessSmokeTest() {
-        super();
     }
     //</editor-fold>
     //
