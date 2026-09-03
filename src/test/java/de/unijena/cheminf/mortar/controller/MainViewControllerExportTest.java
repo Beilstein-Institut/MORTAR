@@ -284,36 +284,44 @@ public class MainViewControllerExportTest extends AbstractFxTestCase {
     //
     //<editor-fold desc="E3 launchExportTask test methods" defaultstate="collapsed">
     /**
-     * E3: drives {@code launchExportTask} end to end and covers all callback branches. First a real export task is
-     * launched with a resolved temp file (its background thread joined and the nested {@code Platform.runLater} success
-     * callback drained: the clean, empty-failed-list branch, plus the task/thread wiring). Then the captured
-     * success/cancel/failure handlers are re-invoked with swapped-in stand-in tasks to deterministically cover the
-     * remaining branches: a null result raises the WARNING message alert; a non-empty failed-fragments result raises the
-     * expandable alert; the cancel handler updates the status bar; and a failed task (carrying an exception) raises the
-     * failure WARNING message alert. The native chooser is never invoked.
+     * Real {@code launchExportTask} clean branch: a populated fragments tab plus an already-resolved target file, so
+     * the native chooser is never invoked. Asserts the export thread actually wrote the CSV file, which is the only
+     * branch that produces a file rather than an alert.
      *
      * @param aTempDir per-test temporary directory for the CSV export target
      * @throws Exception if anything goes wrong on the FX thread
      */
     @Test
-    public void launchExportTaskCallbacksAllBranchesTest(@TempDir Path aTempDir) throws Exception {
+    public void launchExportTaskCleanBranchWritesFileTest(@TempDir Path aTempDir) throws Exception {
         File tmpCsvFile = aTempDir.resolve("fragments.csv").toFile();
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
             MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
-            //real launch (clean branch): populated fragments tab + resolved temp file, then join + drain
-            AbstractFxTestCase.runAndWait(() -> {
-                try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts()) {
-                    MainViewControllerTestSupport.setUpSelectedFragmentsTab(tmpController,
-                            MainViewControllerExportTest.FRAGMENTATION_NAME);
-                    Exporter tmpExporter = new Exporter(MainViewControllerTestSupport.getSettingsContainer(tmpController));
-                    tmpController.launchExportTask(tmpExporter, Exporter.ExportTypes.FRAGMENT_CSV_FILE, tmpCsvFile, false);
-                }
-            });
-            MainViewControllerTestSupport.joinThreadField(tmpController, "exporterThread");
-            AbstractFxTestCase.waitForFxEvents();
-            AbstractFxTestCase.waitForFxEvents();
-            AbstractFxTestCase.runAndWait(() -> { });
+            MainViewControllerExportTest.launchCsvExport(tmpController, tmpCsvFile);
+            Assertions.assertTrue(tmpCsvFile.isFile(), "the clean export branch did not write the CSV file");
+            Assertions.assertTrue(tmpCsvFile.length() > 0L, "the exported CSV file is empty");
+        } finally {
+            MainViewControllerTestSupport.hideStage(tmpStageReference);
+        }
+    }
+    //
+    /**
+     * The three {@code launchExportTask} callback branches that cannot be reached by a successful export. A real launch
+     * registers the success/cancel/failure handlers, which are then re-invoked with swapped-in stand-in tasks so each
+     * branch is driven deterministically: a null result raises the WARNING message alert, a non-empty
+     * failed-fragments result raises the expandable alert, the cancel handler updates the status bar, and a failed task
+     * carrying an exception raises the failure WARNING message alert. The native chooser is never invoked.
+     *
+     * @param aTempDir per-test temporary directory for the CSV export target
+     * @throws Exception if anything goes wrong on the FX thread
+     */
+    @Test
+    public void launchExportTaskCallbackBranchesTest(@TempDir Path aTempDir) throws Exception {
+        File tmpCsvFile = aTempDir.resolve("fragments.csv").toFile();
+        AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
+        try {
+            MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);
+            MainViewControllerExportTest.launchCsvExport(tmpController, tmpCsvFile);
             //prepare stand-in tasks on the test thread so their value/exception properties are settled
             Task<List<String>> tmpNullResultTask = new Task<>() {
                 @Override
@@ -404,6 +412,28 @@ public class MainViewControllerExportTest extends AbstractFxTestCase {
     //</editor-fold>
     //
     //<editor-fold desc="Private helper methods" defaultstate="collapsed">
+    /**
+     * Performs a real {@code launchExportTask} CSV export of the controller's fragments tab into the given file and
+     * waits for the export thread and the FX callbacks it posts to finish. A single {@code waitForFxEvents} is enough:
+     * TestFX runs five semaphore round-trips through the FX queue per call.
+     *
+     * @param aController the controller under test, with an offscreen primary stage
+     * @param aCsvFile the export target, already resolved so the native chooser is never invoked
+     * @throws Exception if anything goes wrong on the FX thread or the export thread join is interrupted
+     */
+    private static void launchCsvExport(MainViewController aController, File aCsvFile) throws Exception {
+        AbstractFxTestCase.runAndWait(() -> {
+            try (MockedStatic<GuiUtil> tmpGuiUtilMock = FxTestUtil.mockGuiAlerts()) {
+                MainViewControllerTestSupport.setUpSelectedFragmentsTab(aController,
+                        MainViewControllerExportTest.FRAGMENTATION_NAME);
+                Exporter tmpExporter = new Exporter(MainViewControllerTestSupport.getSettingsContainer(aController));
+                aController.launchExportTask(tmpExporter, Exporter.ExportTypes.FRAGMENT_CSV_FILE, aCsvFile, false);
+            }
+        });
+        MainViewControllerTestSupport.joinThreadField(aController, "exporterThread");
+        AbstractFxTestCase.waitForFxEvents();
+    }
+    //
     /**
      * Runs a stand-in {@link Task} that returns the given value to completion on a background thread and returns it, so
      * the caller can read a settled {@code getValue()} (after draining FX events). Used to drive the export success
