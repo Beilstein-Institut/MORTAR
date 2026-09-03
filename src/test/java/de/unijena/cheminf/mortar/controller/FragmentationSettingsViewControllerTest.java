@@ -30,6 +30,7 @@ import de.unijena.cheminf.mortar.gui.views.SettingsView;
 import de.unijena.cheminf.mortar.model.fragmentation.FragmentationService;
 import de.unijena.cheminf.mortar.model.fragmentation.algorithm.IMoleculeFragmenter;
 
+import javafx.beans.property.Property;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
 
@@ -37,6 +38,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -117,18 +120,29 @@ public class FragmentationSettingsViewControllerTest extends AbstractFxTestCase 
     //
     /**
      * Fires the cancel button and asserts its handler restored the recent properties of every fragmenter and closed the
-     * stage, exercising {@code setRecentProperties} across all fragmenters.
+     * stage, exercising {@code setRecentProperties} across all fragmenters. One boolean setting per fragmenter is
+     * flipped away from the value the controller snapshotted at construction time, so the restore is actually
+     * observable rather than merely assumed.
      *
      * @throws Exception if anything goes wrong on the FX thread
      */
     @Test
     public void cancelButtonRestoresAndClosesStageTest() throws Exception {
-        FragmentationSettingsViewController tmpController = this.constructController(new FragmentationService());
+        FragmentationService tmpService = new FragmentationService();
+        FragmentationSettingsViewController tmpController = this.constructController(tmpService);
         try {
             SettingsView tmpView = this.getSettingsView(tmpController);
             Stage tmpStage = this.getStage(tmpController);
+            List<FlippedSetting> tmpFlipped = new ArrayList<>();
+            for (IMoleculeFragmenter tmpFragmenter : tmpService.getFragmenters()) {
+                tmpFlipped.add(FragmentationSettingsViewControllerTest.flipFirstBooleanSetting(tmpFragmenter));
+            }
             AbstractFxTestCase.runAndWait(() -> tmpView.getCancelButton().fire());
             AbstractFxTestCase.waitForFxEvents();
+            for (FlippedSetting tmpSetting : tmpFlipped) {
+                Assertions.assertEquals(tmpSetting.originalValue(), tmpSetting.property().getValue(),
+                        "Cancel did not restore the recent value of setting " + tmpSetting.property().getName());
+            }
             Assertions.assertFalse(tmpStage.isShowing());
         } finally {
             this.closeQuietly(tmpController);
@@ -138,17 +152,39 @@ public class FragmentationSettingsViewControllerTest extends AbstractFxTestCase 
     /**
      * Fires the default button and asserts its handler restored the selected tab's fragmenter defaults without throwing
      * or closing the stage (the default handler does not close), exercising the {@code restoreDefaultSettings} branch.
+     * A boolean setting of the selected fragmenter is flipped first so the restore is observable, and a second
+     * fragmenter is flipped too and asserted to be left alone, which pins the handler's selected-tab-only scope.
      *
      * @throws Exception if anything goes wrong on the FX thread
      */
     @Test
     public void defaultButtonRestoresSelectedFragmenterTest() throws Exception {
-        FragmentationSettingsViewController tmpController = this.constructController(new FragmentationService());
+        FragmentationService tmpService = new FragmentationService();
+        FragmentationSettingsViewController tmpController = this.constructController(tmpService);
         try {
             SettingsView tmpView = this.getSettingsView(tmpController);
             Stage tmpStage = this.getStage(tmpController);
+            IMoleculeFragmenter tmpSelected = this.getSelectedFragmenter(tmpService);
+            //the service is freshly constructed under an isolated user home, so no persisted settings exist and the
+            //value captured here is the fragmenter's default - which is what restoreDefaultSettings must restore
+            FlippedSetting tmpSelectedSetting = FragmentationSettingsViewControllerTest.flipFirstBooleanSetting(tmpSelected);
+            FlippedSetting tmpUntouchedSetting = null;
+            for (IMoleculeFragmenter tmpFragmenter : tmpService.getFragmenters()) {
+                if (tmpFragmenter != tmpSelected) {
+                    tmpUntouchedSetting = FragmentationSettingsViewControllerTest.flipFirstBooleanSetting(tmpFragmenter);
+                    break;
+                }
+            }
             AbstractFxTestCase.runAndWait(() -> tmpView.getDefaultButton().fire());
             AbstractFxTestCase.waitForFxEvents();
+            Assertions.assertEquals(tmpSelectedSetting.originalValue(), tmpSelectedSetting.property().getValue(),
+                    "The default button did not restore the selected fragmenter's default for setting "
+                            + tmpSelectedSetting.property().getName());
+            if (tmpUntouchedSetting != null) {
+                Assertions.assertEquals(!tmpUntouchedSetting.originalValue(), tmpUntouchedSetting.property().getValue(),
+                        "The default button must only touch the selected tab's fragmenter, but it also reset "
+                                + tmpUntouchedSetting.property().getName());
+            }
             Assertions.assertTrue(tmpStage.isShowing());
         } finally {
             this.closeQuietly(tmpController);
@@ -163,12 +199,18 @@ public class FragmentationSettingsViewControllerTest extends AbstractFxTestCase 
      */
     @Test
     public void closeRequestHandlerRestoresAndClosesStageTest() throws Exception {
-        FragmentationSettingsViewController tmpController = this.constructController(new FragmentationService());
+        FragmentationService tmpService = new FragmentationService();
+        FragmentationSettingsViewController tmpController = this.constructController(tmpService);
         try {
             Stage tmpStage = this.getStage(tmpController);
+            FlippedSetting tmpSetting = FragmentationSettingsViewControllerTest.flipFirstBooleanSetting(
+                    this.getSelectedFragmenter(tmpService));
             AbstractFxTestCase.runAndWait(() -> tmpStage.getOnCloseRequest().handle(
                     new WindowEvent(tmpStage, WindowEvent.WINDOW_CLOSE_REQUEST)));
             AbstractFxTestCase.waitForFxEvents();
+            Assertions.assertEquals(tmpSetting.originalValue(), tmpSetting.property().getValue(),
+                    "The close-request handler did not restore the recent value of setting "
+                            + tmpSetting.property().getName());
             Assertions.assertFalse(tmpStage.isShowing());
         } finally {
             this.closeQuietly(tmpController);
@@ -224,6 +266,56 @@ public class FragmentationSettingsViewControllerTest extends AbstractFxTestCase 
         Field tmpField = FragmentationSettingsViewController.class.getDeclaredField("fragmentationSettingsViewStage");
         tmpField.setAccessible(true);
         return (Stage) tmpField.get(aController);
+    }
+    //
+    /**
+     * Returns the fragmenter of the given service whose display name matches the service's currently selected one -
+     * the fragmenter the default button and the close-request handler operate on.
+     *
+     * @param aFragmentationService service holding the fragmenter array and the selected display name
+     * @return the selected fragmenter
+     */
+    private IMoleculeFragmenter getSelectedFragmenter(FragmentationService aFragmentationService) {
+        String tmpSelectedDisplayName = aFragmentationService.getSelectedFragmenterDisplayName();
+        for (IMoleculeFragmenter tmpFragmenter : aFragmentationService.getFragmenters()) {
+            if (tmpFragmenter.getFragmentationAlgorithmDisplayName().equals(tmpSelectedDisplayName)) {
+                return tmpFragmenter;
+            }
+        }
+        throw new IllegalStateException("No fragmenter matches the selected display name " + tmpSelectedDisplayName);
+    }
+    //
+    /**
+     * Flips the first boolean setting of the given fragmenter away from its current value and returns the property
+     * together with the value it held before. This is what makes the restore assertions meaningful: the controller
+     * snapshots every fragmenter's settings at construction time, so a flipped setting must be back to the
+     * snapshotted value once a restoring handler has run. Asserting only that the stage closed would pass even if
+     * the restore never happened.
+     *
+     * @param aFragmenter fragmenter whose first boolean setting is flipped
+     * @return the flipped property and its value before the flip
+     * @throws IllegalStateException if the fragmenter exposes no boolean setting
+     */
+    @SuppressWarnings("unchecked")
+    private static FlippedSetting flipFirstBooleanSetting(IMoleculeFragmenter aFragmenter) {
+        for (Property<?> tmpProperty : aFragmenter.settingsProperties()) {
+            if (tmpProperty.getValue() instanceof Boolean tmpOriginalValue) {
+                Property<Boolean> tmpBooleanProperty = (Property<Boolean>) tmpProperty;
+                tmpBooleanProperty.setValue(!tmpOriginalValue);
+                return new FlippedSetting(tmpBooleanProperty, tmpOriginalValue);
+            }
+        }
+        throw new IllegalStateException("Fragmenter " + aFragmenter.getFragmentationAlgorithmDisplayName()
+                + " exposes no boolean setting to flip.");
+    }
+    //
+    /**
+     * A boolean fragmenter setting that a test flipped, paired with the value it held before the flip.
+     *
+     * @param property the flipped setting
+     * @param originalValue the value the setting held before the flip
+     */
+    private record FlippedSetting(Property<Boolean> property, boolean originalValue) {
     }
     //
     /**
