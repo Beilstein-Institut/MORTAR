@@ -331,7 +331,8 @@ public class MainViewControllerExportTest extends AbstractFxTestCase {
             };
             Task<List<String>> tmpFailedFragmentsTask = MainViewControllerExportTest.runTaskToCompletion(
                     List.of("FailedFragmentA", "FailedFragmentB"));
-            Task<List<String>> tmpExceptionTask = MainViewControllerExportTest.runTaskToFailure();
+            Task<List<String>> tmpExceptionTask = MainViewControllerExportTest.runTaskToFailure(
+                    "Simulated export failure for the failure-callback branch");
             AbstractFxTestCase.waitForFxEvents();
             //re-invoke the captured callbacks with swapped tasks to cover the remaining branches deterministically
             AbstractFxTestCase.runAndWait(() -> {
@@ -441,9 +442,9 @@ public class MainViewControllerExportTest extends AbstractFxTestCase {
      *
      * @param aValue the value the task should return
      * @return the completed task
-     * @throws Exception if the background join is interrupted
+     * @throws InterruptedException if the background join is interrupted
      */
-    private static Task<List<String>> runTaskToCompletion(List<String> aValue) throws Exception {
+    private static Task<List<String>> runTaskToCompletion(List<String> aValue) throws InterruptedException {
         Task<List<String>> tmpTask = new Task<>() {
             @Override
             protected List<String> call() {
@@ -461,14 +462,15 @@ public class MainViewControllerExportTest extends AbstractFxTestCase {
      * Runs a stand-in {@link Task} that throws to completion on a background thread and returns it, so the caller can
      * read a settled {@code getException()} (after draining FX events). Used to drive the export failure callback.
      *
+     * @param aFailureMessage message carried by the {@link IOException} the task throws
      * @return the failed task, carrying an exception
-     * @throws Exception if the background join is interrupted
+     * @throws InterruptedException if the background join is interrupted
      */
-    private static Task<List<String>> runTaskToFailure() throws Exception {
+    private static Task<List<String>> runTaskToFailure(String aFailureMessage) throws InterruptedException {
         Task<List<String>> tmpTask = new Task<>() {
             @Override
             protected List<String> call() throws IOException {
-                throw new IOException("Simulated export failure for the failure-callback branch");
+                throw new IOException(aFailureMessage);
             }
         };
         Thread tmpThread = new Thread(tmpTask);
