@@ -33,6 +33,7 @@ import javafx.event.Event;
 import javafx.scene.Node;
 import javafx.scene.chart.BarChart;
 import javafx.scene.chart.XYChart;
+import javafx.scene.image.ImageView;
 import javafx.scene.input.ContextMenuEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
@@ -117,7 +118,8 @@ public class HistogramViewControllerHarnessTest extends AbstractFxTestCase {
                     "the series must hold one bar per displayed fragment");
             //exercise a rendered bar's hover and context-menu listeners, then close via the close button
             AbstractFxTestCase.runAndWait(() -> {
-                HistogramViewControllerHarnessTest.fireFirstBarInteractions(tmpBarChart);
+                HistogramViewControllerHarnessTest.fireFirstBarInteractionsAndAssertEffects(
+                        tmpBarChart, tmpView, tmpController);
                 tmpView.getCloseButton().fire();
             });
             AbstractFxTestCase.waitForFxEvents();
@@ -309,37 +311,60 @@ public class HistogramViewControllerHarnessTest extends AbstractFxTestCase {
     }
     //
     /**
-     * Fires a mouse-entered, mouse-exited and context-menu-requested event at the {@link StackPane} node of the first
-     * bar of the given chart's first series, so the per-bar hover-structure-display and context-menu listeners added in
-     * {@code createStackPaneWithContextMenuAndStructureDisplayForBar} are exercised. Any failure of a popup/clipboard
-     * operation on a headless host is swallowed so it cannot abort the drive; the handler bodies up to that point are
-     * still covered. Does nothing if the first bar has no node.
+     * Drives the per-bar listeners added in {@code createStackPaneWithContextMenuAndStructureDisplayForBar} on the
+     * first bar of the given chart's first series and asserts their observable effects: hovering in recolours the bar
+     * to the selected colour, parses the bar's SMILES into the controller's display cache and puts a structure image
+     * into the view's image view; hovering out recolours the bar back and clears the image; and a right click opens the
+     * per-bar context menu without throwing.
+     * <p>
+     * A missing bar or bar node fails the test rather than returning quietly - a silent return would let this pass
+     * without having exercised anything.
      *
      * @param aBarChart the bar chart whose first bar is interacted with
+     * @param aView the histogram view holding the structure-display image view
+     * @param aController the controller whose display cache is filled by the hover handler
      */
-    private static void fireFirstBarInteractions(BarChart<?, ?> aBarChart) {
-        if (aBarChart.getData().isEmpty() || aBarChart.getData().get(0).getData().isEmpty()) {
-            return;
-        }
+    private static void fireFirstBarInteractionsAndAssertEffects(BarChart<?, ?> aBarChart, HistogramView aView,
+            HistogramViewController aController) {
+        Assertions.assertFalse(aBarChart.getData().isEmpty(), "the chart holds no series to interact with");
+        Assertions.assertFalse(aBarChart.getData().get(0).getData().isEmpty(),
+                "the chart's first series holds no bar to interact with");
         XYChart.Data<?, ?> tmpFirstData = aBarChart.getData().get(0).getData().get(0);
         Node tmpBarNode = tmpFirstData.getNode();
-        if (!(tmpBarNode instanceof StackPane)) {
-            return;
-        }
-        try {
-            MouseEvent tmpEnter = new MouseEvent(MouseEvent.MOUSE_ENTERED, 1.0, 1.0, 1.0, 1.0, MouseButton.PRIMARY, 0,
-                    false, false, false, false, true, false, false, true, false, false, null);
-            Event.fireEvent(tmpBarNode, tmpEnter);
-            MouseEvent tmpExit = new MouseEvent(MouseEvent.MOUSE_EXITED, 1.0, 1.0, 1.0, 1.0, MouseButton.PRIMARY, 0,
-                    false, false, false, false, true, false, false, true, false, false, null);
-            Event.fireEvent(tmpBarNode, tmpExit);
-            ContextMenuEvent tmpContextMenuEvent = new ContextMenuEvent(ContextMenuEvent.CONTEXT_MENU_REQUESTED,
-                    1.0, 1.0, 1.0, 1.0, false, null);
-            Event.fireEvent(tmpBarNode, tmpContextMenuEvent);
-        } catch (Throwable anIgnoredHeadlessFailure) {
-            //a popup/clipboard operation may fail on a headless host; the handler bodies up to that point are still
-            //exercised and the failure must not abort the drive
-        }
+        Assertions.assertInstanceOf(StackPane.class, tmpBarNode,
+                "the first bar has no StackPane node, so its listeners were never installed");
+        ImageView tmpStructureImageView = aView.getStructureDisplayImageView();
+        //hover in: bar recoloured, SMILES parsed into the display cache, structure image displayed
+        Event.fireEvent(tmpBarNode, HistogramViewControllerHarnessTest.newBarMouseEvent(MouseEvent.MOUSE_ENTERED));
+        Assertions.assertTrue(
+                tmpBarNode.getStyle().contains(HistogramViewController.HISTOGRAM_BARS_SELECTED_COLOR_HEX_VALUE),
+                "hovering in did not recolour the bar to the selected colour, style was: " + tmpBarNode.getStyle());
+        Assertions.assertNotNull(
+                HistogramViewControllerHarnessTest.getField(aController, "atomContainerForDisplayCache"),
+                "hovering in did not parse the bar's SMILES into the display cache");
+        Assertions.assertNotNull(tmpStructureImageView.getImage(),
+                "hovering in did not put a structure image into the view's image view");
+        //hover out: bar recoloured back, image cleared
+        Event.fireEvent(tmpBarNode, HistogramViewControllerHarnessTest.newBarMouseEvent(MouseEvent.MOUSE_EXITED));
+        Assertions.assertTrue(tmpBarNode.getStyle().contains(HistogramViewController.HISTOGRAM_BARS_COLOR_HEX_VALUE),
+                "hovering out did not recolour the bar back, style was: " + tmpBarNode.getStyle());
+        Assertions.assertNull(tmpStructureImageView.getImage(), "hovering out did not clear the structure image");
+        //right click: the per-bar context menu must open, which is a real popup window even headlessly
+        Assertions.assertDoesNotThrow(() -> Event.fireEvent(tmpBarNode,
+                        new ContextMenuEvent(ContextMenuEvent.CONTEXT_MENU_REQUESTED, 1.0, 1.0, 1.0, 1.0, false, null)),
+                "the per-bar context menu could not be opened");
+    }
+    //
+    /**
+     * Builds a mouse event of the given type positioned over a bar, with the parameter list the per-bar hover handlers
+     * expect.
+     *
+     * @param anEventType the mouse event type to build
+     * @return the mouse event
+     */
+    private static MouseEvent newBarMouseEvent(javafx.event.EventType<MouseEvent> anEventType) {
+        return new MouseEvent(anEventType, 1.0, 1.0, 1.0, 1.0, MouseButton.PRIMARY, 0,
+                false, false, false, false, true, false, false, true, false, false, null);
     }
     //
     /**
