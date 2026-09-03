@@ -56,10 +56,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * close-request handler (restores the selected fragmenter's recent properties, then closes). Every test closes the
  * stage in a {@code finally} so no window leaks into a sibling test.
  * <p>
- * Assertions are behavioral only — one tab per registered fragmenter, the stage stops showing after a closing handler,
- * no exception surfaces through the harness's FX-uncaught capture — and never pin exact CDK-derived strings, because the
- * CDK 2.12 snapshot is a moving target. Real objects only apart from the sanctioned {@code controller/} static-mock
- * allowance (not needed here, as none of these handlers reaches a {@code GuiUtil} alert).
+ * Assertions are behavioral only — one tab per registered fragmenter, a flipped setting restored by the restoring
+ * handlers, and the stage's showing state after each handler — and never pin exact fragmenter-derived display strings.
+ * Real objects only apart from the sanctioned {@code controller/} static-mock allowance (not needed here, as none of
+ * these handlers reaches a {@code GuiUtil} alert).
  *
  * @author Felix Baensch
  * @version 1.0.0.0
