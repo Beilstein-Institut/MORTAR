@@ -25,6 +25,7 @@
 
 package de.unijena.cheminf.mortar.integration;
 
+import de.unijena.cheminf.mortar.model.fragmentation.algorithm.CDKCircularFragmenter;
 import de.unijena.cheminf.mortar.model.fragmentation.algorithm.ErtlFunctionalGroupsFinderFragmenter;
 import de.unijena.cheminf.mortar.model.fragmentation.algorithm.IMoleculeFragmenter;
 import de.unijena.cheminf.mortar.model.fragmentation.algorithm.MolWURCSFragmenter;
@@ -41,9 +42,10 @@ import java.util.Locale;
 
 /**
  * Integration test for requirement INT-01: an end-to-end parse -&gt; fragment -&gt; unique-SMILES round-trip for each of the
- * four fragmentation algorithms (ErtlFunctionalGroupsFinder, SugarRemovalUtility, ScaffoldGenerator, MolWURCS) driven
- * directly through the {@link IMoleculeFragmenter#fragmentMolecule(IAtomContainer)} contract against at least two
- * representative molecules each.
+ * five fragmentation algorithms (ErtlFunctionalGroupsFinder, SugarRemovalUtility, ScaffoldGenerator, MolWURCS,
+ * CDKCircularFragmenter) driven directly through the
+ * {@link IMoleculeFragmenter#fragmentMolecule(IAtomContainer)} contract against at least two representative molecules
+ * each.
  * <p>
  * The assertions are strictly invariant-based (no golden SMILES, no exact fragment counts): every produced fragment must
  * carry the fragment-category property, must regenerate a non-null canonical unique SMILES via
@@ -94,17 +96,15 @@ public class FragmentationRoundTripTest {
 
     /**
      * Drives the {@link SugarRemovalUtilityFragmenter} over a disaccharide and an aromatic glycoside and asserts the
-     * per-fragment round-trip invariant chain for each. The fragmenter is configured to return all fragments and to
-     * remove non-terminal sugars too, so that the sugar-bearing molecules actually split into a non-empty fragment set.
+     * per-fragment round-trip invariant chain for each. The fragmenter runs on its default settings: those already
+     * return all fragments, and neither test molecule carries a non-terminal sugar moiety, so nothing has to be
+     * reconfigured for the sugar-bearing molecules to split into a non-empty fragment set.
      *
      * @throws Exception if anything goes wrong
      */
     @Test
     public void sugarRemovalUtilityRoundTripTest() throws Exception {
         SugarRemovalUtilityFragmenter tmpFragmenter = new SugarRemovalUtilityFragmenter();
-        tmpFragmenter.setReturnedFragmentsSetting(
-                SugarRemovalUtilityFragmenter.SRUFragmenterReturnedFragmentsOption.ALL_FRAGMENTS);
-        tmpFragmenter.setRemoveOnlyTerminalSugarsSetting(false);
         String[] tmpSmilesArray = {
                 "OCC1OC(O)C(O)C(O)C1OC2OC(CO)C(O)C(O)C2O",
                 "O=C(O)CCCCCCc1ccc(OC2OC(CO)C(O)C(O)C2O)cc1"};
@@ -186,6 +186,31 @@ public class FragmentationRoundTripTest {
             this.assertFragmentsRoundTrip(tmpFragments, false);
         }
     }
+    /**
+     * Drives the {@link CDKCircularFragmenter} over an aliphatic fatty acid and a monosaccharide and asserts the
+     * per-fragment round-trip invariant chain for each. Both molecules are free of aromatic ring systems on purpose:
+     * a circular fragment cut out of an aromatic ring is a ring fragment that is no longer closed, which the unique
+     * SMILES generator can only express by falling back to Kekulé output, so aromatic input would test the fallback
+     * rather than the round-trip. The fragmenter runs on its default settings (radius 3, smaller radii not included,
+     * no aromaticity detection).
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Test
+    public void cdkCircularRoundTripTest() throws Exception {
+        CDKCircularFragmenter tmpFragmenter = new CDKCircularFragmenter();
+        String[] tmpSmilesArray = {"O=C(O)CCCCCC", "OCC1OC(O)C(O)C(O)C1O"};
+        for (String tmpSmiles : tmpSmilesArray) {
+            IAtomContainer tmpMolecule = ChemUtil.parseSmilesToAtomContainer(tmpSmiles, false, false);
+            Assertions.assertFalse(tmpFragmenter.shouldBeFiltered(tmpMolecule));
+            Assertions.assertFalse(tmpFragmenter.shouldBePreprocessed(tmpMolecule));
+            Assertions.assertTrue(tmpFragmenter.canBeFragmented(tmpMolecule));
+            List<IAtomContainer> tmpFragments = tmpFragmenter.fragmentMolecule(tmpMolecule);
+            Assertions.assertFalse(tmpFragments.isEmpty());
+            //the CDK circular fragmenter does not tag its fragments with the fragment-category property
+            this.assertFragmentsRoundTrip(tmpFragments, false);
+        }
+    }
     //</editor-fold>
     //
     //<editor-fold desc="Private methods" defaultstate="collapsed">
@@ -198,7 +223,8 @@ public class FragmentationRoundTripTest {
      * @param aFragmentList the list of fragments produced by a fragmenter (must be non-empty)
      * @param anExpectFragmentCategory whether every fragment is expected to carry the fragment-category property; the
      *                                 Ertl, SugarRemovalUtility and ScaffoldGenerator fragmenters tag their fragments
-     *                                 with it, whereas MolWURCS does not set it, so this is gated per algorithm
+     *                                 with it, whereas MolWURCS and the CDK circular fragmenter do not set it, so this
+     *                                 is gated per algorithm
      * @throws Exception if anything goes wrong while regenerating or re-parsing SMILES
      */
     private void assertFragmentsRoundTrip(List<IAtomContainer> aFragmentList, boolean anExpectFragmentCategory)
