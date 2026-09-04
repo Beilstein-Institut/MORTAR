@@ -74,11 +74,6 @@ import java.util.concurrent.atomic.AtomicReference;
 public class MainViewControllerExportTest extends AbstractFxTestCase {
     //<editor-fold desc="Private static final class constants" defaultstate="collapsed">
     /**
-     * A minimal, valid single-molecule SMILES line (benzene) written to a temporary {@code .smi} file so the real
-     * importer produces exactly one molecule without depending on any committed test resource.
-     */
-    private static final String BENZENE_SMILES_LINE = "c1ccccc1 benzene\n";
-    /**
      * The fragmentation name used as the result-tab title suffix and fragment-map key throughout these tests.
      */
     private static final String FRAGMENTATION_NAME = "TestFragmentation";
@@ -109,7 +104,7 @@ public class MainViewControllerExportTest extends AbstractFxTestCase {
     @Test
     public void areExportPreconditionsMetMoleculesTabSelectedAbortsTest(@TempDir Path aTempDir) throws Exception {
         File tmpSmilesFile = Files.writeString(aTempDir.resolve("in.smi"),
-                MainViewControllerExportTest.BENZENE_SMILES_LINE).toFile();
+                MainViewControllerTestSupport.BENZENE_SMILES_LINE).toFile();
         AtomicReference<Stage> tmpStageReference = new AtomicReference<>();
         try {
             MainViewController tmpController = MainViewControllerTestSupport.constructController(tmpStageReference);

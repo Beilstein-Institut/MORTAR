@@ -70,7 +70,9 @@ final class MainViewControllerTestSupport {
     //<editor-fold desc="Private static final class constants" defaultstate="collapsed">
     /**
      * A minimal, valid single-molecule SMILES line (benzene) so a real import produces exactly one molecule without
-     * depending on any committed test resource.
+     * depending on any committed test resource. Package-private and shared: this is the single definition used by
+     * every {@link MainViewController} test class of this package, which each write it to their own temporary
+     * {@code .smi} fixture.
      */
     static final String BENZENE_SMILES_LINE = "c1ccccc1 benzene\n";
     /**
@@ -94,6 +96,11 @@ final class MainViewControllerTestSupport {
      * (stored into the given reference so the caller can hide it in a {@code finally} block) via the shared
      * {@link FxTestUtil#newMainViewController(Stage, String)} seam. The application directory is the per-test isolated
      * {@code user.home} (redirected to a {@code @TempDir} by {@link AbstractFxTestCase}), which is guaranteed to exist.
+     * <p>
+     * NOTE: this support class does NOT extend {@link AbstractFxTestCase}, so it cannot set that redirect up itself.
+     * The calling test class MUST extend {@link AbstractFxTestCase}; only then is the toolkit booted, is
+     * {@code user.home} pointed at a per-test temporary directory, and does this method construct the controller
+     * against an isolated application directory instead of the developer's real MORTAR data directory.
      *
      * @param aStageReference sink that receives the created primary stage so it can be hidden after the test
      * @return the constructed root controller
@@ -284,12 +291,13 @@ final class MainViewControllerTestSupport {
      * @param aFragmentationName the fragmentation name used as the tab title suffix and map key
      */
     static void setUpPopulatedFragmentsAndItems(MainViewController aController, String aFragmentationName) {
-        FragmentDataModel tmpFragment = new FragmentDataModel("c1ccccc1", "Benzene", new HashMap<>());
-        tmpFragment.getParentMolecules().add(new MoleculeDataModel("c1ccccc1", "BenzeneParent", new HashMap<>()));
-        ObservableList<FragmentDataModel> tmpFragmentList = FXCollections.observableArrayList(tmpFragment);
-        //a molecule that underwent the fragmentation so the itemization tab is populated; both the fragment list and
-        //the fragment-frequency map (keyed by unique SMILES) are needed for the itemization exports
+        //the molecule that underwent the fragmentation, so the itemization tab is populated; both its fragment list
+        //and its fragment-frequency map (keyed by unique SMILES) are needed for the itemization exports, and it is
+        //also the fragment's parent molecule, so the two tabs describe one consistent fragmentation
         MoleculeDataModel tmpMolecule = new MoleculeDataModel("c1ccccc1", "Benzene", new HashMap<>());
+        FragmentDataModel tmpFragment = new FragmentDataModel("c1ccccc1", "Benzene", new HashMap<>());
+        tmpFragment.getParentMolecules().add(tmpMolecule);
+        ObservableList<FragmentDataModel> tmpFragmentList = FXCollections.observableArrayList(tmpFragment);
         tmpMolecule.getAllFragments().put(aFragmentationName, new ArrayList<>(tmpFragmentList));
         Map<String, Integer> tmpFragmentFrequencies = new HashMap<>();
         tmpFragmentFrequencies.put(tmpFragment.getUniqueSmiles(), 1);
