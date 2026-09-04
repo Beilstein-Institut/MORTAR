@@ -1,0 +1,48 @@
+name: Bug Report
+description: Report a bug to help improve MORTAR
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please provide as much detail as possible to help us diagnose the issue.
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Please describe the exact steps needed to trigger the bug.
+      placeholder: 1. Open the app... 2. Click on...
+    validations:
+      required: true
+  - type: textarea
+    id: expected-actual-behavior
+    attributes:
+      label: Expected and Actual Behavior
+      description: What did you expect to happen, and what actually happened?
+      placeholder: |
+        Expected: The application should...
+        Actual: The application crashes when...
+    validations:
+      required: true
+  - type: textarea
+    id: system-info
+    attributes:
+      label: Operating System and MORTAR Version
+      description: Please specify your OS (e.g., Windows 11, macOS Sonoma, Alma Linux, ...) and the version of MORTAR you are using.
+      placeholder: e.g. Windows 11, MORTAR v1.2.3
+    validations:
+      required: true
+  - type: textarea
+    id: log-file
+    attributes:
+      label: MORTAR Log File
+      description: Please attach or paste the log file. Within the application, there is a "Log file" button in the "About" view that opens the log file directory.
+      placeholder: Paste log contents here or upload the file to the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Relevant Screenshots
+      description: Please drag and drop any screenshots that help illustrate the problem.
+      placeholder: Add screenshots here.
